@@ -371,5 +371,30 @@ jobs:
 
 ---
 
+## 🚀 Quick Setup for Auto PR Title (Optional)
+
+Want automatic PR title correction? Follow these simple steps:
+
+### 1. Copy the Example Workflow
+```bash
+cp .github/workflows/auto-pr-title.example.yml .github/workflows/auto-pr-title.yml
+```
+
+### 2. Configure Repository Secrets
+Go to your repository Settings → Secrets and variables → Actions, then add:
+
+- **`ANTHROPIC_API_KEY`**: Your Claude API key from [Anthropic Console](https://console.anthropic.com/)
+- **`ANTHROPIC_BASE_URL`**: (Optional) Custom base URL if using a proxy
+
+### 3. Customize Settings (Optional)
+Edit `.github/workflows/auto-pr-title.yml` to adjust:
+- **Mode**: `auto` (updates titles) or `suggest` (adds comments)
+- **AI Model**: Choose your preferred Claude model
+- **Validation Rules**: Customize allowed types, max length, etc.
+
+That's it! 🎉 Your PRs will now get automatic conventional commit titles.
+
+---
+
 **Made with ❤️ for better commit hygiene**
 test change

@@ -1,3 +1,12 @@
+# Example: Auto PR Title with Conventional Commits
+# 
+# To use this workflow:
+# 1. Copy this file to .github/workflows/auto-pr-title.yml
+# 2. Configure repository secrets:
+#    - ANTHROPIC_API_KEY: Your Claude API key from Anthropic Console
+#    - ANTHROPIC_BASE_URL: (Optional) Custom base URL if using proxy
+# 3. Adjust the configuration parameters below as needed
+
 name: Auto PR Title with Conventional Commits
 
 on:
@@ -7,6 +16,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  metadata: read
 
 jobs:
   auto-conventional-title:
@@ -17,14 +27,14 @@ jobs:
         uses: actions/checkout@v4
         
       - name: Auto-generate conventional PR title
-        uses: ./
+        uses: overtrue/conventional-pr-title@main
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           ai-provider: 'anthropic'
           api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-          base-url: ${{ secrets.ANTHROPIC_BASE_URL }}
+          base-url: ${{ secrets.ANTHROPIC_BASE_URL }}  # Optional
           model: 'claude-3-5-sonnet-20241022'
-          mode: 'auto'
+          mode: 'auto'  # Use 'suggest' for comments instead of auto-update
           temperature: '0.3'
           max-tokens: '200'
           include-scope: 'true'
