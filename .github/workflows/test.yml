@@ -1,0 +1,38 @@
+
+# 仅保留手动测试 workflow，自动 PR 校验和多场景测试已由 test-action.yml 覆盖
+name: Test Conventional PR Title Action (Manual)
+on:
+  workflow_dispatch:
+    inputs:
+      api-key:
+        description: 'API key for the selected AI provider'
+        required: true
+        type: string
+      ai-provider:
+        description: 'AI provider to use (openai, anthropic, google, mistral, xai, cohere, azure)'
+        required: false
+        default: 'openai'
+        type: string
+      model:
+        description: 'AI model to use (optional)'
+        required: false
+        default: ''
+        type: string
+      mode:
+        description: 'Operation mode: auto or suggest'
+        required: false
+        default: 'suggest'
+        type: string
+jobs:
+  test-action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Conventional PR Title Action
+        uses: ./
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          api-key: ${{ inputs.api-key }}
+          ai-provider: ${{ inputs.ai-provider }}
+          model: ${{ inputs.model }}
+          mode: ${{ inputs.mode }}
