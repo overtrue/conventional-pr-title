@@ -35,12 +35,17 @@ export interface GitHubService {
 }
 
 export class OctokitGitHubService implements GitHubService {
-  private octokit: ReturnType<typeof getOctokit>
+  private _octokit: ReturnType<typeof getOctokit>
   private owner: string
   private repo: string
 
+  // Public getter for octokit instance
+  get octokit() {
+    return this._octokit
+  }
+
   constructor(config: GitHubConfig) {
-    this.octokit = getOctokit(config.token)
+    this._octokit = getOctokit(config.token)
 
     // Use provided owner/repo or get from context
     this.owner = config.owner !== undefined ? config.owner : context.repo.owner
@@ -55,7 +60,7 @@ export class OctokitGitHubService implements GitHubService {
 
   async getPRInfo(prNumber: number): Promise<PRInfo> {
     try {
-      const { data: pr } = await this.octokit.rest.pulls.get({
+      const { data: pr } = await this._octokit.rest.pulls.get({
         owner: this.owner,
         repo: this.repo,
         pull_number: prNumber
@@ -82,7 +87,7 @@ export class OctokitGitHubService implements GitHubService {
 
   async updatePRTitle(prNumber: number, newTitle: string): Promise<void> {
     try {
-      await this.octokit.rest.pulls.update({
+      await this._octokit.rest.pulls.update({
         owner: this.owner,
         repo: this.repo,
         pull_number: prNumber,
@@ -97,7 +102,7 @@ export class OctokitGitHubService implements GitHubService {
 
   async createComment(prNumber: number, body: string): Promise<PRComment> {
     try {
-      const { data: comment } = await this.octokit.rest.issues.createComment({
+      const { data: comment } = await this._octokit.rest.issues.createComment({
         owner: this.owner,
         repo: this.repo,
         issue_number: prNumber,
@@ -119,7 +124,7 @@ export class OctokitGitHubService implements GitHubService {
 
   async getChangedFiles(prNumber: number): Promise<string[]> {
     try {
-      const { data: files } = await this.octokit.rest.pulls.listFiles({
+      const { data: files } = await this._octokit.rest.pulls.listFiles({
         owner: this.owner,
         repo: this.repo,
         pull_number: prNumber
@@ -136,14 +141,14 @@ export class OctokitGitHubService implements GitHubService {
   async checkPermissions(): Promise<boolean> {
     try {
       // Try to get repository info to check read permissions
-      await this.octokit.rest.repos.get({
+      await this._octokit.rest.repos.get({
         owner: this.owner,
         repo: this.repo
       })
 
       // Try to check if we have write permissions by getting the current user's permission level
       const { data: permission } =
-        await this.octokit.rest.repos.getCollaboratorPermissionLevel({
+        await this._octokit.rest.repos.getCollaboratorPermissionLevel({
           owner: this.owner,
           repo: this.repo,
           username: await this.getCurrentUser()
@@ -158,7 +163,7 @@ export class OctokitGitHubService implements GitHubService {
 
   private async getCurrentUser(): Promise<string> {
     try {
-      const { data: user } = await this.octokit.rest.users.getAuthenticated()
+      const { data: user } = await this._octokit.rest.users.getAuthenticated()
       return user.login
     } catch (error) {
       throw new Error(

@@ -7,16 +7,19 @@ export interface AIServiceConfig {
     maxTokens?: number;
     temperature?: number;
     maxRetries?: number;
+    debug?: boolean;
 }
 export interface TitleGenerationRequest {
     originalTitle: string;
     prDescription?: string;
     prBody?: string;
+    diffContent?: string;
     changedFiles?: string[];
     options?: {
         includeScope?: boolean;
         preferredTypes?: string[];
         maxLength?: number;
+        language?: string;
     };
 }
 export interface TitleGenerationResponse {
@@ -32,6 +35,8 @@ export declare class VercelAIService implements AIService {
     private config;
     private modelCache;
     constructor(config: AIServiceConfig);
+    private debugLog;
+    private errorLog;
     generateTitle(request: TitleGenerationRequest): Promise<TitleGenerationResponse>;
     isHealthy(): Promise<boolean>;
     private callAI;

@@ -75,6 +75,10 @@ inputs:
     description: 'Custom base URL for AI provider (for proxy/custom endpoints)'
     required: false
     default: ''
+  debug:
+    description: 'Enable debug logging for troubleshooting'
+    required: false
+    default: 'false'
 
 outputs:
   is-conventional:

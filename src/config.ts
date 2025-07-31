@@ -52,6 +52,7 @@ export interface ActionConfig {
   // Behavior Control
   skipIfConventional: boolean
   commentTemplate?: string
+  debug: boolean
 }
 
 export interface ConfigError {
@@ -112,6 +113,7 @@ export class ActionConfigManager {
       // Behavior Control
       const skipIfConventional = getBooleanInput('skip-if-conventional')
       const commentTemplate = getInput('comment-template') || undefined
+      const debug = getBooleanInput('debug')
 
       // If there are validation errors, throw them
       if (this.errors.length > 0) {
@@ -131,7 +133,8 @@ export class ActionConfigManager {
         customPrompt,
         includeScope,
         skipIfConventional,
-        commentTemplate
+        commentTemplate,
+        debug
       }
 
       return this.config
@@ -469,7 +472,8 @@ export function createAIServiceConfig(config: ActionConfig): AIServiceConfig {
     model: config.model,
     baseURL: config.baseURL,
     temperature: config.temperature,
-    maxTokens: config.maxTokens
+    maxTokens: config.maxTokens,
+    debug: config.debug
   }
 }
 

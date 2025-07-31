@@ -8,8 +8,12 @@ exports.withRetry = withRetry;
 const github_1 = require("@actions/github");
 const github_2 = require("@actions/github");
 class OctokitGitHubService {
+    // Public getter for octokit instance
+    get octokit() {
+        return this._octokit;
+    }
     constructor(config) {
-        this.octokit = (0, github_1.getOctokit)(config.token);
+        this._octokit = (0, github_1.getOctokit)(config.token);
         // Use provided owner/repo or get from context
         this.owner = config.owner !== undefined ? config.owner : github_2.context.repo.owner;
         this.repo = config.repo !== undefined ? config.repo : github_2.context.repo.repo;
@@ -20,7 +24,7 @@ class OctokitGitHubService {
     async getPRInfo(prNumber) {
         var _a;
         try {
-            const { data: pr } = await this.octokit.rest.pulls.get({
+            const { data: pr } = await this._octokit.rest.pulls.get({
                 owner: this.owner,
                 repo: this.repo,
                 pull_number: prNumber
@@ -42,7 +46,7 @@ class OctokitGitHubService {
     }
     async updatePRTitle(prNumber, newTitle) {
         try {
-            await this.octokit.rest.pulls.update({
+            await this._octokit.rest.pulls.update({
                 owner: this.owner,
                 repo: this.repo,
                 pull_number: prNumber,
@@ -56,7 +60,7 @@ class OctokitGitHubService {
     async createComment(prNumber, body) {
         var _a;
         try {
-            const { data: comment } = await this.octokit.rest.issues.createComment({
+            const { data: comment } = await this._octokit.rest.issues.createComment({
                 owner: this.owner,
                 repo: this.repo,
                 issue_number: prNumber,
@@ -75,7 +79,7 @@ class OctokitGitHubService {
     }
     async getChangedFiles(prNumber) {
         try {
-            const { data: files } = await this.octokit.rest.pulls.listFiles({
+            const { data: files } = await this._octokit.rest.pulls.listFiles({
                 owner: this.owner,
                 repo: this.repo,
                 pull_number: prNumber
@@ -89,12 +93,12 @@ class OctokitGitHubService {
     async checkPermissions() {
         try {
             // Try to get repository info to check read permissions
-            await this.octokit.rest.repos.get({
+            await this._octokit.rest.repos.get({
                 owner: this.owner,
                 repo: this.repo
             });
             // Try to check if we have write permissions by getting the current user's permission level
-            const { data: permission } = await this.octokit.rest.repos.getCollaboratorPermissionLevel({
+            const { data: permission } = await this._octokit.rest.repos.getCollaboratorPermissionLevel({
                 owner: this.owner,
                 repo: this.repo,
                 username: await this.getCurrentUser()
@@ -108,7 +112,7 @@ class OctokitGitHubService {
     }
     async getCurrentUser() {
         try {
-            const { data: user } = await this.octokit.rest.users.getAuthenticated();
+            const { data: user } = await this._octokit.rest.users.getAuthenticated();
             return user.login;
         }
         catch (error) {

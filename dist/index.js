@@ -54984,8 +54984,32 @@ class VercelAIService {
             maxTokens: 500,
             temperature: 0.3,
             maxRetries: 3,
+            debug: false,
             ...config
         };
+    }
+    debugLog(message, data) {
+        if (!this.config.debug)
+            return;
+        const timestamp = new Date().toISOString();
+        const prefix = `🤖 [AI-DEBUG ${timestamp}]`;
+        if (data) {
+            console.log(`${prefix} ${message}:`);
+            console.log(JSON.stringify(data, null, 2));
+        }
+        else {
+            console.log(`${prefix} ${message}`);
+        }
+    }
+    errorLog(message, error) {
+        if (!this.config.debug)
+            return;
+        const timestamp = new Date().toISOString();
+        const prefix = `❌ [AI-ERROR ${timestamp}]`;
+        console.error(`${prefix} ${message}`);
+        if (error) {
+            console.error(error);
+        }
     }
     async generateTitle(request) {
         const maxRetries = this.config.maxRetries || 3;
@@ -54994,27 +55018,18 @@ class VercelAIService {
             try {
                 const prompt = this.buildPrompt(request);
                 const systemMessage = this.buildSystemMessage(request.options);
-                // Debug log: show attempt, prompt, system message
-                // eslint-disable-next-line no-console
-                console.log(`[AI DEBUG] Attempt ${attempt + 1}/${maxRetries + 1}`);
-                // eslint-disable-next-line no-console
-                console.log('[AI DEBUG] Prompt:', prompt);
-                // eslint-disable-next-line no-console
-                console.log('[AI DEBUG] System message:', systemMessage);
+                this.debugLog(`Attempt ${attempt + 1}/${maxRetries + 1}`);
+                this.debugLog('System message', systemMessage);
+                this.debugLog('User prompt', prompt);
                 const result = await this.callAI(prompt, systemMessage);
-                // Debug log: raw AI response
-                // eslint-disable-next-line no-console
-                console.log('[AI DEBUG] Raw AI response:', result.text);
+                this.debugLog('Raw AI response', result.text);
                 return this.parseResponse(result.text);
             }
             catch (error) {
                 lastError = error instanceof Error ? error : new Error(String(error));
-                // Debug log: error on this attempt
-                // eslint-disable-next-line no-console
-                console.error(`[AI ERROR] Attempt ${attempt + 1} failed:`, lastError);
+                this.errorLog(`Attempt ${attempt + 1} failed`, lastError);
                 if (attempt < maxRetries) {
-                    // eslint-disable-next-line no-console
-                    console.log(`[AI DEBUG] Retrying after error, attempt ${attempt + 2}...`);
+                    this.debugLog(`Retrying after error, attempt ${attempt + 2}...`);
                     await this.delay(Math.pow(2, attempt) * 1000);
                 }
             }
@@ -55109,6 +55124,7 @@ class VercelAIService {
         const allowedTypes = (options === null || options === void 0 ? void 0 : options.preferredTypes) || conventional_1.DEFAULT_TYPES;
         const maxLength = (options === null || options === void 0 ? void 0 : options.maxLength) || 72;
         const includeScope = (options === null || options === void 0 ? void 0 : options.includeScope) ? 'MUST include' : 'MAY include';
+        const language = (options === null || options === void 0 ? void 0 : options.language) || 'English';
         return `You are an expert at creating Conventional Commits titles for Pull Requests.
 
 Your task is to analyze a PR title and content, then suggest 1-3 improved titles that follow the Conventional Commits standard.
@@ -55120,29 +55136,35 @@ RULES:
 4. Description: lowercase, no period, max ${maxLength} chars total
 5. Be specific and descriptive
 6. Focus on WHAT changed, not HOW
+7. Respond in ${language}, but keep the conventional commit format in English
 
 RESPONSE FORMAT:
 Return a JSON object with:
 {
   "suggestions": ["title1", "title2", "title3"],
-  "reasoning": "explanation of why these titles are better",
+  "reasoning": "explanation of why these titles are better (in ${language})",
   "confidence": 0.9
 }
 
 Only return valid JSON, no additional text.`;
     }
     buildPrompt(request) {
-        const { originalTitle, prDescription, prBody, changedFiles } = request;
+        const { originalTitle, prDescription, prBody, diffContent, changedFiles } = request;
         let prompt = `Original PR Title: "${originalTitle}"\n\n`;
-        if (prDescription) {
-            prompt += `PR Description: ${prDescription}\n\n`;
+        if (prDescription && prDescription.trim()) {
+            prompt += `PR Description: ${prDescription.trim()}\n\n`;
         }
-        if (prBody) {
-            prompt += `PR Body: ${prBody.slice(0, 1000)}${prBody.length > 1000 ? '...' : ''}\n\n`;
+        if (prBody && prBody.trim()) {
+            const body = prBody.slice(0, 1500);
+            prompt += `PR Body: ${body}${prBody.length > 1500 ? '...' : ''}\n\n`;
+        }
+        if (diffContent && diffContent.trim()) {
+            const diff = diffContent.slice(0, 2000);
+            prompt += `Code Changes (diff):\n${diff}${diffContent.length > 2000 ? '...' : ''}\n\n`;
         }
         if (changedFiles && changedFiles.length > 0) {
             prompt += `Changed Files:\n${changedFiles
-                .slice(0, 10)
+                .slice(0, 15)
                 .map(f => `- ${f}`)
                 .join('\n')}\n\n`;
         }
@@ -55150,9 +55172,7 @@ Only return valid JSON, no additional text.`;
         return prompt;
     }
     parseResponse(text) {
-        // Debug log: always print raw text
-        // eslint-disable-next-line no-console
-        console.log('[AI DEBUG] parseResponse: raw text:', text);
+        this.debugLog('parseResponse: raw text', text);
         try {
             // More aggressive cleaning - remove code blocks, extra whitespace, and common prefixes
             let cleanText = text
@@ -55166,13 +55186,9 @@ Only return valid JSON, no additional text.`;
                     cleanText = jsonMatch[0];
                 }
             }
-            // Debug log: cleaned JSON string
-            // eslint-disable-next-line no-console
-            console.log('[AI DEBUG] parseResponse: cleaned JSON string:', cleanText);
+            this.debugLog('parseResponse: cleaned JSON string', cleanText);
             const parsed = JSON.parse(cleanText);
-            // Debug log: parsed JSON object
-            // eslint-disable-next-line no-console
-            console.log('[AI DEBUG] parseResponse: parsed JSON:', parsed);
+            this.debugLog('parseResponse: parsed JSON', parsed);
             return {
                 suggestions: Array.isArray(parsed.suggestions)
                     ? parsed.suggestions
@@ -55182,11 +55198,8 @@ Only return valid JSON, no additional text.`;
             };
         }
         catch (error) {
-            // Debug log: JSON parse error and cleaned string
-            // eslint-disable-next-line no-console
-            console.error('[AI ERROR] parseResponse JSON parse error:', error);
-            // eslint-disable-next-line no-console
-            console.error('[AI ERROR] parseResponse: cleaned JSON string:', text);
+            this.errorLog('parseResponse JSON parse error', error);
+            this.errorLog('parseResponse: cleaned JSON string', text);
             const suggestions = this.extractSuggestionsFromText(text);
             return {
                 suggestions,
@@ -55322,6 +55335,7 @@ class ActionConfigManager {
             // Behavior Control
             const skipIfConventional = (0, core_1.getBooleanInput)('skip-if-conventional');
             const commentTemplate = (0, core_1.getInput)('comment-template') || undefined;
+            const debug = (0, core_1.getBooleanInput)('debug');
             // If there are validation errors, throw them
             if (this.errors.length > 0) {
                 throw new ConfigurationError(this.errors);
@@ -55339,7 +55353,8 @@ class ActionConfigManager {
                 customPrompt,
                 includeScope,
                 skipIfConventional,
-                commentTemplate
+                commentTemplate,
+                debug
             };
             return this.config;
         }
@@ -55609,7 +55624,8 @@ function createAIServiceConfig(config) {
         model: config.model,
         baseURL: config.baseURL,
         temperature: config.temperature,
-        maxTokens: config.maxTokens
+        maxTokens: config.maxTokens,
+        debug: config.debug
     };
 }
 function shouldSkipProcessing(config, isConventional) {
@@ -55839,8 +55855,12 @@ exports.withRetry = withRetry;
 const github_1 = __nccwpck_require__(3228);
 const github_2 = __nccwpck_require__(3228);
 class OctokitGitHubService {
+    // Public getter for octokit instance
+    get octokit() {
+        return this._octokit;
+    }
     constructor(config) {
-        this.octokit = (0, github_1.getOctokit)(config.token);
+        this._octokit = (0, github_1.getOctokit)(config.token);
         // Use provided owner/repo or get from context
         this.owner = config.owner !== undefined ? config.owner : github_2.context.repo.owner;
         this.repo = config.repo !== undefined ? config.repo : github_2.context.repo.repo;
@@ -55851,7 +55871,7 @@ class OctokitGitHubService {
     async getPRInfo(prNumber) {
         var _a;
         try {
-            const { data: pr } = await this.octokit.rest.pulls.get({
+            const { data: pr } = await this._octokit.rest.pulls.get({
                 owner: this.owner,
                 repo: this.repo,
                 pull_number: prNumber
@@ -55873,7 +55893,7 @@ class OctokitGitHubService {
     }
     async updatePRTitle(prNumber, newTitle) {
         try {
-            await this.octokit.rest.pulls.update({
+            await this._octokit.rest.pulls.update({
                 owner: this.owner,
                 repo: this.repo,
                 pull_number: prNumber,
@@ -55887,7 +55907,7 @@ class OctokitGitHubService {
     async createComment(prNumber, body) {
         var _a;
         try {
-            const { data: comment } = await this.octokit.rest.issues.createComment({
+            const { data: comment } = await this._octokit.rest.issues.createComment({
                 owner: this.owner,
                 repo: this.repo,
                 issue_number: prNumber,
@@ -55906,7 +55926,7 @@ class OctokitGitHubService {
     }
     async getChangedFiles(prNumber) {
         try {
-            const { data: files } = await this.octokit.rest.pulls.listFiles({
+            const { data: files } = await this._octokit.rest.pulls.listFiles({
                 owner: this.owner,
                 repo: this.repo,
                 pull_number: prNumber
@@ -55920,12 +55940,12 @@ class OctokitGitHubService {
     async checkPermissions() {
         try {
             // Try to get repository info to check read permissions
-            await this.octokit.rest.repos.get({
+            await this._octokit.rest.repos.get({
                 owner: this.owner,
                 repo: this.repo
             });
             // Try to check if we have write permissions by getting the current user's permission level
-            const { data: permission } = await this.octokit.rest.repos.getCollaboratorPermissionLevel({
+            const { data: permission } = await this._octokit.rest.repos.getCollaboratorPermissionLevel({
                 owner: this.owner,
                 repo: this.repo,
                 username: await this.getCurrentUser()
@@ -55939,7 +55959,7 @@ class OctokitGitHubService {
     }
     async getCurrentUser() {
         try {
-            const { data: user } = await this.octokit.rest.users.getAuthenticated();
+            const { data: user } = await this._octokit.rest.users.getAuthenticated();
             return user.login;
         }
         catch (error) {
@@ -64370,6 +64390,37 @@ const conventional_1 = __nccwpck_require__(7921);
 const ai_service_1 = __nccwpck_require__(6771);
 const github_service_1 = __nccwpck_require__(9590);
 /**
+ * Detect the language of the PR title
+ */
+function detectLanguage(title) {
+    // Simple language detection based on character patterns
+    const chineseRegex = /[\u4e00-\u9fff]/;
+    const japaneseRegex = /[\u3040-\u309f\u30a0-\u30ff]/;
+    const koreanRegex = /[\uac00-\ud7af]/;
+    const arabicRegex = /[\u0600-\u06ff]/;
+    const russianRegex = /[\u0400-\u04ff]/;
+    const frenchRegex = /[àâäçéèêëïîôöùûüÿæœ]/i;
+    const germanRegex = /[äöüß]/i;
+    const spanishRegex = /[ñáéíóúü]/i;
+    if (chineseRegex.test(title))
+        return '中文';
+    if (japaneseRegex.test(title))
+        return '日本語';
+    if (koreanRegex.test(title))
+        return '한국어';
+    if (arabicRegex.test(title))
+        return 'العربية';
+    if (russianRegex.test(title))
+        return 'Русский';
+    if (frenchRegex.test(title))
+        return 'Français';
+    if (germanRegex.test(title))
+        return 'Deutsch';
+    if (spanishRegex.test(title))
+        return 'Español';
+    return 'English';
+}
+/**
  * Main entry point for the GitHub Action
  */
 async function run() {
@@ -64446,22 +64497,56 @@ async function run() {
         }
         // Get additional context for AI generation
         let changedFiles = [];
+        let prInfo = null;
+        let diffContent = '';
         try {
+            // Get PR details
+            prInfo = await githubService.getPRInfo(prNumber);
+            // Get changed files
             changedFiles = await githubService.getChangedFiles(prNumber);
             (0, core_1.debug)(`Found ${changedFiles.length} changed files`);
+            // Get diff content if there are changed files
+            if (changedFiles.length > 0) {
+                try {
+                    const { data: compareData } = await githubService.octokit.rest.repos.compareCommits({
+                        owner: github_1.context.repo.owner,
+                        repo: github_1.context.repo.repo,
+                        base: pullRequest.base.sha,
+                        head: pullRequest.head.sha
+                    });
+                    if (compareData.files && compareData.files.length > 0) {
+                        // Get patch content from first few files
+                        diffContent = compareData.files
+                            .slice(0, 5) // Limit to first 5 files to avoid token limits
+                            .map(file => `--- ${file.filename}\n${file.patch || ''}`)
+                            .join('\n\n')
+                            .slice(0, 3000); // Limit total diff size
+                    }
+                }
+                catch (diffError) {
+                    (0, core_1.debug)(`Failed to get diff: ${diffError instanceof Error ? diffError.message : 'Unknown error'}`);
+                }
+            }
         }
         catch (error) {
-            (0, core_1.warning)(`Failed to get changed files: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            (0, core_1.warning)(`Failed to get PR context: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
+        // Detect language from PR title
+        const detectedLanguage = detectLanguage(currentTitle);
+        (0, core_1.debug)(`Detected language: ${detectedLanguage}`);
         // Generate AI suggestions
         (0, core_1.info)('Generating AI-powered title suggestions...');
         const aiResponse = await aiService.generateTitle({
             originalTitle: currentTitle,
+            prDescription: (prInfo === null || prInfo === void 0 ? void 0 : prInfo.body) || undefined,
+            prBody: (prInfo === null || prInfo === void 0 ? void 0 : prInfo.body) || undefined,
+            diffContent: diffContent || undefined,
             changedFiles: changedFiles.slice(0, 20), // Limit to first 20 files to avoid token limits
             options: {
                 includeScope: config.includeScope,
                 preferredTypes: config.validationOptions.allowedTypes,
-                maxLength: config.validationOptions.maxLength
+                maxLength: config.validationOptions.maxLength,
+                language: detectedLanguage
             }
         });
         const suggestedTitles = aiResponse.suggestions;

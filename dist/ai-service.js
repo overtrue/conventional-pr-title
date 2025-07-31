@@ -20,8 +20,32 @@ class VercelAIService {
             maxTokens: 500,
             temperature: 0.3,
             maxRetries: 3,
+            debug: false,
             ...config
         };
+    }
+    debugLog(message, data) {
+        if (!this.config.debug)
+            return;
+        const timestamp = new Date().toISOString();
+        const prefix = `🤖 [AI-DEBUG ${timestamp}]`;
+        if (data) {
+            console.log(`${prefix} ${message}:`);
+            console.log(JSON.stringify(data, null, 2));
+        }
+        else {
+            console.log(`${prefix} ${message}`);
+        }
+    }
+    errorLog(message, error) {
+        if (!this.config.debug)
+            return;
+        const timestamp = new Date().toISOString();
+        const prefix = `❌ [AI-ERROR ${timestamp}]`;
+        console.error(`${prefix} ${message}`);
+        if (error) {
+            console.error(error);
+        }
     }
     async generateTitle(request) {
         const maxRetries = this.config.maxRetries || 3;
@@ -30,27 +54,18 @@ class VercelAIService {
             try {
                 const prompt = this.buildPrompt(request);
                 const systemMessage = this.buildSystemMessage(request.options);
-                // Debug log: show attempt, prompt, system message
-                // eslint-disable-next-line no-console
-                console.log(`[AI DEBUG] Attempt ${attempt + 1}/${maxRetries + 1}`);
-                // eslint-disable-next-line no-console
-                console.log('[AI DEBUG] Prompt:', prompt);
-                // eslint-disable-next-line no-console
-                console.log('[AI DEBUG] System message:', systemMessage);
+                this.debugLog(`Attempt ${attempt + 1}/${maxRetries + 1}`);
+                this.debugLog('System message', systemMessage);
+                this.debugLog('User prompt', prompt);
                 const result = await this.callAI(prompt, systemMessage);
-                // Debug log: raw AI response
-                // eslint-disable-next-line no-console
-                console.log('[AI DEBUG] Raw AI response:', result.text);
+                this.debugLog('Raw AI response', result.text);
                 return this.parseResponse(result.text);
             }
             catch (error) {
                 lastError = error instanceof Error ? error : new Error(String(error));
-                // Debug log: error on this attempt
-                // eslint-disable-next-line no-console
-                console.error(`[AI ERROR] Attempt ${attempt + 1} failed:`, lastError);
+                this.errorLog(`Attempt ${attempt + 1} failed`, lastError);
                 if (attempt < maxRetries) {
-                    // eslint-disable-next-line no-console
-                    console.log(`[AI DEBUG] Retrying after error, attempt ${attempt + 2}...`);
+                    this.debugLog(`Retrying after error, attempt ${attempt + 2}...`);
                     await this.delay(Math.pow(2, attempt) * 1000);
                 }
             }
@@ -145,6 +160,7 @@ class VercelAIService {
         const allowedTypes = (options === null || options === void 0 ? void 0 : options.preferredTypes) || conventional_1.DEFAULT_TYPES;
         const maxLength = (options === null || options === void 0 ? void 0 : options.maxLength) || 72;
         const includeScope = (options === null || options === void 0 ? void 0 : options.includeScope) ? 'MUST include' : 'MAY include';
+        const language = (options === null || options === void 0 ? void 0 : options.language) || 'English';
         return `You are an expert at creating Conventional Commits titles for Pull Requests.
 
 Your task is to analyze a PR title and content, then suggest 1-3 improved titles that follow the Conventional Commits standard.
@@ -156,29 +172,35 @@ RULES:
 4. Description: lowercase, no period, max ${maxLength} chars total
 5. Be specific and descriptive
 6. Focus on WHAT changed, not HOW
+7. Respond in ${language}, but keep the conventional commit format in English
 
 RESPONSE FORMAT:
 Return a JSON object with:
 {
   "suggestions": ["title1", "title2", "title3"],
-  "reasoning": "explanation of why these titles are better",
+  "reasoning": "explanation of why these titles are better (in ${language})",
   "confidence": 0.9
 }
 
 Only return valid JSON, no additional text.`;
     }
     buildPrompt(request) {
-        const { originalTitle, prDescription, prBody, changedFiles } = request;
+        const { originalTitle, prDescription, prBody, diffContent, changedFiles } = request;
         let prompt = `Original PR Title: "${originalTitle}"\n\n`;
-        if (prDescription) {
-            prompt += `PR Description: ${prDescription}\n\n`;
+        if (prDescription && prDescription.trim()) {
+            prompt += `PR Description: ${prDescription.trim()}\n\n`;
         }
-        if (prBody) {
-            prompt += `PR Body: ${prBody.slice(0, 1000)}${prBody.length > 1000 ? '...' : ''}\n\n`;
+        if (prBody && prBody.trim()) {
+            const body = prBody.slice(0, 1500);
+            prompt += `PR Body: ${body}${prBody.length > 1500 ? '...' : ''}\n\n`;
+        }
+        if (diffContent && diffContent.trim()) {
+            const diff = diffContent.slice(0, 2000);
+            prompt += `Code Changes (diff):\n${diff}${diffContent.length > 2000 ? '...' : ''}\n\n`;
         }
         if (changedFiles && changedFiles.length > 0) {
             prompt += `Changed Files:\n${changedFiles
-                .slice(0, 10)
+                .slice(0, 15)
                 .map(f => `- ${f}`)
                 .join('\n')}\n\n`;
         }
@@ -186,9 +208,7 @@ Only return valid JSON, no additional text.`;
         return prompt;
     }
     parseResponse(text) {
-        // Debug log: always print raw text
-        // eslint-disable-next-line no-console
-        console.log('[AI DEBUG] parseResponse: raw text:', text);
+        this.debugLog('parseResponse: raw text', text);
         try {
             // More aggressive cleaning - remove code blocks, extra whitespace, and common prefixes
             let cleanText = text
@@ -202,13 +222,9 @@ Only return valid JSON, no additional text.`;
                     cleanText = jsonMatch[0];
                 }
             }
-            // Debug log: cleaned JSON string
-            // eslint-disable-next-line no-console
-            console.log('[AI DEBUG] parseResponse: cleaned JSON string:', cleanText);
+            this.debugLog('parseResponse: cleaned JSON string', cleanText);
             const parsed = JSON.parse(cleanText);
-            // Debug log: parsed JSON object
-            // eslint-disable-next-line no-console
-            console.log('[AI DEBUG] parseResponse: parsed JSON:', parsed);
+            this.debugLog('parseResponse: parsed JSON', parsed);
             return {
                 suggestions: Array.isArray(parsed.suggestions)
                     ? parsed.suggestions
@@ -218,11 +234,8 @@ Only return valid JSON, no additional text.`;
             };
         }
         catch (error) {
-            // Debug log: JSON parse error and cleaned string
-            // eslint-disable-next-line no-console
-            console.error('[AI ERROR] parseResponse JSON parse error:', error);
-            // eslint-disable-next-line no-console
-            console.error('[AI ERROR] parseResponse: cleaned JSON string:', text);
+            this.errorLog('parseResponse JSON parse error', error);
+            this.errorLog('parseResponse: cleaned JSON string', text);
             const suggestions = this.extractSuggestionsFromText(text);
             return {
                 suggestions,

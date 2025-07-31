@@ -28,9 +28,12 @@ export interface GitHubService {
     checkPermissions(): Promise<boolean>;
 }
 export declare class OctokitGitHubService implements GitHubService {
-    private octokit;
+    private _octokit;
     private owner;
     private repo;
+    get octokit(): import("@octokit/core").Octokit & import("@octokit/plugin-rest-endpoint-methods/dist-types/types").Api & {
+        paginate: import("@octokit/plugin-paginate-rest").PaginateInterface;
+    };
     constructor(config: GitHubConfig);
     getPRInfo(prNumber: number): Promise<PRInfo>;
     updatePRTitle(prNumber: number, newTitle: string): Promise<void>;

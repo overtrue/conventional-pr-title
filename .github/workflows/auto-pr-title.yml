@@ -38,3 +38,4 @@ jobs:
           skip-if-conventional: 'true'
           allowed-types: 'feat,fix,docs,style,refactor,test,chore,perf,ci,build,revert'
           max-length: '72'
+          debug: 'true'

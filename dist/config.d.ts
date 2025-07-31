@@ -36,6 +36,7 @@ export interface ActionConfig {
     includeScope: boolean;
     skipIfConventional: boolean;
     commentTemplate?: string;
+    debug: boolean;
 }
 export interface ConfigError {
     field: string;

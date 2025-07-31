@@ -14,6 +14,32 @@ import { VercelAIService } from './ai-service'
 import { OctokitGitHubService } from './github-service'
 
 /**
+ * Detect the language of the PR title
+ */
+function detectLanguage(title: string): string {
+  // Simple language detection based on character patterns
+  const chineseRegex = /[\u4e00-\u9fff]/
+  const japaneseRegex = /[\u3040-\u309f\u30a0-\u30ff]/
+  const koreanRegex = /[\uac00-\ud7af]/
+  const arabicRegex = /[\u0600-\u06ff]/
+  const russianRegex = /[\u0400-\u04ff]/
+  const frenchRegex = /[àâäçéèêëïîôöùûüÿæœ]/i
+  const germanRegex = /[äöüß]/i
+  const spanishRegex = /[ñáéíóúü]/i
+  
+  if (chineseRegex.test(title)) return '中文'
+  if (japaneseRegex.test(title)) return '日本語'
+  if (koreanRegex.test(title)) return '한국어'
+  if (arabicRegex.test(title)) return 'العربية'
+  if (russianRegex.test(title)) return 'Русский'
+  if (frenchRegex.test(title)) return 'Français'
+  if (germanRegex.test(title)) return 'Deutsch'
+  if (spanishRegex.test(title)) return 'Español'
+  
+  return 'English'
+}
+
+/**
  * Main entry point for the GitHub Action
  */
 async function run(): Promise<void> {
@@ -117,24 +143,62 @@ async function run(): Promise<void> {
 
     // Get additional context for AI generation
     let changedFiles: string[] = []
+    let prInfo: any = null
+    let diffContent: string = ''
+    
     try {
+      // Get PR details
+      prInfo = await githubService.getPRInfo(prNumber)
+      
+      // Get changed files
       changedFiles = await githubService.getChangedFiles(prNumber)
       debug(`Found ${changedFiles.length} changed files`)
+      
+      // Get diff content if there are changed files
+      if (changedFiles.length > 0) {
+        try {
+          const { data: compareData } = await githubService.octokit.rest.repos.compareCommits({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            base: pullRequest.base.sha,
+            head: pullRequest.head.sha
+          })
+          
+          if (compareData.files && compareData.files.length > 0) {
+            // Get patch content from first few files
+            diffContent = compareData.files
+              .slice(0, 5) // Limit to first 5 files to avoid token limits
+              .map(file => `--- ${file.filename}\n${file.patch || ''}`)
+              .join('\n\n')
+              .slice(0, 3000) // Limit total diff size
+          }
+        } catch (diffError) {
+          debug(`Failed to get diff: ${diffError instanceof Error ? diffError.message : 'Unknown error'}`)
+        }
+      }
     } catch (error) {
       warning(
-        `Failed to get changed files: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to get PR context: ${error instanceof Error ? error.message : 'Unknown error'}`
       )
     }
+
+    // Detect language from PR title
+    const detectedLanguage = detectLanguage(currentTitle)
+    debug(`Detected language: ${detectedLanguage}`)
 
     // Generate AI suggestions
     info('Generating AI-powered title suggestions...')
     const aiResponse = await aiService.generateTitle({
       originalTitle: currentTitle,
+      prDescription: prInfo?.body || undefined,
+      prBody: prInfo?.body || undefined,
+      diffContent: diffContent || undefined,
       changedFiles: changedFiles.slice(0, 20), // Limit to first 20 files to avoid token limits
       options: {
         includeScope: config.includeScope,
         preferredTypes: config.validationOptions.allowedTypes,
-        maxLength: config.validationOptions.maxLength
+        maxLength: config.validationOptions.maxLength,
+        language: detectedLanguage
       }
     })
 

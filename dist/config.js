@@ -55,6 +55,7 @@ class ActionConfigManager {
             // Behavior Control
             const skipIfConventional = (0, core_1.getBooleanInput)('skip-if-conventional');
             const commentTemplate = (0, core_1.getInput)('comment-template') || undefined;
+            const debug = (0, core_1.getBooleanInput)('debug');
             // If there are validation errors, throw them
             if (this.errors.length > 0) {
                 throw new ConfigurationError(this.errors);
@@ -72,7 +73,8 @@ class ActionConfigManager {
                 customPrompt,
                 includeScope,
                 skipIfConventional,
-                commentTemplate
+                commentTemplate,
+                debug
             };
             return this.config;
         }
@@ -342,7 +344,8 @@ function createAIServiceConfig(config) {
         model: config.model,
         baseURL: config.baseURL,
         temperature: config.temperature,
-        maxTokens: config.maxTokens
+        maxTokens: config.maxTokens,
+        debug: config.debug
     };
 }
 function shouldSkipProcessing(config, isConventional) {
