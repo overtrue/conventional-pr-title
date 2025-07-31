@@ -1,12 +1,12 @@
-import { openai, createOpenAI } from '@ai-sdk/openai'
 import { anthropic, createAnthropic } from '@ai-sdk/anthropic'
-import { google, createGoogleGenerativeAI } from '@ai-sdk/google'
-import { mistral, createMistral } from '@ai-sdk/mistral'
-import { xai, createXai } from '@ai-sdk/xai'
-import { cohere, createCohere } from '@ai-sdk/cohere'
 import { azure, createAzure } from '@ai-sdk/azure'
+import { cohere, createCohere } from '@ai-sdk/cohere'
+import { createGoogleGenerativeAI, google } from '@ai-sdk/google'
+import { createMistral, mistral } from '@ai-sdk/mistral'
+import { createOpenAI, openai } from '@ai-sdk/openai'
+import { createXai, xai } from '@ai-sdk/xai'
 import { generateText } from 'ai'
-import { ConventionalCommit, DEFAULT_TYPES } from './conventional'
+import { DEFAULT_TYPES } from './conventional'
 
 export type AIProvider =
   | 'openai'
@@ -84,7 +84,7 @@ export class VercelAIService implements AIService {
         return this.parseResponse(result.text)
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error))
-        
+
         if (attempt < maxRetries) {
           await this.delay(Math.pow(2, attempt) * 1000)
         }
@@ -110,7 +110,7 @@ export class VercelAIService implements AIService {
 
   private async callAI(prompt: string, systemMessage: string) {
     const model = this.getModel()
-    
+
     return await generateText({
       model,
       system: systemMessage,
@@ -123,7 +123,7 @@ export class VercelAIService implements AIService {
   private getModel() {
     const { provider, model, apiKey, baseURL } = this.config
     const cacheKey = `${provider}-${model}-${apiKey?.slice(0, 8)}`
-    
+
     if (this.modelCache.has(cacheKey)) {
       return this.modelCache.get(cacheKey)
     }
@@ -246,7 +246,20 @@ Only return valid JSON, no additional text.`
 
   private parseResponse(text: string): TitleGenerationResponse {
     try {
-      const cleanText = text.replace(/```json\n?|\n?```/g, '').trim()
+      // More aggressive cleaning - remove code blocks, extra whitespace, and common prefixes
+      let cleanText = text
+        .replace(/```json\s*|\s*```/gi, '') // Remove markdown code blocks
+        .replace(/^[^{]*({.*})[^}]*$/s, '$1') // Extract JSON object from surrounding text
+        .trim()
+
+      // If no JSON object found, try to find it anywhere in the text
+      if (!cleanText.startsWith('{')) {
+        const jsonMatch = text.match(/{[\s\S]*}/);
+        if (jsonMatch) {
+          cleanText = jsonMatch[0];
+        }
+      }
+
       const parsed = JSON.parse(cleanText)
 
       return {
@@ -263,7 +276,7 @@ Only return valid JSON, no additional text.`
       console.error('[AI ERROR] parseResponse JSON parse error:', error)
       // eslint-disable-next-line no-console
       console.error('[AI ERROR] Raw response text:', text)
-      
+
       const suggestions = this.extractSuggestionsFromText(text)
       return {
         suggestions,

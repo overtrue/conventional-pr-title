@@ -4,13 +4,13 @@ exports.VercelAIService = void 0;
 exports.createAIService = createAIService;
 exports.generateConventionalTitle = generateConventionalTitle;
 exports.isAIServiceHealthy = isAIServiceHealthy;
-const openai_1 = require("@ai-sdk/openai");
 const anthropic_1 = require("@ai-sdk/anthropic");
+const azure_1 = require("@ai-sdk/azure");
+const cohere_1 = require("@ai-sdk/cohere");
 const google_1 = require("@ai-sdk/google");
 const mistral_1 = require("@ai-sdk/mistral");
+const openai_1 = require("@ai-sdk/openai");
 const xai_1 = require("@ai-sdk/xai");
-const cohere_1 = require("@ai-sdk/cohere");
-const azure_1 = require("@ai-sdk/azure");
 const ai_1 = require("ai");
 const conventional_1 = require("./conventional");
 class VercelAIService {
@@ -172,7 +172,18 @@ Only return valid JSON, no additional text.`;
     }
     parseResponse(text) {
         try {
-            const cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
+            // More aggressive cleaning - remove code blocks, extra whitespace, and common prefixes
+            let cleanText = text
+                .replace(/```json\s*|\s*```/gi, '') // Remove markdown code blocks
+                .replace(/^[^{]*({.*})[^}]*$/s, '$1') // Extract JSON object from surrounding text
+                .trim();
+            // If no JSON object found, try to find it anywhere in the text
+            if (!cleanText.startsWith('{')) {
+                const jsonMatch = text.match(/{[\s\S]*}/);
+                if (jsonMatch) {
+                    cleanText = jsonMatch[0];
+                }
+            }
             const parsed = JSON.parse(cleanText);
             return {
                 suggestions: Array.isArray(parsed.suggestions)

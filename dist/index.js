@@ -54968,13 +54968,13 @@ exports.VercelAIService = void 0;
 exports.createAIService = createAIService;
 exports.generateConventionalTitle = generateConventionalTitle;
 exports.isAIServiceHealthy = isAIServiceHealthy;
-const openai_1 = __nccwpck_require__(7635);
 const anthropic_1 = __nccwpck_require__(3201);
+const azure_1 = __nccwpck_require__(9068);
+const cohere_1 = __nccwpck_require__(5201);
 const google_1 = __nccwpck_require__(260);
 const mistral_1 = __nccwpck_require__(8189);
+const openai_1 = __nccwpck_require__(7635);
 const xai_1 = __nccwpck_require__(6851);
-const cohere_1 = __nccwpck_require__(5201);
-const azure_1 = __nccwpck_require__(9068);
 const ai_1 = __nccwpck_require__(6619);
 const conventional_1 = __nccwpck_require__(7921);
 class VercelAIService {
@@ -55136,7 +55136,18 @@ Only return valid JSON, no additional text.`;
     }
     parseResponse(text) {
         try {
-            const cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
+            // More aggressive cleaning - remove code blocks, extra whitespace, and common prefixes
+            let cleanText = text
+                .replace(/```json\s*|\s*```/gi, '') // Remove markdown code blocks
+                .replace(/^[^{]*({.*})[^}]*$/s, '$1') // Extract JSON object from surrounding text
+                .trim();
+            // If no JSON object found, try to find it anywhere in the text
+            if (!cleanText.startsWith('{')) {
+                const jsonMatch = text.match(/{[\s\S]*}/);
+                if (jsonMatch) {
+                    cleanText = jsonMatch[0];
+                }
+            }
             const parsed = JSON.parse(cleanText);
             return {
                 suggestions: Array.isArray(parsed.suggestions)
