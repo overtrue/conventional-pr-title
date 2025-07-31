@@ -31,7 +31,7 @@ jobs:
           api-key: ${{ secrets.OPENAI_API_KEY }}
           base-url: ${{ secrets.OPENAI_BASE_URL }}
           model: 'openai/gpt-4o'
-          mode: 'auto'
+          mode: 'suggest'
           temperature: '0.3'
           max-tokens: '200'
           include-scope: 'true'

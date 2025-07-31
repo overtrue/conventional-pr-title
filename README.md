@@ -17,6 +17,7 @@ A GitHub Action that automatically suggests or updates PR titles to follow the [
 The action supports **54 models** across **10 providers**:
 
 ### 🔥 Latest Models (2025)
+
 - **OpenAI**: `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`, `o3`, `o3-mini`, `o4-mini`
 - **Anthropic**: `claude-opus-4-20250514`, `claude-sonnet-4-20250514`, `claude-3-7-sonnet-20250219`
 - **xAI**: `grok-4`, `grok-3`, `grok-3-fast`, `grok-3-mini`, `grok-3-mini-fast`
@@ -24,6 +25,7 @@ The action supports **54 models** across **10 providers**:
 - **Mistral**: `pixtral-large-latest`, `mistral-medium-2505`, `pixtral-12b-2409`
 
 ### 📋 Full Provider Support
+
 - **OpenAI**: GPT-4 series, o1/o3/o4 reasoning models, GPT-3.5 Turbo
 - **Anthropic**: Claude 4, Claude 3.5/3.7 Sonnet, Claude 3.5 Haiku
 - **Google**: Gemini 2.0/1.5 Flash/Pro, Gemini Pro
@@ -37,7 +39,6 @@ The action supports **54 models** across **10 providers**:
 - **Groq**: High-speed Llama, Mixtral, and Gemma models
 - **Vertex AI**: Google Cloud-hosted Gemini models
 
-
 ## Quick Start
 
 ### 🏗️ Build & Publish (GitHub Action 规范)
@@ -45,24 +46,33 @@ The action supports **54 models** across **10 providers**:
 > **注意：dist/ 目录必须提交到仓库，不能 .gitignore！**
 
 1. 安装依赖：
+
    ```bash
    npm install
    ```
+
 2. 构建 TypeScript：
+
    ```bash
    npm run build
    ```
+
 3. 打包产物（推荐 ncc）：
+
    ```bash
    npm run package
    ```
+
 4. 提交 dist/ 目录：
+
    ```bash
    git add dist/ && git commit -m "build: update dist for action"
    ```
+
 5. 推送到主分支，确保 action.yml 的 main 字段指向 dist/index.js。
 
 > **CI/CD 注意事项**：
+>
 > - GitHub Action 必须提交构建产物（dist/）到主分支，否则 marketplace/PR 流水线会报“File not found: dist/index.js”。
 > - 推荐本地构建后再 push。
 
@@ -128,6 +138,7 @@ jobs:
 ## Examples
 
 ### Basic Setup (Suggestion Mode)
+
 ```yaml
 - uses: overtrue/conventional-pr-title@v1
   with:
@@ -138,6 +149,7 @@ jobs:
 ```
 
 ### Auto-Update Mode
+
 ```yaml
 - uses: overtrue/conventional-pr-title@v1
   with:
@@ -150,6 +162,7 @@ jobs:
 ```
 
 ### Strict Validation
+
 ```yaml
 - uses: overtrue/conventional-pr-title@v1
   with:
@@ -163,6 +176,7 @@ jobs:
 ```
 
 ### Custom Templates
+
 ```yaml
 - uses: overtrue/conventional-pr-title@v1
   with:
@@ -189,6 +203,7 @@ jobs:
 | `error-message` | Error message if action failed | `string` |
 
 ### Using Outputs
+
 ```yaml
 - uses: overtrue/conventional-pr-title@v1
   id: pr-title
@@ -207,21 +222,25 @@ jobs:
 ## AI Provider Setup
 
 ### OpenAI
+
 1. Get API key from [OpenAI Platform](https://platform.openai.com/api-keys)
 2. Add as repository secret: `OPENAI_API_KEY`
 3. Recommended models: `gpt-4.1-mini`, `gpt-4o-mini`, `o3-mini`
 
 ### Anthropic (Claude)
+
 1. Get API key from [Anthropic Console](https://console.anthropic.com/)
 2. Add as repository secret: `ANTHROPIC_API_KEY`
 3. Recommended models: `claude-sonnet-4-20250514`, `claude-3-5-haiku-20241022`
 
 ### Google (Gemini)
+
 1. Get API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
 2. Add as repository secret: `GOOGLE_API_KEY`
 3. Recommended models: `gemini-1.5-flash`, `gemini-1.5-pro`
 
 ### Other Providers
+
 - **Mistral**: Get key from [Mistral AI](https://console.mistral.ai/) → `MISTRAL_API_KEY`
 - **xAI**: Get key from [xAI Console](https://console.x.ai/) → `XAI_API_KEY`
 - **Cohere**: Get key from [Cohere Dashboard](https://dashboard.cohere.com/) → `COHERE_API_KEY`
@@ -245,6 +264,7 @@ The action enforces the [Conventional Commits](https://conventionalcommits.org/)
 ```
 
 ### Common Types
+
 - `feat`: New feature
 - `fix`: Bug fix
 - `docs`: Documentation changes
@@ -258,6 +278,7 @@ The action enforces the [Conventional Commits](https://conventionalcommits.org/)
 - `revert`: Reverting changes
 
 ### Examples
+
 - ✅ `feat(auth): add OAuth2 integration`
 - ✅ `fix: resolve memory leak in data processing`
 - ✅ `docs: update API documentation`
@@ -269,28 +290,33 @@ The action enforces the [Conventional Commits](https://conventionalcommits.org/)
 ### Common Issues
 
 **Action fails with "Configuration Error"**
+
 - Ensure all required inputs are provided
 - Check that API keys are correctly set as repository secrets
 - Verify the AI provider name is spelled correctly
 
 **AI service timeout or errors**
+
 - Check API key permissions and quotas
 - Try a different model or provider
 - Reduce `max-tokens` if hitting limits
 
 **Permission denied errors**
+
 - Ensure `github-token` has sufficient permissions
 - For auto-update mode, token needs write access to pull requests
 
 **No suggestions generated**
+
 - Check if `skip-if-conventional` is enabled and title is already conventional
 - Verify the AI provider service is available
 - Try adjusting `temperature` or `custom-prompt`
 
 **Workflow doesn't re-run after PR title changes**
+
 - This is GitHub's intended behavior to prevent infinite loops when using `GITHUB_TOKEN`
 - **Solution 1**: Use a Personal Access Token:
-  1. Create a PAT with `repo` permissions at https://github.com/settings/tokens
+  1. Create a PAT with `repo` permissions at <https://github.com/settings/tokens>
   2. Add it as repository secret: `PAT_TOKEN`
   3. The workflow will use PAT if available, falling back to GITHUB_TOKEN
 - **Solution 2**: Manually trigger the workflow:
@@ -298,6 +324,7 @@ The action enforces the [Conventional Commits](https://conventionalcommits.org/)
   2. Click "Run workflow" and enter the PR number
 
 ### Debug Mode
+
 Add debug logging to your workflow:
 
 ```yaml
@@ -320,6 +347,7 @@ Add debug logging to your workflow:
 8. Open a Pull Request
 
 ### Development Setup
+
 ```bash
 # Clone and install
 git clone https://github.com/overtrue/conventional-pr-title.git
@@ -342,6 +370,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 This GitHub Action is currently in development and has not been officially released yet.
 
 ### Current Features
+
 - ✨ Support for **54 models** across **10 AI providers**
 - 🤖 Auto-update and suggestion modes for PR titles
 - 📝 Conventional Commits validation and enforcement
@@ -361,6 +390,7 @@ To test this action in your repository:
 See [TESTING.md](TESTING.md) for detailed testing instructions and troubleshooting.
 
 ### Quick Test
+
 ```yaml
 # .github/workflows/test.yml
 name: Test PR Title
@@ -385,19 +415,17 @@ jobs:
 
 Want automatic PR title correction? Follow these simple steps:
 
-### 1. Copy the Example Workflow
-```bash
-cp .github/workflows/auto-pr-title.example.yml .github/workflows/auto-pr-title.yml
-```
-
 ### 2. Configure Repository Secrets
+
 Go to your repository Settings → Secrets and variables → Actions, then add:
 
 - **`ANTHROPIC_API_KEY`**: Your Claude API key from [Anthropic Console](https://console.anthropic.com/)
 - **`ANTHROPIC_BASE_URL`**: (Optional) Custom base URL if using a proxy
 
 ### 3. Customize Settings (Optional)
+
 Edit `.github/workflows/auto-pr-title.yml` to adjust:
+
 - **Mode**: `auto` (updates titles) or `suggest` (adds comments)
 - **AI Model**: Choose your preferred Claude model
 - **Validation Rules**: Customize allowed types, max length, etc.
