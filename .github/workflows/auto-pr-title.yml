@@ -13,7 +13,7 @@ jobs:
         uses: actions/checkout@v4
         
       - name: Auto-generate conventional PR title
-        uses: overtrue/conventional-pr-title@main
+        uses: ./
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           ai-provider: 'anthropic'
