@@ -6,31 +6,38 @@ jest.mock('ai', () => ({
 }))
 
 jest.mock('@ai-sdk/openai', () => ({
-  openai: jest.fn((model, config) => ({ provider: 'openai', model, config }))
+  openai: jest.fn((model, config) => ({ provider: 'openai', model, config })),
+  createOpenAI: jest.fn((config) => (model) => ({ provider: 'openai', model, config }))
 }))
 
 jest.mock('@ai-sdk/anthropic', () => ({
-  anthropic: jest.fn((model, config) => ({ provider: 'anthropic', model, config }))
+  anthropic: jest.fn((model, config) => ({ provider: 'anthropic', model, config })),
+  createAnthropic: jest.fn((config) => (model) => ({ provider: 'anthropic', model, config }))
 }))
 
 jest.mock('@ai-sdk/google', () => ({
-  google: jest.fn((model, config) => ({ provider: 'google', model, config }))
+  google: jest.fn((model, config) => ({ provider: 'google', model, config })),
+  createGoogleGenerativeAI: jest.fn((config) => (model) => ({ provider: 'google', model, config }))
 }))
 
 jest.mock('@ai-sdk/mistral', () => ({
-  mistral: jest.fn((model, config) => ({ provider: 'mistral', model, config }))
+  mistral: jest.fn((model, config) => ({ provider: 'mistral', model, config })),
+  createMistral: jest.fn((config) => (model) => ({ provider: 'mistral', model, config }))
 }))
 
 jest.mock('@ai-sdk/xai', () => ({
-  xai: jest.fn((model, config) => ({ provider: 'xai', model, config }))
+  xai: jest.fn((model, config) => ({ provider: 'xai', model, config })),
+  createXai: jest.fn((config) => (model) => ({ provider: 'xai', model, config }))
 }))
 
 jest.mock('@ai-sdk/cohere', () => ({
-  cohere: jest.fn((model, config) => ({ provider: 'cohere', model, config }))
+  cohere: jest.fn((model, config) => ({ provider: 'cohere', model, config })),
+  createCohere: jest.fn((config) => (model) => ({ provider: 'cohere', model, config }))
 }))
 
 jest.mock('@ai-sdk/azure', () => ({
-  azure: jest.fn((model, config) => ({ provider: 'azure', model, config }))
+  azure: jest.fn((model, config) => ({ provider: 'azure', model, config })),
+  createAzure: jest.fn((config) => (model) => ({ provider: 'azure', model, config }))
 }))
 
 import { generateText } from 'ai'
