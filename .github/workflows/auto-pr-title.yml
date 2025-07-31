@@ -1,0 +1,29 @@
+name: Auto PR Title with Conventional Commits
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+jobs:
+  auto-conventional-title:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Auto-generate conventional PR title
+        uses: overtrue/conventional-pr-title@main
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          ai-provider: 'anthropic'
+          api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          base-url: ${{ secrets.ANTHROPIC_BASE_URL }}
+          model: 'claude-3-5-sonnet-20241022'
+          mode: 'auto'
+          temperature: '0.3'
+          max-tokens: '200'
+          include-scope: 'true'
+          skip-if-conventional: 'true'
+          allowed-types: 'feat,fix,docs,style,refactor,test,chore,perf,ci,build,revert'
+          max-length: '72'
