@@ -31,6 +31,7 @@ class VercelAIService {
                 const prompt = this.buildPrompt(request);
                 const systemMessage = this.buildSystemMessage(request.options);
                 const result = await this.callAI(prompt, systemMessage);
+                console.log(`response: ${result.text}`);
                 return this.parseResponse(result.text);
             }
             catch (error) {

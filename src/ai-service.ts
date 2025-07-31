@@ -81,6 +81,7 @@ export class VercelAIService implements AIService {
         const prompt = this.buildPrompt(request)
         const systemMessage = this.buildSystemMessage(request.options)
         const result = await this.callAI(prompt, systemMessage)
+        console.log(`response: ${result.text}`);
         return this.parseResponse(result.text)
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error))
