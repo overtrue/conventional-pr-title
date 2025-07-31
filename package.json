@@ -4,13 +4,15 @@
   "description": "A GitHub Action that automatically suggests or updates PR titles to follow Conventional Commits standard using AI",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
-    "package": "ncc build src/index.ts -o dist --source-map --license licenses.txt",
+    "build": "ncc build src/index.ts -o dist --source-map --license licenses.txt",
+    "package": "npm run build",
+    "clean": "rm -rf dist lib",
     "test": "jest",
     "lint": "eslint src/**/*.ts",
     "format": "prettier --write src/**/*.ts",
     "format-check": "prettier --check src/**/*.ts",
-    "all": "npm run build && npm run format && npm run lint && npm run package && npm test"
+    "all": "npm run clean && npm run format && npm run build && npm test",
+    "dev": "npm run format && npm run build"
   },
   "repository": {
     "type": "git",

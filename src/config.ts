@@ -53,6 +53,8 @@ export interface ActionConfig {
   skipIfConventional: boolean
   commentTemplate?: string
   debug: boolean
+  matchLanguage: boolean
+  autoComment: boolean
 }
 
 export interface ConfigError {
@@ -114,6 +116,8 @@ export class ActionConfigManager {
       const skipIfConventional = getBooleanInput('skip-if-conventional')
       const commentTemplate = getInput('comment-template') || undefined
       const debug = getBooleanInput('debug')
+      const matchLanguage = getBooleanInput('match-language')
+      const autoComment = getBooleanInput('auto-comment')
 
       // If there are validation errors, throw them
       if (this.errors.length > 0) {
@@ -134,7 +138,9 @@ export class ActionConfigManager {
         includeScope,
         skipIfConventional,
         commentTemplate,
-        debug
+        debug,
+        matchLanguage,
+        autoComment
       }
 
       return this.config

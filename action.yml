@@ -79,6 +79,14 @@ inputs:
     description: 'Enable debug logging for troubleshooting'
     required: false
     default: 'false'
+  match-language:
+    description: 'Respond in the same language as the original PR title'
+    required: false
+    default: 'true'
+  auto-comment:
+    description: 'Add a comment when auto-updating PR title to notify the change'
+    required: false
+    default: 'true'
 
 outputs:
   is-conventional:

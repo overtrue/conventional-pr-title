@@ -37,6 +37,8 @@ export interface ActionConfig {
     skipIfConventional: boolean;
     commentTemplate?: string;
     debug: boolean;
+    matchLanguage: boolean;
+    autoComment: boolean;
 }
 export interface ConfigError {
     field: string;

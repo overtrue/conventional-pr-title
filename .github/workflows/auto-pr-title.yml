@@ -39,3 +39,5 @@ jobs:
           allowed-types: 'feat,fix,docs,style,refactor,test,chore,perf,ci,build,revert'
           max-length: '72'
           debug: 'true'
+          match-language: 'true'
+          auto-comment: 'true'

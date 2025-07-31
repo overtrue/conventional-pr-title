@@ -76,10 +76,10 @@ export class VercelAIService implements AIService {
 
   private debugLog(message: string, data?: any): void {
     if (!this.config.debug) return
-    
+
     const timestamp = new Date().toISOString()
     const prefix = `🤖 [AI-DEBUG ${timestamp}]`
-    
+
     if (data) {
       console.log(`${prefix} ${message}:`)
       console.log(JSON.stringify(data, null, 2))
@@ -90,10 +90,10 @@ export class VercelAIService implements AIService {
 
   private errorLog(message: string, error?: any): void {
     if (!this.config.debug) return
-    
+
     const timestamp = new Date().toISOString()
     const prefix = `❌ [AI-ERROR ${timestamp}]`
-    
+
     console.error(`${prefix} ${message}`)
     if (error) {
       console.error(error)
@@ -110,20 +110,20 @@ export class VercelAIService implements AIService {
       try {
         const prompt = this.buildPrompt(request)
         const systemMessage = this.buildSystemMessage(request.options)
-        
+
         this.debugLog(`Attempt ${attempt + 1}/${maxRetries + 1}`)
         this.debugLog('System message', systemMessage)
         this.debugLog('User prompt', prompt)
-        
+
         const result = await this.callAI(prompt, systemMessage)
-        
+
         this.debugLog('Raw AI response', result.text)
         return this.parseResponse(result.text)
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error))
-        
+
         this.errorLog(`Attempt ${attempt + 1} failed`, lastError)
-        
+
         if (attempt < maxRetries) {
           this.debugLog(`Retrying after error, attempt ${attempt + 2}...`)
           await this.delay(Math.pow(2, attempt) * 1000)
@@ -183,12 +183,16 @@ export class VercelAIService implements AIService {
         break
       case 'anthropic':
         modelInstance = hasConfig
-          ? createAnthropic(providerConfig)(model || 'claude-3-5-sonnet-20241022')
+          ? createAnthropic(providerConfig)(
+              model || 'claude-3-5-sonnet-20241022'
+            )
           : anthropic(model || 'claude-3-5-sonnet-20241022')
         break
       case 'google':
         modelInstance = hasConfig
-          ? createGoogleGenerativeAI(providerConfig)(model || 'gemini-1.5-flash')
+          ? createGoogleGenerativeAI(providerConfig)(
+              model || 'gemini-1.5-flash'
+            )
           : google(model || 'gemini-1.5-flash')
         break
       case 'mistral':
@@ -213,7 +217,9 @@ export class VercelAIService implements AIService {
         break
       case 'vertex':
         modelInstance = hasConfig
-          ? createGoogleGenerativeAI(providerConfig)(model || 'gemini-1.5-flash')
+          ? createGoogleGenerativeAI(providerConfig)(
+              model || 'gemini-1.5-flash'
+            )
           : google(model || 'gemini-1.5-flash')
         break
       case 'vercel':
@@ -262,7 +268,8 @@ Only return valid JSON, no additional text.`
   }
 
   private buildPrompt(request: TitleGenerationRequest): string {
-    const { originalTitle, prDescription, prBody, diffContent, changedFiles } = request
+    const { originalTitle, prDescription, prBody, diffContent, changedFiles } =
+      request
 
     let prompt = `Original PR Title: "${originalTitle}"\n\n`
 
@@ -294,7 +301,7 @@ Only return valid JSON, no additional text.`
 
   private parseResponse(text: string): TitleGenerationResponse {
     this.debugLog('parseResponse: raw text', text)
-    
+
     try {
       // More aggressive cleaning - remove code blocks, extra whitespace, and common prefixes
       let cleanText = text
@@ -304,12 +311,12 @@ Only return valid JSON, no additional text.`
 
       // If no JSON object found, try to find it anywhere in the text
       if (!cleanText.startsWith('{')) {
-        const jsonMatch = text.match(/{[\s\S]*}/);
+        const jsonMatch = text.match(/{[\s\S]*}/)
         if (jsonMatch) {
-          cleanText = jsonMatch[0];
+          cleanText = jsonMatch[0]
         }
       }
-      
+
       this.debugLog('parseResponse: cleaned JSON string', cleanText)
 
       const parsed = JSON.parse(cleanText)

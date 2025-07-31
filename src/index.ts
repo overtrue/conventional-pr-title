@@ -6,7 +6,6 @@ import {
   createAIServiceConfig,
   shouldSkipProcessing,
   isAutoMode,
-  isSuggestionMode,
   ActionResult
 } from './config'
 import { validateTitle } from './conventional'
@@ -26,7 +25,7 @@ function detectLanguage(title: string): string {
   const frenchRegex = /[àâäçéèêëïîôöùûüÿæœ]/i
   const germanRegex = /[äöüß]/i
   const spanishRegex = /[ñáéíóúü]/i
-  
+
   if (chineseRegex.test(title)) return '中文'
   if (japaneseRegex.test(title)) return '日本語'
   if (koreanRegex.test(title)) return '한국어'
@@ -35,7 +34,7 @@ function detectLanguage(title: string): string {
   if (frenchRegex.test(title)) return 'Français'
   if (germanRegex.test(title)) return 'Deutsch'
   if (spanishRegex.test(title)) return 'Español'
-  
+
   return 'English'
 }
 
@@ -49,8 +48,13 @@ async function run(): Promise<void> {
     debug(`Triggered by actor: ${context.actor}`)
 
     // Prevent infinite loops: Skip if triggered by bot itself
-    if (context.actor === 'github-actions[bot]' || context.payload?.sender?.type === 'Bot') {
-      info('Skipping processing: Action was triggered by a bot to prevent infinite loops')
+    if (
+      context.actor === 'github-actions[bot]' ||
+      context.payload?.sender?.type === 'Bot'
+    ) {
+      info(
+        'Skipping processing: Action was triggered by a bot to prevent infinite loops'
+      )
       const configManager = new ActionConfigManager()
       configManager.setOutputs({
         isConventional: true,
@@ -145,25 +149,26 @@ async function run(): Promise<void> {
     let changedFiles: string[] = []
     let prInfo: any = null
     let diffContent: string = ''
-    
+
     try {
       // Get PR details
       prInfo = await githubService.getPRInfo(prNumber)
-      
+
       // Get changed files
       changedFiles = await githubService.getChangedFiles(prNumber)
       debug(`Found ${changedFiles.length} changed files`)
-      
+
       // Get diff content if there are changed files
       if (changedFiles.length > 0) {
         try {
-          const { data: compareData } = await githubService.octokit.rest.repos.compareCommits({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            base: pullRequest.base.sha,
-            head: pullRequest.head.sha
-          })
-          
+          const { data: compareData } =
+            await githubService.octokit.rest.repos.compareCommits({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              base: pullRequest.base.sha,
+              head: pullRequest.head.sha
+            })
+
           if (compareData.files && compareData.files.length > 0) {
             // Get patch content from first few files
             diffContent = compareData.files
@@ -173,7 +178,9 @@ async function run(): Promise<void> {
               .slice(0, 3000) // Limit total diff size
           }
         } catch (diffError) {
-          debug(`Failed to get diff: ${diffError instanceof Error ? diffError.message : 'Unknown error'}`)
+          debug(
+            `Failed to get diff: ${diffError instanceof Error ? diffError.message : 'Unknown error'}`
+          )
         }
       }
     } catch (error) {
@@ -182,8 +189,13 @@ async function run(): Promise<void> {
       )
     }
 
-    // Detect language from PR title
-    const detectedLanguage = detectLanguage(currentTitle)
+    // Detect language from PR title (if enabled)
+    const detectedLanguage = config.matchLanguage
+      ? detectLanguage(currentTitle)
+      : 'English'
+    debug(
+      `Language detection: ${config.matchLanguage ? 'enabled' : 'disabled'}`
+    )
     debug(`Detected language: ${detectedLanguage}`)
 
     // Generate AI suggestions
@@ -233,6 +245,25 @@ async function run(): Promise<void> {
         await githubService.updatePRTitle(prNumber, bestSuggestion)
         info(`✅ Updated PR title to: "${bestSuggestion}"`)
         actionTaken = 'updated'
+
+        // Add success comment if enabled
+        if (config.autoComment) {
+          const successCommentBody = formatSuccessComment(
+            currentTitle,
+            bestSuggestion,
+            aiResponse.reasoning,
+            detectedLanguage
+          )
+
+          try {
+            await githubService.createComment(prNumber, successCommentBody)
+            info(`💬 Added success notification comment`)
+          } catch (commentError) {
+            warning(
+              `Failed to create success comment: ${commentError instanceof Error ? commentError.message : 'Unknown error'}`
+            )
+          }
+        }
       } catch (error) {
         const errorMessage = `Failed to update PR title: ${error instanceof Error ? error.message : 'Unknown error'}`
         warning(errorMessage)
@@ -310,6 +341,53 @@ async function run(): Promise<void> {
       // Ignore errors when setting outputs after failure
     }
   }
+}
+
+/**
+ * Format the success comment body for auto-updated PR titles
+ */
+function formatSuccessComment(
+  originalTitle: string,
+  newTitle: string,
+  reasoning?: string,
+  language: string = 'English'
+): string {
+  const isChineseResponse = language === '中文'
+
+  const messages = isChineseResponse
+    ? {
+        title: '🤖 PR 标题已自动更新',
+        original: '原标题',
+        updated: '更新后标题',
+        reasoning: '更新原因',
+        footer:
+          '此评论由 [conventional-pr-title](https://github.com/overtrue/conventional-pr-title) 操作自动生成。'
+      }
+    : {
+        title: '🤖 PR Title Auto-Updated',
+        original: 'Original title',
+        updated: 'Updated title',
+        reasoning: 'Reasoning',
+        footer:
+          '_This comment was generated by [conventional-pr-title](https://github.com/overtrue/conventional-pr-title) action._'
+      }
+
+  const lines = [
+    `## ${messages.title}`,
+    '',
+    `**${messages.original}:** "${originalTitle}"`,
+    `**${messages.updated}:** "${newTitle}"`,
+    ''
+  ]
+
+  if (reasoning) {
+    lines.push(`**${messages.reasoning}:** ${reasoning}`)
+    lines.push('')
+  }
+
+  lines.push(messages.footer)
+
+  return lines.join('\n')
 }
 
 /**
