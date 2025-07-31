@@ -4,6 +4,10 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, edited]
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   auto-conventional-title:
     runs-on: ubuntu-latest
@@ -18,7 +22,6 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           ai-provider: 'anthropic'
           api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-          base-url: ${{ secrets.ANTHROPIC_BASE_URL }}
           model: 'claude-3-5-sonnet-20241022'
           mode: 'auto'
           temperature: '0.3'
