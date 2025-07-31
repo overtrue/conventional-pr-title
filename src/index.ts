@@ -20,6 +20,20 @@ async function run(): Promise<void> {
   try {
     debug(`Action triggered by: ${context.eventName}`)
     debug(`Repository: ${context.repo.owner}/${context.repo.repo}`)
+    debug(`Triggered by actor: ${context.actor}`)
+
+    // Prevent infinite loops: Skip if triggered by bot itself
+    if (context.actor === 'github-actions[bot]' || context.payload?.sender?.type === 'Bot') {
+      info('Skipping processing: Action was triggered by a bot to prevent infinite loops')
+      const configManager = new ActionConfigManager()
+      configManager.setOutputs({
+        isConventional: true,
+        suggestedTitles: [],
+        originalTitle: context.payload.pull_request?.title || 'Unknown',
+        actionTaken: 'skipped'
+      })
+      return
+    }
 
     // Validate that this is a pull request event
     if (

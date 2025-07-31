@@ -13,8 +13,6 @@ permissions:
 jobs:
   auto-conventional-title:
     runs-on: ubuntu-latest
-    # Skip if the event was triggered by the bot itself to prevent loops
-    if: ${{ github.actor != 'github-actions[bot]' && github.event.sender.type != 'Bot' }}
     
     steps:
       - name: Checkout repository
