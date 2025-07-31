@@ -1,5 +1,6 @@
+export type AIProvider = 'openai' | 'anthropic' | 'google' | 'mistral' | 'xai' | 'cohere' | 'azure' | 'vercel' | 'deepseek' | 'cerebras' | 'groq' | 'vertex';
 export interface AIServiceConfig {
-    provider: 'openai' | 'anthropic' | 'google' | 'mistral' | 'xai' | 'cohere' | 'azure' | 'vercel' | 'deepseek' | 'cerebras' | 'groq' | 'vertex';
+    provider: AIProvider;
     model?: string;
     apiKey?: string;
     baseURL?: string;
@@ -29,7 +30,7 @@ export interface AIService {
 }
 export declare class VercelAIService implements AIService {
     private config;
-    private retryCount;
+    private modelCache;
     constructor(config: AIServiceConfig);
     generateTitle(request: TitleGenerationRequest): Promise<TitleGenerationResponse>;
     isHealthy(): Promise<boolean>;

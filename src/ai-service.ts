@@ -8,20 +8,22 @@ import { azure, createAzure } from '@ai-sdk/azure'
 import { generateText } from 'ai'
 import { ConventionalCommit, DEFAULT_TYPES } from './conventional'
 
+export type AIProvider =
+  | 'openai'
+  | 'anthropic'
+  | 'google'
+  | 'mistral'
+  | 'xai'
+  | 'cohere'
+  | 'azure'
+  | 'vercel'
+  | 'deepseek'
+  | 'cerebras'
+  | 'groq'
+  | 'vertex'
+
 export interface AIServiceConfig {
-  provider:
-    | 'openai'
-    | 'anthropic'
-    | 'google'
-    | 'mistral'
-    | 'xai'
-    | 'cohere'
-    | 'azure'
-    | 'vercel'
-    | 'deepseek'
-    | 'cerebras'
-    | 'groq'
-    | 'vertex'
+  provider: AIProvider
   model?: string
   apiKey?: string
   baseURL?: string
@@ -57,7 +59,7 @@ export interface AIService {
 
 export class VercelAIService implements AIService {
   private config: AIServiceConfig
-  private retryCount = 0
+  private modelCache = new Map<string, any>()
 
   constructor(config: AIServiceConfig) {
     this.config = {
@@ -71,33 +73,27 @@ export class VercelAIService implements AIService {
   async generateTitle(
     request: TitleGenerationRequest
   ): Promise<TitleGenerationResponse> {
-    const prompt = this.buildPrompt(request)
-    const systemMessage = this.buildSystemMessage(request.options)
+    const maxRetries = this.config.maxRetries || 3
+    let lastError: Error | undefined
 
-    // 日志：请求参数
-    // eslint-disable-next-line no-console
-    console.log('[AI DEBUG] generateTitle: prompt:', prompt)
-    // eslint-disable-next-line no-console
-    console.log('[AI DEBUG] generateTitle: systemMessage:', systemMessage)
-
-    try {
-      const result = await this.callAI(prompt, systemMessage)
-      // 日志：AI原始响应
-      // eslint-disable-next-line no-console
-      console.log('[AI DEBUG] generateTitle: AI raw result:', result)
-      return this.parseResponse(result.text)
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('[AI ERROR] generateTitle error:', error)
-      if (this.retryCount < (this.config.maxRetries || 3)) {
-        this.retryCount++
-        await this.delay(1000 * this.retryCount) // Exponential backoff
-        return this.generateTitle(request)
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const prompt = this.buildPrompt(request)
+        const systemMessage = this.buildSystemMessage(request.options)
+        const result = await this.callAI(prompt, systemMessage)
+        return this.parseResponse(result.text)
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error))
+        
+        if (attempt < maxRetries) {
+          await this.delay(Math.pow(2, attempt) * 1000)
+        }
       }
-      throw new Error(
-        `AI service failed after ${this.config.maxRetries} retries: ${error}`
-      )
     }
+
+    throw new Error(
+      `AI service failed after ${maxRetries + 1} attempts: ${lastError?.message || 'Unknown error'}`
+    )
   }
 
   async isHealthy(): Promise<boolean> {
@@ -114,16 +110,7 @@ export class VercelAIService implements AIService {
 
   private async callAI(prompt: string, systemMessage: string) {
     const model = this.getModel()
-    // 日志：调用AI参数
-    // eslint-disable-next-line no-console
-    console.log('[AI DEBUG] callAI: model:', model)
-    // eslint-disable-next-line no-console
-    console.log('[AI DEBUG] callAI: system:', systemMessage)
-    // eslint-disable-next-line no-console
-    console.log('[AI DEBUG] callAI: prompt:', prompt)
-    // eslint-disable-next-line no-console
-    console.log('[AI DEBUG] callAI: maxTokens:', this.config.maxTokens, 'temperature:', this.config.temperature)
-
+    
     return await generateText({
       model,
       system: systemMessage,
@@ -135,77 +122,71 @@ export class VercelAIService implements AIService {
 
   private getModel() {
     const { provider, model, apiKey, baseURL } = this.config
+    const cacheKey = `${provider}-${model}-${apiKey?.slice(0, 8)}`
+    
+    if (this.modelCache.has(cacheKey)) {
+      return this.modelCache.get(cacheKey)
+    }
 
-    // Prepare provider configuration
-    const providerConfig: any = {}
+    const providerConfig: Record<string, any> = {}
     if (apiKey) providerConfig.apiKey = apiKey
     if (baseURL) providerConfig.baseURL = baseURL
 
+    const hasConfig = Object.keys(providerConfig).length > 0
+    let modelInstance: any
+
     switch (provider) {
       case 'openai':
-        if (Object.keys(providerConfig).length > 0) {
-          const providerInstance = createOpenAI(providerConfig)
-          return providerInstance(model || 'gpt-4o-mini')
-        }
-        return openai(model || 'gpt-4o-mini')
+        modelInstance = hasConfig
+          ? createOpenAI(providerConfig)(model || 'gpt-4o-mini')
+          : openai(model || 'gpt-4o-mini')
+        break
       case 'anthropic':
-        if (Object.keys(providerConfig).length > 0) {
-          const providerInstance = createAnthropic(providerConfig)
-          return providerInstance(model || 'claude-3-5-sonnet-20241022')
-        }
-        return anthropic(model || 'claude-3-5-sonnet-20241022')
+        modelInstance = hasConfig
+          ? createAnthropic(providerConfig)(model || 'claude-3-5-sonnet-20241022')
+          : anthropic(model || 'claude-3-5-sonnet-20241022')
+        break
       case 'google':
-        if (Object.keys(providerConfig).length > 0) {
-          const providerInstance = createGoogleGenerativeAI(providerConfig)
-          return providerInstance(model || 'gemini-1.5-flash')
-        }
-        return google(model || 'gemini-1.5-flash')
+        modelInstance = hasConfig
+          ? createGoogleGenerativeAI(providerConfig)(model || 'gemini-1.5-flash')
+          : google(model || 'gemini-1.5-flash')
+        break
       case 'mistral':
-        if (Object.keys(providerConfig).length > 0) {
-          const providerInstance = createMistral(providerConfig)
-          return providerInstance(model || 'mistral-large-latest')
-        }
-        return mistral(model || 'mistral-large-latest')
+        modelInstance = hasConfig
+          ? createMistral(providerConfig)(model || 'mistral-large-latest')
+          : mistral(model || 'mistral-large-latest')
+        break
       case 'xai':
-        if (Object.keys(providerConfig).length > 0) {
-          const providerInstance = createXai(providerConfig)
-          return providerInstance(model || 'grok-beta')
-        }
-        return xai(model || 'grok-beta')
+        modelInstance = hasConfig
+          ? createXai(providerConfig)(model || 'grok-beta')
+          : xai(model || 'grok-beta')
+        break
       case 'cohere':
-        if (Object.keys(providerConfig).length > 0) {
-          const providerInstance = createCohere(providerConfig)
-          return providerInstance(model || 'command-r-plus')
-        }
-        return cohere(model || 'command-r-plus')
+        modelInstance = hasConfig
+          ? createCohere(providerConfig)(model || 'command-r-plus')
+          : cohere(model || 'command-r-plus')
+        break
       case 'azure':
-        if (Object.keys(providerConfig).length > 0) {
-          const providerInstance = createAzure(providerConfig)
-          return providerInstance(model || 'gpt-4o-mini')
-        }
-        return azure(model || 'gpt-4o-mini')
-      case 'vercel':
-        // Note: Vercel provider needs to be imported if available
-        throw new Error('Vercel provider not yet implemented in AI SDK')
-      case 'deepseek':
-        // Note: DeepSeek provider needs to be imported if available
-        throw new Error('DeepSeek provider not yet implemented in AI SDK')
-      case 'cerebras':
-        // Note: Cerebras provider needs to be imported if available
-        throw new Error('Cerebras provider not yet implemented in AI SDK')
-      case 'groq':
-        // Note: Groq provider needs to be imported if available
-        throw new Error('Groq provider not yet implemented in AI SDK')
+        modelInstance = hasConfig
+          ? createAzure(providerConfig)(model || 'gpt-4o-mini')
+          : azure(model || 'gpt-4o-mini')
+        break
       case 'vertex':
-        // Note: Vertex is typically same as Google but with different auth
-        if (Object.keys(providerConfig).length > 0) {
-          const providerInstance = createGoogleGenerativeAI(providerConfig)
-          return providerInstance(model || 'gemini-1.5-flash')
-        }
-        return google(model || 'gemini-1.5-flash')
+        modelInstance = hasConfig
+          ? createGoogleGenerativeAI(providerConfig)(model || 'gemini-1.5-flash')
+          : google(model || 'gemini-1.5-flash')
+        break
+      case 'vercel':
+      case 'deepseek':
+      case 'cerebras':
+      case 'groq':
+        throw new Error(`${provider} provider not yet implemented in AI SDK`)
       default:
         throw new Error(`Unsupported provider: ${provider}`)
     }
+
+    this.modelCache.set(cacheKey, modelInstance)
+    return modelInstance
   }
 
   private buildSystemMessage(
@@ -265,18 +246,8 @@ Only return valid JSON, no additional text.`
 
   private parseResponse(text: string): TitleGenerationResponse {
     try {
-      // 日志：原始AI文本响应
-      // eslint-disable-next-line no-console
-      console.log('[AI DEBUG] parseResponse: raw text:', text)
-      // Clean up the response - remove任何markdown格式或多余文本
       const cleanText = text.replace(/```json\n?|\n?```/g, '').trim()
-      // eslint-disable-next-line no-console
-      console.log('[AI DEBUG] parseResponse: cleanText:', cleanText)
       const parsed = JSON.parse(cleanText)
-
-      // 日志：解析后的JSON
-      // eslint-disable-next-line no-console
-      console.log('[AI DEBUG] parseResponse: parsed JSON:', parsed)
 
       return {
         suggestions: Array.isArray(parsed.suggestions)
@@ -289,8 +260,10 @@ Only return valid JSON, no additional text.`
       }
     } catch (error) {
       // eslint-disable-next-line no-console
-      console.error('[AI ERROR] parseResponse JSON parse error:', error, 'text:', text)
-      // Fallback parsing if JSON fails
+      console.error('[AI ERROR] parseResponse JSON parse error:', error)
+      // eslint-disable-next-line no-console
+      console.error('[AI ERROR] Raw response text:', text)
+      
       const suggestions = this.extractSuggestionsFromText(text)
       return {
         suggestions,
@@ -328,10 +301,9 @@ Only return valid JSON, no additional text.`
 export function createAIService(config?: Partial<AIServiceConfig>): AIService {
   const provider = (config?.provider ||
     process.env.AI_PROVIDER ||
-    'openai') as AIServiceConfig['provider']
+    'openai') as AIProvider
 
-  // Map of providers to their environment variable names
-  const providerApiKeys = {
+  const providerApiKeys: Record<AIProvider, string | undefined> = {
     openai: process.env.OPENAI_API_KEY,
     anthropic: process.env.ANTHROPIC_API_KEY,
     google: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
@@ -349,14 +321,9 @@ export function createAIService(config?: Partial<AIServiceConfig>): AIService {
   const apiKey = config?.apiKey || providerApiKeys[provider]
 
   if (!apiKey) {
-    const envVarName = Object.keys(providerApiKeys).find(
-      key => key === provider
-    )
-    const envVarValue = envVarName
-      ? `${envVarName.toUpperCase()}_API_KEY`
-      : 'API_KEY'
+    const envVarName = `${provider.toUpperCase()}_API_KEY`
     throw new Error(
-      `API key required for ${provider}. Set ${envVarValue} environment variable.`
+      `API key required for ${provider}. Set ${envVarName} environment variable.`
     )
   }
 
