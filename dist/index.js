@@ -54990,11 +54990,21 @@ class VercelAIService {
     async generateTitle(request) {
         const prompt = this.buildPrompt(request);
         const systemMessage = this.buildSystemMessage(request.options);
+        // 日志：请求参数
+        // eslint-disable-next-line no-console
+        console.log('[AI DEBUG] generateTitle: prompt:', prompt);
+        // eslint-disable-next-line no-console
+        console.log('[AI DEBUG] generateTitle: systemMessage:', systemMessage);
         try {
             const result = await this.callAI(prompt, systemMessage);
+            // 日志：AI原始响应
+            // eslint-disable-next-line no-console
+            console.log('[AI DEBUG] generateTitle: AI raw result:', result);
             return this.parseResponse(result.text);
         }
         catch (error) {
+            // eslint-disable-next-line no-console
+            console.error('[AI ERROR] generateTitle error:', error);
             if (this.retryCount < (this.config.maxRetries || 3)) {
                 this.retryCount++;
                 await this.delay(1000 * this.retryCount); // Exponential backoff
@@ -55014,6 +55024,15 @@ class VercelAIService {
     }
     async callAI(prompt, systemMessage) {
         const model = this.getModel();
+        // 日志：调用AI参数
+        // eslint-disable-next-line no-console
+        console.log('[AI DEBUG] callAI: model:', model);
+        // eslint-disable-next-line no-console
+        console.log('[AI DEBUG] callAI: system:', systemMessage);
+        // eslint-disable-next-line no-console
+        console.log('[AI DEBUG] callAI: prompt:', prompt);
+        // eslint-disable-next-line no-console
+        console.log('[AI DEBUG] callAI: maxTokens:', this.config.maxTokens, 'temperature:', this.config.temperature);
         return await (0, ai_1.generateText)({
             model,
             system: systemMessage,
@@ -55142,9 +55161,17 @@ Only return valid JSON, no additional text.`;
     }
     parseResponse(text) {
         try {
-            // Clean up the response - remove any markdown formatting or extra text
+            // 日志：原始AI文本响应
+            // eslint-disable-next-line no-console
+            console.log('[AI DEBUG] parseResponse: raw text:', text);
+            // Clean up the response - remove任何markdown格式或多余文本
             const cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
+            // eslint-disable-next-line no-console
+            console.log('[AI DEBUG] parseResponse: cleanText:', cleanText);
             const parsed = JSON.parse(cleanText);
+            // 日志：解析后的JSON
+            // eslint-disable-next-line no-console
+            console.log('[AI DEBUG] parseResponse: parsed JSON:', parsed);
             return {
                 suggestions: Array.isArray(parsed.suggestions)
                     ? parsed.suggestions
@@ -55154,6 +55181,8 @@ Only return valid JSON, no additional text.`;
             };
         }
         catch (error) {
+            // eslint-disable-next-line no-console
+            console.error('[AI ERROR] parseResponse JSON parse error:', error, 'text:', text);
             // Fallback parsing if JSON fails
             const suggestions = this.extractSuggestionsFromText(text);
             return {
