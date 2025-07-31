@@ -13,6 +13,8 @@ permissions:
 jobs:
   auto-conventional-title:
     runs-on: ubuntu-latest
+    # Skip if the event was triggered by the bot itself to prevent loops
+    if: ${{ github.actor != 'github-actions[bot]' && github.event.sender.type != 'Bot' }}
     
     steps:
       - name: Checkout repository
@@ -22,10 +24,10 @@ jobs:
         uses: ./
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          ai-provider: 'anthropic'
-          api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-          base-url: ${{ secrets.ANTHROPIC_BASE_URL }}
-          model: 'claude-3-5-sonnet-20241022'
+          ai-provider: 'openai'
+          api-key: ${{ secrets.OPENAI_API_KEY }}
+          base-url: ${{ secrets.OPENAI_BASE_URL }}
+          model: 'gpt-4o-mini'
           mode: 'suggest'
           temperature: '0.3'
           max-tokens: '200'
