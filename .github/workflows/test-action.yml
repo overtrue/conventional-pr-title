@@ -1,0 +1,154 @@
+name: Test PR Title Action
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Test mode (suggest or auto)'
+        required: false
+        default: 'suggest'
+        type: choice
+        options:
+          - suggest
+          - auto
+      provider:
+        description: 'AI provider to test'
+        required: false
+        default: 'openai'
+        type: choice
+        options:
+          - openai
+          - anthropic
+          - google
+          - mistral
+          - xai
+          - cohere
+
+jobs:
+  test-pr-title-action:
+    runs-on: ubuntu-latest
+    name: Test Conventional PR Title Action
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Test Action (Suggest Mode)
+        id: test-suggest
+        uses: ./
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          ai-provider: ${{ github.event.inputs.provider || 'openai' }}
+          api-key: ${{ secrets.OPENAI_API_KEY }}
+          mode: ${{ github.event.inputs.mode || 'suggest' }}
+          temperature: '0.3'
+          max-tokens: '500'
+          allowed-types: 'feat,fix,docs,style,refactor,test,chore,perf,ci,build,revert'
+          require-scope: 'false'
+          max-length: '72'
+          min-description-length: '3'
+          include-scope: 'true'
+          skip-if-conventional: 'true'
+
+      - name: Display Results
+        run: |
+          echo "### 🤖 Action Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Is Conventional:** ${{ steps.test-suggest.outputs.is-conventional }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Original Title:** ${{ steps.test-suggest.outputs.original-title }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Action Taken:** ${{ steps.test-suggest.outputs.action-taken }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Suggested Titles:**" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          echo '${{ steps.test-suggest.outputs.suggested-titles }}' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.test-suggest.outputs.error-message }}" != "" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Error:** ${{ steps.test-suggest.outputs.error-message }}" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Test with Different Providers (if secrets available)
+        if: github.event_name == 'workflow_dispatch'
+        continue-on-error: true
+        run: |
+          echo "Testing multiple providers..." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Test each provider if API key is available
+          providers=("anthropic:ANTHROPIC_API_KEY" "google:GOOGLE_API_KEY" "mistral:MISTRAL_API_KEY" "xai:XAI_API_KEY" "cohere:COHERE_API_KEY")
+          
+          for provider_key in "${providers[@]}"; do
+            IFS=':' read -r provider secret_name <<< "$provider_key"
+            echo "### Testing $provider provider" >> $GITHUB_STEP_SUMMARY
+            echo "Secret: $secret_name" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          done
+
+  test-different-scenarios:
+    runs-on: ubuntu-latest
+    name: Test Different Scenarios
+    strategy:
+      matrix:
+        scenario:
+          - name: "Good conventional title"
+            title: "feat(api): add user authentication endpoint"
+            expected_conventional: true
+          - name: "Bad title needs improvement"
+            title: "Add some new features and fix bugs"
+            expected_conventional: false
+          - name: "Mixed case title"
+            title: "Fix: resolve Memory Leak in Data Processing"
+            expected_conventional: false
+          - name: "Too long title"
+            title: "feat(authentication): implement comprehensive OAuth2 integration with JWT tokens and refresh mechanism for secure user authentication"
+            expected_conventional: false
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create test PR title file
+        run: |
+          echo "PR_TITLE=${{ matrix.scenario.title }}" >> $GITHUB_ENV
+
+      - name: Test Action with Scenario
+        id: test-scenario
+        uses: ./
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          ai-provider: 'openai'
+          api-key: ${{ secrets.OPENAI_API_KEY }}
+          mode: 'suggest'
+          skip-if-conventional: 'false'
+        env:
+          # Simulate different PR titles by overriding the context
+          GITHUB_CONTEXT: |
+            {
+              "event": {
+                "pull_request": {
+                  "title": "${{ matrix.scenario.title }}",
+                  "body": "Test PR body for scenario testing",
+                  "number": 1
+                }
+              }
+            }
+
+      - name: Validate Results
+        run: |
+          echo "### 📊 Scenario Test: ${{ matrix.scenario.name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Title:** ${{ matrix.scenario.title }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Expected Conventional:** ${{ matrix.scenario.expected_conventional }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Actual Conventional:** ${{ steps.test-scenario.outputs.is-conventional }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Action Taken:** ${{ steps.test-scenario.outputs.action-taken }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.test-scenario.outputs.suggested-titles }}" != "[]" ]; then
+            echo "**AI Suggestions:**" >> $GITHUB_STEP_SUMMARY
+            echo '```json' >> $GITHUB_STEP_SUMMARY
+            echo '${{ steps.test-scenario.outputs.suggested-titles }}' >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
