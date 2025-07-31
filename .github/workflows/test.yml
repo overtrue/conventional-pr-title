@@ -1,4 +1,3 @@
-
 # 仅保留手动测试 workflow，自动 PR 校验和多场景测试已由 test-action.yml 覆盖
 name: Test Conventional PR Title Action (Manual)
 on:

@@ -173,7 +173,7 @@ jobs:
     comment-template: |
       🎯 **Suggested PR Titles:**
       ${suggestions}
-      
+
       **Current Title:** ${currentTitle}
       **Reasoning:** ${reasoning}
 ```
@@ -224,7 +224,7 @@ jobs:
 ### Other Providers
 - **Mistral**: Get key from [Mistral AI](https://console.mistral.ai/) → `MISTRAL_API_KEY`
 - **xAI**: Get key from [xAI Console](https://console.x.ai/) → `XAI_API_KEY`
-- **Cohere**: Get key from [Cohere Dashboard](https://dashboard.cohere.com/) → `COHERE_API_KEY`  
+- **Cohere**: Get key from [Cohere Dashboard](https://dashboard.cohere.com/) → `COHERE_API_KEY`
 - **Azure**: Set up Azure OpenAI resource → `AZURE_API_KEY`
 - **Vercel**: Get key from [Vercel AI](https://vercel.com/ai) → `VERCEL_API_KEY`
 - **DeepSeek**: Get key from [DeepSeek Platform](https://platform.deepseek.com/) → `DEEPSEEK_API_KEY`
@@ -329,7 +329,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Development Status
 
-This GitHub Action is currently in development and has not been officially released yet. 
+This GitHub Action is currently in development and has not been officially released yet.
 
 ### Current Features
 - ✨ Support for **54 models** across **10 AI providers**
