@@ -19,20 +19,20 @@ permissions:
 jobs:
   auto-conventional-title:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        
+
       - name: Auto-generate conventional PR title
         uses: ./
         with:
-          github-token: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
-          ai-provider: 'openai'
-          api-key: ${{ secrets.OPENAI_API_KEY }}
-          base-url: ${{ secrets.OPENAI_BASE_URL }}
-          model: 'gpt-4o-mini'
-          mode: 'suggest'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          ai-provider: 'anthropic'
+          api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          base-url: ${{ secrets.ANTHROPIC_BASE_URL }}
+          model: 'claude-sonnet-4-20250514'
+          mode: 'auto'
           temperature: '0.3'
           max-tokens: '200'
           include-scope: 'true'
