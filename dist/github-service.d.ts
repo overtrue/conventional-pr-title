@@ -1,3 +1,11 @@
+export type SupportedLanguage = 'en' | 'zh' | 'ja' | 'ko' | 'es' | 'fr' | 'de' | 'pt' | 'ru' | 'it' | 'nl' | 'ar';
+export interface CommentTemplate {
+    greeting: string;
+    explanation: string;
+    reasoningLabel: string;
+    actionPrompt: string;
+    footer: string;
+}
 export interface GitHubConfig {
     token: string;
     owner?: string;
@@ -41,5 +49,7 @@ export declare class OctokitGitHubService implements GitHubService {
 }
 export declare function createGitHubService(token?: string): Promise<GitHubService>;
 export declare function getPRInfoFromContext(): Promise<PRInfo | null>;
-export declare function formatCommentWithMention(author: string, suggestions: string[], reasoning: string): string;
+export declare function detectLanguage(text: string): SupportedLanguage;
+export declare function detectLanguageFromPR(prInfo: PRInfo): SupportedLanguage;
+export declare function formatCommentWithMention(author: string, suggestions: string[], reasoning: string, language?: SupportedLanguage, prInfo?: PRInfo): string;
 export declare function withRetry<T>(operation: () => Promise<T>, maxRetries?: number, delayMs?: number): Promise<T>;
