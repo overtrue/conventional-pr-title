@@ -26,7 +26,7 @@ node_modules/
 
 # TypeScript
 *.tsbuildinfo
-dist/
+# dist/ 不能忽略，action 入口文件需提交到仓库
 
 # Testing
 coverage/

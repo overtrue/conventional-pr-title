@@ -37,7 +37,34 @@ The action supports **54 models** across **10 providers**:
 - **Groq**: High-speed Llama, Mixtral, and Gemma models
 - **Vertex AI**: Google Cloud-hosted Gemini models
 
+
 ## Quick Start
+
+### 🏗️ Build & Publish (GitHub Action 规范)
+
+> **注意：dist/ 目录必须提交到仓库，不能 .gitignore！**
+
+1. 安装依赖：
+   ```bash
+   npm install
+   ```
+2. 构建 TypeScript：
+   ```bash
+   npm run build
+   ```
+3. 打包产物（推荐 ncc）：
+   ```bash
+   npm run package
+   ```
+4. 提交 dist/ 目录：
+   ```bash
+   git add dist/ && git commit -m "build: update dist for action"
+   ```
+5. 推送到主分支，确保 action.yml 的 main 字段指向 dist/index.js。
+
+> **CI/CD 注意事项**：
+> - GitHub Action 必须提交构建产物（dist/）到主分支，否则 marketplace/PR 流水线会报“File not found: dist/index.js”。
+> - 推荐本地构建后再 push。
 
 ```yaml
 name: PR Title Check
