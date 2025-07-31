@@ -80,13 +80,26 @@ export class VercelAIService implements AIService {
       try {
         const prompt = this.buildPrompt(request)
         const systemMessage = this.buildSystemMessage(request.options)
+        // Debug log: show attempt, prompt, system message
+        // eslint-disable-next-line no-console
+        console.log(`[AI DEBUG] Attempt ${attempt + 1}/${maxRetries + 1}`)
+        // eslint-disable-next-line no-console
+        console.log('[AI DEBUG] Prompt:', prompt)
+        // eslint-disable-next-line no-console
+        console.log('[AI DEBUG] System message:', systemMessage)
         const result = await this.callAI(prompt, systemMessage)
-        console.log(`response: ${result.text}`);
+        // Debug log: raw AI response
+        // eslint-disable-next-line no-console
+        console.log('[AI DEBUG] Raw AI response:', result.text)
         return this.parseResponse(result.text)
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error))
-
+        // Debug log: error on this attempt
+        // eslint-disable-next-line no-console
+        console.error(`[AI ERROR] Attempt ${attempt + 1} failed:`, lastError)
         if (attempt < maxRetries) {
+          // eslint-disable-next-line no-console
+          console.log(`[AI DEBUG] Retrying after error, attempt ${attempt + 2}...`)
           await this.delay(Math.pow(2, attempt) * 1000)
         }
       }
@@ -246,6 +259,9 @@ Only return valid JSON, no additional text.`
   }
 
   private parseResponse(text: string): TitleGenerationResponse {
+    // Debug log: always print raw text
+    // eslint-disable-next-line no-console
+    console.log('[AI DEBUG] parseResponse: raw text:', text)
     try {
       // More aggressive cleaning - remove code blocks, extra whitespace, and common prefixes
       let cleanText = text
@@ -260,8 +276,15 @@ Only return valid JSON, no additional text.`
           cleanText = jsonMatch[0];
         }
       }
+      // Debug log: cleaned JSON string
+      // eslint-disable-next-line no-console
+      console.log('[AI DEBUG] parseResponse: cleaned JSON string:', cleanText)
 
       const parsed = JSON.parse(cleanText)
+
+      // Debug log: parsed JSON object
+      // eslint-disable-next-line no-console
+      console.log('[AI DEBUG] parseResponse: parsed JSON:', parsed)
 
       return {
         suggestions: Array.isArray(parsed.suggestions)
@@ -273,10 +296,11 @@ Only return valid JSON, no additional text.`
           typeof parsed.confidence === 'number' ? parsed.confidence : 0.8
       }
     } catch (error) {
+      // Debug log: JSON parse error and cleaned string
       // eslint-disable-next-line no-console
       console.error('[AI ERROR] parseResponse JSON parse error:', error)
       // eslint-disable-next-line no-console
-      console.error('[AI ERROR] Raw response text:', text)
+      console.error('[AI ERROR] parseResponse: cleaned JSON string:', text)
 
       const suggestions = this.extractSuggestionsFromText(text)
       return {
