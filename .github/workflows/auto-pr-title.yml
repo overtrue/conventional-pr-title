@@ -3,6 +3,12 @@ name: Auto PR Title with Conventional Commits
 on:
   pull_request:
     types: [opened, synchronize, reopened, edited]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to process'
+        required: true
+        type: number
 
 permissions:
   contents: read
@@ -21,7 +27,7 @@ jobs:
       - name: Auto-generate conventional PR title
         uses: ./
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
           ai-provider: 'openai'
           api-key: ${{ secrets.OPENAI_API_KEY }}
           base-url: ${{ secrets.OPENAI_BASE_URL }}

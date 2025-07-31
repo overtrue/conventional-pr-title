@@ -287,6 +287,16 @@ The action enforces the [Conventional Commits](https://conventionalcommits.org/)
 - Verify the AI provider service is available
 - Try adjusting `temperature` or `custom-prompt`
 
+**Workflow doesn't re-run after PR title changes**
+- This is GitHub's intended behavior to prevent infinite loops when using `GITHUB_TOKEN`
+- **Solution 1**: Use a Personal Access Token:
+  1. Create a PAT with `repo` permissions at https://github.com/settings/tokens
+  2. Add it as repository secret: `PAT_TOKEN`
+  3. The workflow will use PAT if available, falling back to GITHUB_TOKEN
+- **Solution 2**: Manually trigger the workflow:
+  1. Go to Actions → "Auto PR Title with Conventional Commits"
+  2. Click "Run workflow" and enter the PR number
+
 ### Debug Mode
 Add debug logging to your workflow:
 
