@@ -1,4 +1,4 @@
-name: 'Conventional PR Title'
+name: 'Conventional Pull Request Title'
 description: 'Automatically suggests or updates PR titles to follow Conventional Commits standard using AI'
 author: 'Your Name'
 inputs:
@@ -6,7 +6,7 @@ inputs:
     description: 'GitHub token for API access'
     required: true
     default: ${{ github.token }}
-  
+
   # AI Service Configuration
   ai-provider:
     description: 'AI provider to use (openai, anthropic, google, mistral, xai, cohere, azure)'
@@ -27,13 +27,13 @@ inputs:
     description: 'Maximum tokens for AI response'
     required: false
     default: '500'
-  
+
   # Operation Mode
   mode:
     description: 'Operation mode: "auto" to automatically update title, "suggest" to add comment with suggestions'
     required: false
     default: 'suggest'
-  
+
   # Validation Rules
   allowed-types:
     description: 'Comma-separated list of allowed conventional commit types'
@@ -51,7 +51,7 @@ inputs:
     description: 'Minimum length for the description part'
     required: false
     default: '3'
-  
+
   # Customization
   custom-prompt:
     description: 'Custom prompt template for AI title generation'
@@ -61,7 +61,7 @@ inputs:
     description: 'Whether to prefer including scope in generated titles'
     required: false
     default: 'true'
-  
+
   # Behavior Control
   skip-if-conventional:
     description: 'Skip processing if title already follows conventional commits'
@@ -71,7 +71,7 @@ inputs:
     description: 'Custom template for suggestion comments'
     required: false
     default: ''
-  
+
 outputs:
   is-conventional:
     description: 'Whether the PR title follows conventional commits format'
@@ -83,11 +83,11 @@ outputs:
     description: 'Action taken: "updated", "commented", "skipped", or "error"'
   error-message:
     description: 'Error message if action failed'
-  
+
 runs:
   using: 'node20'
   main: 'dist/index.js'
-  
+
 branding:
   icon: 'git-pull-request'
   color: 'blue'
