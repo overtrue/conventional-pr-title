@@ -50,83 +50,6 @@ class VercelAIService {
     }
     async callAI(prompt, systemMessage) {
         const model = this.getModel();
-        // Set API key and baseURL via environment variables
-        if (this.config.apiKey) {
-            switch (this.config.provider) {
-                case 'openai':
-                    process.env.OPENAI_API_KEY = this.config.apiKey;
-                    if (this.config.baseURL) {
-                        process.env.OPENAI_BASE_URL = this.config.baseURL;
-                    }
-                    break;
-                case 'anthropic':
-                    process.env.ANTHROPIC_API_KEY = this.config.apiKey;
-                    if (this.config.baseURL) {
-                        process.env.ANTHROPIC_BASE_URL = this.config.baseURL;
-                    }
-                    break;
-                case 'google':
-                    process.env.GOOGLE_GENERATIVE_AI_API_KEY = this.config.apiKey;
-                    if (this.config.baseURL) {
-                        process.env.GOOGLE_GENERATIVE_AI_BASE_URL = this.config.baseURL;
-                    }
-                    break;
-                case 'mistral':
-                    process.env.MISTRAL_API_KEY = this.config.apiKey;
-                    if (this.config.baseURL) {
-                        process.env.MISTRAL_BASE_URL = this.config.baseURL;
-                    }
-                    break;
-                case 'xai':
-                    process.env.XAI_API_KEY = this.config.apiKey;
-                    if (this.config.baseURL) {
-                        process.env.XAI_BASE_URL = this.config.baseURL;
-                    }
-                    break;
-                case 'cohere':
-                    process.env.COHERE_API_KEY = this.config.apiKey;
-                    if (this.config.baseURL) {
-                        process.env.COHERE_BASE_URL = this.config.baseURL;
-                    }
-                    break;
-                case 'azure':
-                    process.env.AZURE_API_KEY = this.config.apiKey;
-                    if (this.config.baseURL) {
-                        process.env.AZURE_BASE_URL = this.config.baseURL;
-                    }
-                    break;
-                case 'vercel':
-                    process.env.VERCEL_API_KEY = this.config.apiKey;
-                    if (this.config.baseURL) {
-                        process.env.VERCEL_BASE_URL = this.config.baseURL;
-                    }
-                    break;
-                case 'deepseek':
-                    process.env.DEEPSEEK_API_KEY = this.config.apiKey;
-                    if (this.config.baseURL) {
-                        process.env.DEEPSEEK_BASE_URL = this.config.baseURL;
-                    }
-                    break;
-                case 'cerebras':
-                    process.env.CEREBRAS_API_KEY = this.config.apiKey;
-                    if (this.config.baseURL) {
-                        process.env.CEREBRAS_BASE_URL = this.config.baseURL;
-                    }
-                    break;
-                case 'groq':
-                    process.env.GROQ_API_KEY = this.config.apiKey;
-                    if (this.config.baseURL) {
-                        process.env.GROQ_BASE_URL = this.config.baseURL;
-                    }
-                    break;
-                case 'vertex':
-                    process.env.GOOGLE_VERTEX_AI_API_KEY = this.config.apiKey;
-                    if (this.config.baseURL) {
-                        process.env.GOOGLE_VERTEX_AI_BASE_URL = this.config.baseURL;
-                    }
-                    break;
-            }
-        }
         return await (0, ai_1.generateText)({
             model,
             system: systemMessage,
@@ -136,21 +59,55 @@ class VercelAIService {
         });
     }
     getModel() {
-        const { provider, model } = this.config;
+        const { provider, model, apiKey, baseURL } = this.config;
+        // Prepare provider configuration
+        const providerConfig = {};
+        if (apiKey)
+            providerConfig.apiKey = apiKey;
+        if (baseURL)
+            providerConfig.baseURL = baseURL;
         switch (provider) {
             case 'openai':
+                if (Object.keys(providerConfig).length > 0) {
+                    const providerInstance = (0, openai_1.createOpenAI)(providerConfig);
+                    return providerInstance(model || 'gpt-4o-mini');
+                }
                 return (0, openai_1.openai)(model || 'gpt-4o-mini');
             case 'anthropic':
+                if (Object.keys(providerConfig).length > 0) {
+                    const providerInstance = (0, anthropic_1.createAnthropic)(providerConfig);
+                    return providerInstance(model || 'claude-3-5-sonnet-20241022');
+                }
                 return (0, anthropic_1.anthropic)(model || 'claude-3-5-sonnet-20241022');
             case 'google':
+                if (Object.keys(providerConfig).length > 0) {
+                    const providerInstance = (0, google_1.createGoogleGenerativeAI)(providerConfig);
+                    return providerInstance(model || 'gemini-1.5-flash');
+                }
                 return (0, google_1.google)(model || 'gemini-1.5-flash');
             case 'mistral':
+                if (Object.keys(providerConfig).length > 0) {
+                    const providerInstance = (0, mistral_1.createMistral)(providerConfig);
+                    return providerInstance(model || 'mistral-large-latest');
+                }
                 return (0, mistral_1.mistral)(model || 'mistral-large-latest');
             case 'xai':
+                if (Object.keys(providerConfig).length > 0) {
+                    const providerInstance = (0, xai_1.createXai)(providerConfig);
+                    return providerInstance(model || 'grok-beta');
+                }
                 return (0, xai_1.xai)(model || 'grok-beta');
             case 'cohere':
+                if (Object.keys(providerConfig).length > 0) {
+                    const providerInstance = (0, cohere_1.createCohere)(providerConfig);
+                    return providerInstance(model || 'command-r-plus');
+                }
                 return (0, cohere_1.cohere)(model || 'command-r-plus');
             case 'azure':
+                if (Object.keys(providerConfig).length > 0) {
+                    const providerInstance = (0, azure_1.createAzure)(providerConfig);
+                    return providerInstance(model || 'gpt-4o-mini');
+                }
                 return (0, azure_1.azure)(model || 'gpt-4o-mini');
             case 'vercel':
                 // Note: Vercel provider needs to be imported if available
@@ -166,6 +123,10 @@ class VercelAIService {
                 throw new Error('Groq provider not yet implemented in AI SDK');
             case 'vertex':
                 // Note: Vertex is typically same as Google but with different auth
+                if (Object.keys(providerConfig).length > 0) {
+                    const providerInstance = (0, google_1.createGoogleGenerativeAI)(providerConfig);
+                    return providerInstance(model || 'gemini-1.5-flash');
+                }
                 return (0, google_1.google)(model || 'gemini-1.5-flash');
             default:
                 throw new Error(`Unsupported provider: ${provider}`);
