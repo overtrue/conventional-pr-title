@@ -27,6 +27,7 @@ export interface ActionConfig {
     aiProvider: AIServiceConfig['provider'];
     apiKey: string;
     model?: string;
+    baseURL?: string;
     temperature: number;
     maxTokens: number;
     mode: OperationMode;

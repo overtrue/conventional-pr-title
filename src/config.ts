@@ -35,6 +35,7 @@ export interface ActionConfig {
   aiProvider: AIServiceConfig['provider']
   apiKey: string
   model?: string
+  baseURL?: string
   temperature: number
   maxTokens: number
 
@@ -94,6 +95,7 @@ export class ActionConfigManager {
         'API key is required for AI service'
       )
       const model = getInput('model') || undefined
+      const baseURL = getInput('base-url') || undefined
       const temperature = this.parseNumber('temperature', 0.3, 0, 1)
       const maxTokens = this.parseNumber('max-tokens', 500, 1, 4000)
 
@@ -121,6 +123,7 @@ export class ActionConfigManager {
         aiProvider,
         apiKey,
         model,
+        baseURL,
         temperature,
         maxTokens,
         mode,
@@ -174,6 +177,19 @@ export class ActionConfigManager {
         message: `Model '${config.model}' is not compatible with provider '${config.aiProvider}'`,
         suggestion: `Try using: ${providerModels[config.aiProvider]?.slice(0, 3).join(', ')}`
       })
+    }
+
+    // Validate baseURL format
+    if (config.baseURL) {
+      try {
+        new URL(config.baseURL)
+      } catch {
+        errors.push({
+          field: 'base-url',
+          message: 'Base URL must be a valid HTTP/HTTPS URL',
+          suggestion: 'Use format like: https://api.example.com/v1'
+        })
+      }
     }
 
     // Validate temperature range
@@ -451,6 +467,7 @@ export function createAIServiceConfig(config: ActionConfig): AIServiceConfig {
     provider: config.aiProvider,
     apiKey: config.apiKey,
     model: config.model,
+    baseURL: config.baseURL,
     temperature: config.temperature,
     maxTokens: config.maxTokens
   }

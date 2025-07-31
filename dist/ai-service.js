@@ -50,44 +50,80 @@ class VercelAIService {
     }
     async callAI(prompt, systemMessage) {
         const model = this.getModel();
-        // Set API key via environment variable or use provided key
+        // Set API key and baseURL via environment variables
         if (this.config.apiKey) {
             switch (this.config.provider) {
                 case 'openai':
                     process.env.OPENAI_API_KEY = this.config.apiKey;
+                    if (this.config.baseURL) {
+                        process.env.OPENAI_BASE_URL = this.config.baseURL;
+                    }
                     break;
                 case 'anthropic':
                     process.env.ANTHROPIC_API_KEY = this.config.apiKey;
+                    if (this.config.baseURL) {
+                        process.env.ANTHROPIC_BASE_URL = this.config.baseURL;
+                    }
                     break;
                 case 'google':
                     process.env.GOOGLE_GENERATIVE_AI_API_KEY = this.config.apiKey;
+                    if (this.config.baseURL) {
+                        process.env.GOOGLE_GENERATIVE_AI_BASE_URL = this.config.baseURL;
+                    }
                     break;
                 case 'mistral':
                     process.env.MISTRAL_API_KEY = this.config.apiKey;
+                    if (this.config.baseURL) {
+                        process.env.MISTRAL_BASE_URL = this.config.baseURL;
+                    }
                     break;
                 case 'xai':
                     process.env.XAI_API_KEY = this.config.apiKey;
+                    if (this.config.baseURL) {
+                        process.env.XAI_BASE_URL = this.config.baseURL;
+                    }
                     break;
                 case 'cohere':
                     process.env.COHERE_API_KEY = this.config.apiKey;
+                    if (this.config.baseURL) {
+                        process.env.COHERE_BASE_URL = this.config.baseURL;
+                    }
                     break;
                 case 'azure':
                     process.env.AZURE_API_KEY = this.config.apiKey;
+                    if (this.config.baseURL) {
+                        process.env.AZURE_BASE_URL = this.config.baseURL;
+                    }
                     break;
                 case 'vercel':
                     process.env.VERCEL_API_KEY = this.config.apiKey;
+                    if (this.config.baseURL) {
+                        process.env.VERCEL_BASE_URL = this.config.baseURL;
+                    }
                     break;
                 case 'deepseek':
                     process.env.DEEPSEEK_API_KEY = this.config.apiKey;
+                    if (this.config.baseURL) {
+                        process.env.DEEPSEEK_BASE_URL = this.config.baseURL;
+                    }
                     break;
                 case 'cerebras':
                     process.env.CEREBRAS_API_KEY = this.config.apiKey;
+                    if (this.config.baseURL) {
+                        process.env.CEREBRAS_BASE_URL = this.config.baseURL;
+                    }
                     break;
                 case 'groq':
                     process.env.GROQ_API_KEY = this.config.apiKey;
+                    if (this.config.baseURL) {
+                        process.env.GROQ_BASE_URL = this.config.baseURL;
+                    }
                     break;
                 case 'vertex':
                     process.env.GOOGLE_VERTEX_AI_API_KEY = this.config.apiKey;
+                    if (this.config.baseURL) {
+                        process.env.GOOGLE_VERTEX_AI_BASE_URL = this.config.baseURL;
+                    }
                     break;
             }
         }
@@ -103,15 +139,15 @@ class VercelAIService {
         const { provider, model } = this.config;
         switch (provider) {
             case 'openai':
-                return (0, openai_1.openai)(model || 'gpt-4.1-mini');
+                return (0, openai_1.openai)(model || 'gpt-4o-mini');
             case 'anthropic':
-                return (0, anthropic_1.anthropic)(model || 'claude-sonnet-4-20250514');
+                return (0, anthropic_1.anthropic)(model || 'claude-3-5-sonnet-20241022');
             case 'google':
-                return (0, google_1.google)(model || 'gemini-2.0-flash-exp');
+                return (0, google_1.google)(model || 'gemini-1.5-flash');
             case 'mistral':
-                return (0, mistral_1.mistral)(model || 'pixtral-large-latest');
+                return (0, mistral_1.mistral)(model || 'mistral-large-latest');
             case 'xai':
-                return (0, xai_1.xai)(model || 'grok-3-mini');
+                return (0, xai_1.xai)(model || 'grok-beta');
             case 'cohere':
                 return (0, cohere_1.cohere)(model || 'command-r-plus');
             case 'azure':
@@ -130,7 +166,7 @@ class VercelAIService {
                 throw new Error('Groq provider not yet implemented in AI SDK');
             case 'vertex':
                 // Note: Vertex is typically same as Google but with different auth
-                return (0, google_1.google)(model || 'gemini-2.0-flash-exp');
+                return (0, google_1.google)(model || 'gemini-1.5-flash');
             default:
                 throw new Error(`Unsupported provider: ${provider}`);
         }

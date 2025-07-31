@@ -2,6 +2,7 @@ export interface AIServiceConfig {
     provider: 'openai' | 'anthropic' | 'google' | 'mistral' | 'xai' | 'cohere' | 'azure' | 'vercel' | 'deepseek' | 'cerebras' | 'groq' | 'vertex';
     model?: string;
     apiKey?: string;
+    baseURL?: string;
     maxTokens?: number;
     temperature?: number;
     maxRetries?: number;
