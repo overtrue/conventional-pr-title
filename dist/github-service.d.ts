@@ -40,7 +40,6 @@ export declare class OctokitGitHubService implements GitHubService {
     createComment(prNumber: number, body: string): Promise<PRComment>;
     getChangedFiles(prNumber: number): Promise<string[]>;
     checkPermissions(): Promise<boolean>;
-    private getCurrentUser;
 }
 export declare function createGitHubService(token?: string): Promise<GitHubService>;
 export declare function getPRInfoFromContext(): Promise<PRInfo | null>;

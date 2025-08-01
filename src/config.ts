@@ -1,5 +1,5 @@
 import { getInput, getBooleanInput, setOutput, setFailed } from '@actions/core'
-import { AIServiceConfig } from './ai-service'
+import { AIServiceConfig } from './shared/types'
 import { ValidationOptions } from './conventional'
 import supportedModels from './supported-models.json'
 
@@ -287,7 +287,8 @@ export class ActionConfigManager {
       'mistral',
       'xai',
       'cohere',
-      'azure'
+      'azure',
+      'claude-code'
     ]
 
     if (!validProviders.includes(provider as AIServiceConfig['provider'])) {
@@ -387,11 +388,7 @@ export class ActionConfigManager {
       xai: [],
       cohere: [],
       azure: [],
-      vercel: [],
-      deepseek: [],
-      cerebras: [],
-      groq: [],
-      vertex: []
+      'claude-code': []
     }
 
     // Populate from the supportedModels JSON
@@ -437,11 +434,7 @@ export class ActionConfigManager {
       xai: [/^grok-/],
       cohere: [/^command-/, /^embed-/],
       azure: [/^gpt-/, /^text-/],
-      vercel: [/^v0-/],
-      deepseek: [/^deepseek-/],
-      cerebras: [/^llama/, /^meta-/],
-      groq: [/^llama/, /^mixtral/, /^gemma/, /^meta-/],
-      vertex: [/^gemini-/, /^palm-/]
+      'claude-code': [/^sonnet$/, /^opus$/, /^claude-/]
     }
 
     const providerPatterns = patterns[provider] || []

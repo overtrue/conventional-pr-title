@@ -7,6 +7,14 @@ import { createOpenAI, openai } from '@ai-sdk/openai'
 import { createXai, xai } from '@ai-sdk/xai'
 import { generateText } from 'ai'
 import { DEFAULT_TYPES } from './conventional'
+import { Logger } from './utils'
+
+// Constants
+const LIMITS = {
+  MAX_PR_BODY_SIZE: 1500,
+  MAX_DIFF_SIZE: 2000,
+  MAX_CHANGED_FILES: 15
+} as const
 
 export type AIProvider =
   | 'openai'
@@ -43,7 +51,7 @@ export interface TitleGenerationRequest {
     includeScope?: boolean
     preferredTypes?: string[]
     maxLength?: number
-    language?: string
+    matchLanguage?: boolean
   }
 }
 
@@ -75,29 +83,11 @@ export class VercelAIService implements AIService {
   }
 
   private debugLog(message: string, data?: any): void {
-    if (!this.config.debug) return
-
-    const timestamp = new Date().toISOString()
-    const prefix = `🤖 [AI-DEBUG ${timestamp}]`
-
-    if (data) {
-      console.log(`${prefix} ${message}:`)
-      console.log(JSON.stringify(data, null, 2))
-    } else {
-      console.log(`${prefix} ${message}`)
-    }
+    Logger.debug(message, data)
   }
 
   private errorLog(message: string, error?: any): void {
-    if (!this.config.debug) return
-
-    const timestamp = new Date().toISOString()
-    const prefix = `❌ [AI-ERROR ${timestamp}]`
-
-    console.error(`${prefix} ${message}`)
-    if (error) {
-      console.error(error)
-    }
+    Logger.error(message, error)
   }
 
   async generateTitle(
@@ -162,7 +152,7 @@ export class VercelAIService implements AIService {
 
   private getModel() {
     const { provider, model, apiKey, baseURL } = this.config
-    const cacheKey = `${provider}-${model}-${apiKey?.slice(0, 8)}`
+    const cacheKey = `${provider}-${model || 'default'}-${baseURL || 'default'}`
 
     if (this.modelCache.has(cacheKey)) {
       return this.modelCache.get(cacheKey)
@@ -184,15 +174,15 @@ export class VercelAIService implements AIService {
       case 'anthropic':
         modelInstance = hasConfig
           ? createAnthropic(providerConfig)(
-              model || 'claude-3-5-sonnet-20241022'
-            )
+            model || 'claude-3-5-sonnet-20241022'
+          )
           : anthropic(model || 'claude-3-5-sonnet-20241022')
         break
       case 'google':
         modelInstance = hasConfig
           ? createGoogleGenerativeAI(providerConfig)(
-              model || 'gemini-1.5-flash'
-            )
+            model || 'gemini-1.5-flash'
+          )
           : google(model || 'gemini-1.5-flash')
         break
       case 'mistral':
@@ -218,8 +208,8 @@ export class VercelAIService implements AIService {
       case 'vertex':
         modelInstance = hasConfig
           ? createGoogleGenerativeAI(providerConfig)(
-              model || 'gemini-1.5-flash'
-            )
+            model || 'gemini-1.5-flash'
+          )
           : google(model || 'gemini-1.5-flash')
         break
       case 'vercel':
@@ -241,7 +231,11 @@ export class VercelAIService implements AIService {
     const allowedTypes = options?.preferredTypes || DEFAULT_TYPES
     const maxLength = options?.maxLength || 72
     const includeScope = options?.includeScope ? 'MUST include' : 'MAY include'
-    const language = options?.language || 'English'
+    const matchLanguage = options?.matchLanguage !== false
+
+    const languageInstruction = matchLanguage 
+      ? 'Detect the language used in the PR title and description, then respond in the same language. If the content is in Chinese, respond in Chinese; if in English, respond in English, etc.'
+      : 'Always respond in English.'
 
     return `You are an expert at creating Conventional Commits titles for Pull Requests.
 
@@ -254,13 +248,14 @@ RULES:
 4. Description: lowercase, no period, max ${maxLength} chars total
 5. Be specific and descriptive
 6. Focus on WHAT changed, not HOW
-7. Respond in ${language}, but keep the conventional commit format in English
+7. IMPORTANT: ${languageInstruction}
+8. The conventional commit format (type(scope): description) should always be in English, but your reasoning/explanation should match the detected language.
 
 RESPONSE FORMAT:
 Return a JSON object with:
 {
   "suggestions": ["title1", "title2", "title3"],
-  "reasoning": "explanation of why these titles are better (in ${language})",
+  "reasoning": "explanation of why these titles are better (in the detected language)",
   "confidence": 0.9
 }
 
@@ -278,18 +273,18 @@ Only return valid JSON, no additional text.`
     }
 
     if (prBody && prBody.trim()) {
-      const body = prBody.slice(0, 1500)
-      prompt += `PR Body: ${body}${prBody.length > 1500 ? '...' : ''}\n\n`
+      const body = prBody.slice(0, LIMITS.MAX_PR_BODY_SIZE)
+      prompt += `PR Body: ${body}${prBody.length > LIMITS.MAX_PR_BODY_SIZE ? '...' : ''}\n\n`
     }
 
     if (diffContent && diffContent.trim()) {
-      const diff = diffContent.slice(0, 2000)
-      prompt += `Code Changes (diff):\n${diff}${diffContent.length > 2000 ? '...' : ''}\n\n`
+      const diff = diffContent.slice(0, LIMITS.MAX_DIFF_SIZE)
+      prompt += `Code Changes (diff):\n${diff}${diffContent.length > LIMITS.MAX_DIFF_SIZE ? '...' : ''}\n\n`
     }
 
     if (changedFiles && changedFiles.length > 0) {
       prompt += `Changed Files:\n${changedFiles
-        .slice(0, 15)
+        .slice(0, LIMITS.MAX_CHANGED_FILES)
         .map(f => `- ${f}`)
         .join('\n')}\n\n`
     }

@@ -19,7 +19,7 @@ export interface TitleGenerationRequest {
         includeScope?: boolean;
         preferredTypes?: string[];
         maxLength?: number;
-        language?: string;
+        matchLanguage?: boolean;
     };
 }
 export interface TitleGenerationResponse {

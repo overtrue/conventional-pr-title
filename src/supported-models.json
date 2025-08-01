@@ -1175,6 +1175,66 @@
       "recommended": false
     }
   },
+  "claude-code": {
+    "sonnet": {
+      "id": "sonnet", 
+      "name": "Claude Code Sonnet",
+      "description": "Claude Code CLI with Sonnet model for enhanced development tasks",
+      "cost_per_1m_tokens": {
+        "input": 0.0,
+        "output": 0.0
+      },
+      "context_length": 200000,
+      "max_output_tokens": 8192,
+      "capabilities": {
+        "text": true,
+        "image": false,
+        "tools": true,
+        "json_mode": true
+      },
+      "supported": true,
+      "recommended": true,
+      "default": true
+    },
+    "opus": {
+      "id": "opus",
+      "name": "Claude Code Opus", 
+      "description": "Claude Code CLI with Opus model for complex development tasks",
+      "cost_per_1m_tokens": {
+        "input": 0.0,
+        "output": 0.0
+      },
+      "context_length": 200000,
+      "max_output_tokens": 8192,
+      "capabilities": {
+        "text": true,
+        "image": false,
+        "tools": true,
+        "json_mode": true
+      },
+      "supported": true,
+      "recommended": true
+    },
+    "claude-3-5-sonnet-20241022": {
+      "id": "claude-3-5-sonnet-20241022",
+      "name": "Claude Code 3.5 Sonnet",
+      "description": "Claude Code CLI with specific Claude 3.5 Sonnet model",
+      "cost_per_1m_tokens": {
+        "input": 0.0,
+        "output": 0.0
+      },
+      "context_length": 200000,
+      "max_output_tokens": 8192,
+      "capabilities": {
+        "text": true,
+        "image": false,
+        "tools": true,
+        "json_mode": true
+      },
+      "supported": true,
+      "recommended": false
+    }
+  },
   "metadata": {
     "version": "3.0.0",
     "last_updated": "2025-01-31",

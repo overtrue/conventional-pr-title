@@ -54958,173 +54958,222 @@ function wrappy (fn, cb) {
 
 /***/ }),
 
-/***/ 6771:
+/***/ 4341:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
+/**
+ * Anthropic Provider
+ */
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.VercelAIService = void 0;
-exports.createAIService = createAIService;
-exports.generateConventionalTitle = generateConventionalTitle;
-exports.isAIServiceHealthy = isAIServiceHealthy;
+exports.AnthropicProvider = void 0;
 const anthropic_1 = __nccwpck_require__(3201);
-const azure_1 = __nccwpck_require__(9068);
-const cohere_1 = __nccwpck_require__(5201);
-const google_1 = __nccwpck_require__(260);
-const mistral_1 = __nccwpck_require__(8189);
-const openai_1 = __nccwpck_require__(7635);
-const xai_1 = __nccwpck_require__(6851);
 const ai_1 = __nccwpck_require__(6619);
-const conventional_1 = __nccwpck_require__(7921);
-class VercelAIService {
+const base_provider_1 = __nccwpck_require__(9868);
+class AnthropicProvider extends base_provider_1.BaseAIProvider {
     constructor(config) {
-        this.modelCache = new Map();
-        this.config = {
-            maxTokens: 500,
-            temperature: 0.3,
-            maxRetries: 3,
-            debug: false,
-            ...config
-        };
+        super(config, 'Anthropic');
     }
-    debugLog(message, data) {
-        if (!this.config.debug)
-            return;
-        const timestamp = new Date().toISOString();
-        const prefix = `🤖 [AI-DEBUG ${timestamp}]`;
-        if (data) {
-            console.log(`${prefix} ${message}:`);
-            console.log(JSON.stringify(data, null, 2));
-        }
-        else {
-            console.log(`${prefix} ${message}`);
-        }
+    getRequiredApiKeyName() {
+        return 'ANTHROPIC_API_KEY';
     }
-    errorLog(message, error) {
-        if (!this.config.debug)
-            return;
-        const timestamp = new Date().toISOString();
-        const prefix = `❌ [AI-ERROR ${timestamp}]`;
-        console.error(`${prefix} ${message}`);
-        if (error) {
-            console.error(error);
-        }
+    getClient() {
+        return this.config.baseURL
+            ? (0, anthropic_1.createAnthropic)({
+                apiKey: this.config.apiKey,
+                baseURL: this.config.baseURL
+            })
+            : { model: (model) => (0, anthropic_1.anthropic)(model) };
     }
     async generateTitle(request) {
-        const maxRetries = this.config.maxRetries || 3;
+        this.validateParams();
+        const maxRetries = 3;
         let lastError;
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
             try {
                 const prompt = this.buildPrompt(request);
                 const systemMessage = this.buildSystemMessage(request.options);
-                this.debugLog(`Attempt ${attempt + 1}/${maxRetries + 1}`);
-                this.debugLog('System message', systemMessage);
-                this.debugLog('User prompt', prompt);
-                const result = await this.callAI(prompt, systemMessage);
-                this.debugLog('Raw AI response', result.text);
+                const model = this.config.baseURL
+                    ? (0, anthropic_1.createAnthropic)({
+                        apiKey: this.config.apiKey,
+                        baseURL: this.config.baseURL
+                    })(this.config.model || 'claude-3-5-sonnet-20241022')
+                    : (0, anthropic_1.anthropic)(this.config.model || 'claude-3-5-sonnet-20241022');
+                const result = await (0, ai_1.generateText)({
+                    model,
+                    system: systemMessage,
+                    prompt,
+                    maxTokens: this.config.maxTokens || 500,
+                    temperature: this.config.temperature || 0.3
+                });
                 return this.parseResponse(result.text);
             }
             catch (error) {
                 lastError = error instanceof Error ? error : new Error(String(error));
-                this.errorLog(`Attempt ${attempt + 1} failed`, lastError);
                 if (attempt < maxRetries) {
-                    this.debugLog(`Retrying after error, attempt ${attempt + 2}...`);
                     await this.delay(Math.pow(2, attempt) * 1000);
                 }
             }
         }
-        throw new Error(`AI service failed after ${maxRetries + 1} attempts: ${(lastError === null || lastError === void 0 ? void 0 : lastError.message) || 'Unknown error'}`);
+        this.handleError(lastError, 'generateTitle');
     }
     async isHealthy() {
         try {
-            const testResult = await this.callAI('test', 'You are a test assistant. Reply with "OK".');
-            return testResult.text.toLowerCase().includes('ok');
+            const model = this.config.baseURL
+                ? (0, anthropic_1.createAnthropic)({
+                    apiKey: this.config.apiKey,
+                    baseURL: this.config.baseURL
+                })(this.config.model || 'claude-3-5-sonnet-20241022')
+                : (0, anthropic_1.anthropic)(this.config.model || 'claude-3-5-sonnet-20241022');
+            const result = await (0, ai_1.generateText)({
+                model,
+                system: 'You are a test assistant. Reply with "OK".',
+                prompt: 'test',
+                maxTokens: 10
+            });
+            return result.text.toLowerCase().includes('ok');
         }
         catch {
             return false;
         }
     }
-    async callAI(prompt, systemMessage) {
-        const model = this.getModel();
-        return await (0, ai_1.generateText)({
-            model,
-            system: systemMessage,
-            prompt,
-            maxTokens: this.config.maxTokens,
-            temperature: this.config.temperature
-        });
+}
+exports.AnthropicProvider = AnthropicProvider;
+
+
+/***/ }),
+
+/***/ 6654:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Azure OpenAI Provider
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.AzureProvider = void 0;
+const azure_1 = __nccwpck_require__(9068);
+const ai_1 = __nccwpck_require__(6619);
+const base_provider_1 = __nccwpck_require__(9868);
+class AzureProvider extends base_provider_1.BaseAIProvider {
+    constructor(config) {
+        super(config, 'Azure');
     }
-    getModel() {
-        const { provider, model, apiKey, baseURL } = this.config;
-        const cacheKey = `${provider}-${model}-${apiKey === null || apiKey === void 0 ? void 0 : apiKey.slice(0, 8)}`;
-        if (this.modelCache.has(cacheKey)) {
-            return this.modelCache.get(cacheKey);
-        }
-        const providerConfig = {};
-        if (apiKey)
-            providerConfig.apiKey = apiKey;
-        if (baseURL)
-            providerConfig.baseURL = baseURL;
-        const hasConfig = Object.keys(providerConfig).length > 0;
-        let modelInstance;
-        switch (provider) {
-            case 'openai':
-                modelInstance = hasConfig
-                    ? (0, openai_1.createOpenAI)(providerConfig)(model || 'gpt-4o-mini')
-                    : (0, openai_1.openai)(model || 'gpt-4o-mini');
-                break;
-            case 'anthropic':
-                modelInstance = hasConfig
-                    ? (0, anthropic_1.createAnthropic)(providerConfig)(model || 'claude-3-5-sonnet-20241022')
-                    : (0, anthropic_1.anthropic)(model || 'claude-3-5-sonnet-20241022');
-                break;
-            case 'google':
-                modelInstance = hasConfig
-                    ? (0, google_1.createGoogleGenerativeAI)(providerConfig)(model || 'gemini-1.5-flash')
-                    : (0, google_1.google)(model || 'gemini-1.5-flash');
-                break;
-            case 'mistral':
-                modelInstance = hasConfig
-                    ? (0, mistral_1.createMistral)(providerConfig)(model || 'mistral-large-latest')
-                    : (0, mistral_1.mistral)(model || 'mistral-large-latest');
-                break;
-            case 'xai':
-                modelInstance = hasConfig
-                    ? (0, xai_1.createXai)(providerConfig)(model || 'grok-beta')
-                    : (0, xai_1.xai)(model || 'grok-beta');
-                break;
-            case 'cohere':
-                modelInstance = hasConfig
-                    ? (0, cohere_1.createCohere)(providerConfig)(model || 'command-r-plus')
-                    : (0, cohere_1.cohere)(model || 'command-r-plus');
-                break;
-            case 'azure':
-                modelInstance = hasConfig
-                    ? (0, azure_1.createAzure)(providerConfig)(model || 'gpt-4o-mini')
-                    : (0, azure_1.azure)(model || 'gpt-4o-mini');
-                break;
-            case 'vertex':
-                modelInstance = hasConfig
-                    ? (0, google_1.createGoogleGenerativeAI)(providerConfig)(model || 'gemini-1.5-flash')
-                    : (0, google_1.google)(model || 'gemini-1.5-flash');
-                break;
-            case 'vercel':
-            case 'deepseek':
-            case 'cerebras':
-            case 'groq':
-                throw new Error(`${provider} provider not yet implemented in AI SDK`);
-            default:
-                throw new Error(`Unsupported provider: ${provider}`);
-        }
-        this.modelCache.set(cacheKey, modelInstance);
-        return modelInstance;
+    getRequiredApiKeyName() {
+        return 'AZURE_API_KEY';
     }
+    getClient() {
+        return this.config.baseURL
+            ? (0, azure_1.createAzure)({
+                apiKey: this.config.apiKey,
+                baseURL: this.config.baseURL
+            })
+            : { model: (model) => (0, azure_1.azure)(model) };
+    }
+    async generateTitle(request) {
+        this.validateParams();
+        const maxRetries = 3;
+        let lastError;
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                const prompt = this.buildPrompt(request);
+                const systemMessage = this.buildSystemMessage(request.options);
+                const model = this.config.baseURL
+                    ? (0, azure_1.createAzure)({
+                        apiKey: this.config.apiKey,
+                        baseURL: this.config.baseURL
+                    })(this.config.model || 'gpt-4o-mini')
+                    : (0, azure_1.azure)(this.config.model || 'gpt-4o-mini');
+                const result = await (0, ai_1.generateText)({
+                    model,
+                    system: systemMessage,
+                    prompt,
+                    maxTokens: this.config.maxTokens || 500,
+                    temperature: this.config.temperature || 0.3
+                });
+                return this.parseResponse(result.text);
+            }
+            catch (error) {
+                lastError = error instanceof Error ? error : new Error(String(error));
+                if (attempt < maxRetries) {
+                    await this.delay(Math.pow(2, attempt) * 1000);
+                }
+            }
+        }
+        this.handleError(lastError, 'generateTitle');
+    }
+    async isHealthy() {
+        try {
+            const model = this.config.baseURL
+                ? (0, azure_1.createAzure)({
+                    apiKey: this.config.apiKey,
+                    baseURL: this.config.baseURL
+                })(this.config.model || 'gpt-4o-mini')
+                : (0, azure_1.azure)(this.config.model || 'gpt-4o-mini');
+            const result = await (0, ai_1.generateText)({
+                model,
+                system: 'You are a test assistant. Reply with "OK".',
+                prompt: 'test',
+                maxTokens: 10
+            });
+            return result.text.toLowerCase().includes('ok');
+        }
+        catch {
+            return false;
+        }
+    }
+}
+exports.AzureProvider = AzureProvider;
+
+
+/***/ }),
+
+/***/ 9868:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * Base AI Provider - Abstract base class for all AI providers
+ * Inspired by claude-task-master architecture
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.BaseAIProvider = void 0;
+class BaseAIProvider {
+    constructor(config, providerName) {
+        this.config = config;
+        this.providerName = providerName;
+        this.validateAuth();
+    }
+    // Common validation methods
+    validateAuth() {
+        if (this.isRequiredApiKey() && !this.config.apiKey) {
+            throw new Error(`${this.getRequiredApiKeyName()} is required for ${this.providerName}`);
+        }
+    }
+    validateParams() {
+        this.validateAuth();
+        if (this.config.temperature !== undefined && (this.config.temperature < 0 || this.config.temperature > 1)) {
+            throw new Error('Temperature must be between 0 and 1');
+        }
+        if (this.config.maxTokens !== undefined && this.config.maxTokens < 1) {
+            throw new Error('maxTokens must be greater than 0');
+        }
+    }
+    isRequiredApiKey() {
+        return true;
+    }
+    // Common utility methods
     buildSystemMessage(options) {
-        const allowedTypes = (options === null || options === void 0 ? void 0 : options.preferredTypes) || conventional_1.DEFAULT_TYPES;
+        const allowedTypes = (options === null || options === void 0 ? void 0 : options.preferredTypes) || ['feat', 'fix', 'docs', 'refactor', 'test', 'chore'];
         const maxLength = (options === null || options === void 0 ? void 0 : options.maxLength) || 72;
         const includeScope = (options === null || options === void 0 ? void 0 : options.includeScope) ? 'MUST include' : 'MAY include';
-        const language = (options === null || options === void 0 ? void 0 : options.language) || 'English';
+        const matchLanguage = (options === null || options === void 0 ? void 0 : options.matchLanguage) !== false;
+        const languageInstruction = matchLanguage
+            ? 'Detect the language used in the PR title and description, then respond in the same language.'
+            : 'Always respond in English.';
         return `You are an expert at creating Conventional Commits titles for Pull Requests.
 
 Your task is to analyze a PR title and content, then suggest 1-3 improved titles that follow the Conventional Commits standard.
@@ -55136,13 +55185,13 @@ RULES:
 4. Description: lowercase, no period, max ${maxLength} chars total
 5. Be specific and descriptive
 6. Focus on WHAT changed, not HOW
-7. Respond in ${language}, but keep the conventional commit format in English
+7. IMPORTANT: ${languageInstruction}
 
 RESPONSE FORMAT:
 Return a JSON object with:
 {
   "suggestions": ["title1", "title2", "title3"],
-  "reasoning": "explanation of why these titles are better (in ${language})",
+  "reasoning": "explanation of why these titles are better",
   "confidence": 0.9
 }
 
@@ -55151,44 +55200,39 @@ Only return valid JSON, no additional text.`;
     buildPrompt(request) {
         const { originalTitle, prDescription, prBody, diffContent, changedFiles } = request;
         let prompt = `Original PR Title: "${originalTitle}"\n\n`;
-        if (prDescription && prDescription.trim()) {
+        if (prDescription === null || prDescription === void 0 ? void 0 : prDescription.trim()) {
             prompt += `PR Description: ${prDescription.trim()}\n\n`;
         }
-        if (prBody && prBody.trim()) {
+        if (prBody === null || prBody === void 0 ? void 0 : prBody.trim()) {
             const body = prBody.slice(0, 1500);
             prompt += `PR Body: ${body}${prBody.length > 1500 ? '...' : ''}\n\n`;
         }
-        if (diffContent && diffContent.trim()) {
+        if (diffContent === null || diffContent === void 0 ? void 0 : diffContent.trim()) {
             const diff = diffContent.slice(0, 2000);
             prompt += `Code Changes (diff):\n${diff}${diffContent.length > 2000 ? '...' : ''}\n\n`;
         }
-        if (changedFiles && changedFiles.length > 0) {
+        if (changedFiles === null || changedFiles === void 0 ? void 0 : changedFiles.length) {
             prompt += `Changed Files:\n${changedFiles
                 .slice(0, 15)
-                .map(f => `- ${f}`)
+                .map((f) => `- ${f}`)
                 .join('\n')}\n\n`;
         }
         prompt += 'Generate improved Conventional Commits titles for this PR.';
         return prompt;
     }
     parseResponse(text) {
-        this.debugLog('parseResponse: raw text', text);
         try {
-            // More aggressive cleaning - remove code blocks, extra whitespace, and common prefixes
             let cleanText = text
-                .replace(/```json\s*|\s*```/gi, '') // Remove markdown code blocks
-                .replace(/^[^{]*({.*})[^}]*$/s, '$1') // Extract JSON object from surrounding text
+                .replace(/```json\s*|\s*```/gi, '')
+                .replace(/^[^{]*({.*})[^}]*$/s, '$1')
                 .trim();
-            // If no JSON object found, try to find it anywhere in the text
             if (!cleanText.startsWith('{')) {
                 const jsonMatch = text.match(/{[\s\S]*}/);
                 if (jsonMatch) {
                     cleanText = jsonMatch[0];
                 }
             }
-            this.debugLog('parseResponse: cleaned JSON string', cleanText);
             const parsed = JSON.parse(cleanText);
-            this.debugLog('parseResponse: parsed JSON', parsed);
             return {
                 suggestions: Array.isArray(parsed.suggestions)
                     ? parsed.suggestions
@@ -55198,8 +55242,6 @@ Only return valid JSON, no additional text.`;
             };
         }
         catch (error) {
-            this.errorLog('parseResponse JSON parse error', error);
-            this.errorLog('parseResponse: cleaned JSON string', text);
             const suggestions = this.extractSuggestionsFromText(text);
             return {
                 suggestions,
@@ -55210,7 +55252,6 @@ Only return valid JSON, no additional text.`;
     }
     extractSuggestionsFromText(text) {
         const suggestions = [];
-        // Look for lines that might be titles (contain : and start with word)
         const lines = text.split('\n');
         for (const line of lines) {
             const trimmed = line.trim();
@@ -55221,55 +55262,1323 @@ Only return valid JSON, no additional text.`;
         }
         return suggestions.length > 0 ? suggestions : ['feat: improve PR title'];
     }
-    delay(ms) {
+    async delay(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
-}
-exports.VercelAIService = VercelAIService;
-// Factory function to create AI service based on environment
-function createAIService(config) {
-    const provider = ((config === null || config === void 0 ? void 0 : config.provider) ||
-        process.env.AI_PROVIDER ||
-        'openai');
-    const providerApiKeys = {
-        openai: process.env.OPENAI_API_KEY,
-        anthropic: process.env.ANTHROPIC_API_KEY,
-        google: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-        mistral: process.env.MISTRAL_API_KEY,
-        xai: process.env.XAI_API_KEY,
-        cohere: process.env.COHERE_API_KEY,
-        azure: process.env.AZURE_API_KEY,
-        vercel: process.env.VERCEL_API_KEY,
-        deepseek: process.env.DEEPSEEK_API_KEY,
-        cerebras: process.env.CEREBRAS_API_KEY,
-        groq: process.env.GROQ_API_KEY,
-        vertex: process.env.GOOGLE_VERTEX_AI_API_KEY
-    };
-    const apiKey = (config === null || config === void 0 ? void 0 : config.apiKey) || providerApiKeys[provider];
-    if (!apiKey) {
-        const envVarName = `${provider.toUpperCase()}_API_KEY`;
-        throw new Error(`API key required for ${provider}. Set ${envVarName} environment variable.`);
+    handleError(error, context) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorCode = error instanceof Error && 'code' in error ? String(error.code) : 'UNKNOWN';
+        console.error(`[${this.providerName}] Error in ${context}:`, {
+            message: errorMessage,
+            code: errorCode,
+            provider: this.providerName,
+            timestamp: new Date().toISOString()
+        });
+        throw new Error(`${this.providerName} provider failed in ${context}: ${errorMessage} (${errorCode})`);
     }
-    return new VercelAIService({
-        provider,
-        apiKey,
-        ...config
+}
+exports.BaseAIProvider = BaseAIProvider;
+
+
+/***/ }),
+
+/***/ 7509:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Claude Code Provider
+ * Uses Claude Code CLI for enhanced AI interactions
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ClaudeCodeProvider = void 0;
+const base_provider_1 = __nccwpck_require__(9868);
+const language_model_1 = __nccwpck_require__(3393);
+class ClaudeCodeProvider extends base_provider_1.BaseAIProvider {
+    constructor(config) {
+        super(config, 'ClaudeCode');
+        this.languageModel = new language_model_1.ClaudeCodeLanguageModel({
+            ...config,
+            settings: {
+                executable: 'npx',
+                verbose: config.debug || false,
+                cwd: process.cwd()
+            }
+        });
+    }
+    getRequiredApiKeyName() {
+        return 'CLAUDE_CODE_API_KEY';
+    }
+    isRequiredApiKey() {
+        return false; // Claude Code CLI can work without API key
+    }
+    getClient() {
+        return this.languageModel;
+    }
+    async generateTitle(request) {
+        this.validateParams();
+        try {
+            return await this.languageModel.generateTitle(request);
+        }
+        catch (error) {
+            this.handleError(error, 'generateTitle');
+        }
+    }
+    async isHealthy() {
+        try {
+            return await this.languageModel.isHealthy();
+        }
+        catch {
+            return false;
+        }
+    }
+}
+exports.ClaudeCodeProvider = ClaudeCodeProvider;
+
+
+/***/ }),
+
+/***/ 85:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Cohere Provider
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.CohereProvider = void 0;
+const cohere_1 = __nccwpck_require__(5201);
+const ai_1 = __nccwpck_require__(6619);
+const base_provider_1 = __nccwpck_require__(9868);
+class CohereProvider extends base_provider_1.BaseAIProvider {
+    constructor(config) {
+        super(config, 'Cohere');
+    }
+    getRequiredApiKeyName() {
+        return 'COHERE_API_KEY';
+    }
+    getClient() {
+        return this.config.baseURL
+            ? (0, cohere_1.createCohere)({
+                apiKey: this.config.apiKey,
+                baseURL: this.config.baseURL
+            })
+            : { model: (model) => (0, cohere_1.cohere)(model) };
+    }
+    async generateTitle(request) {
+        this.validateParams();
+        const maxRetries = 3;
+        let lastError;
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                const prompt = this.buildPrompt(request);
+                const systemMessage = this.buildSystemMessage(request.options);
+                const model = this.config.baseURL
+                    ? (0, cohere_1.createCohere)({
+                        apiKey: this.config.apiKey,
+                        baseURL: this.config.baseURL
+                    })(this.config.model || 'command-r-plus')
+                    : (0, cohere_1.cohere)(this.config.model || 'command-r-plus');
+                const result = await (0, ai_1.generateText)({
+                    model,
+                    system: systemMessage,
+                    prompt,
+                    maxTokens: this.config.maxTokens || 500,
+                    temperature: this.config.temperature || 0.3
+                });
+                return this.parseResponse(result.text);
+            }
+            catch (error) {
+                lastError = error instanceof Error ? error : new Error(String(error));
+                if (attempt < maxRetries) {
+                    await this.delay(Math.pow(2, attempt) * 1000);
+                }
+            }
+        }
+        this.handleError(lastError, 'generateTitle');
+    }
+    async isHealthy() {
+        try {
+            const model = this.config.baseURL
+                ? (0, cohere_1.createCohere)({
+                    apiKey: this.config.apiKey,
+                    baseURL: this.config.baseURL
+                })(this.config.model || 'command-r-plus')
+                : (0, cohere_1.cohere)(this.config.model || 'command-r-plus');
+            const result = await (0, ai_1.generateText)({
+                model,
+                system: 'You are a test assistant. Reply with "OK".',
+                prompt: 'test',
+                maxTokens: 10
+            });
+            return result.text.toLowerCase().includes('ok');
+        }
+        catch {
+            return false;
+        }
+    }
+}
+exports.CohereProvider = CohereProvider;
+
+
+/***/ }),
+
+/***/ 5752:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * Error handling utilities for Claude Code provider
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ClaudeCodeTimeoutError = exports.ClaudeCodeAuthenticationError = exports.ClaudeCodeAPIError = void 0;
+exports.createAPICallError = createAPICallError;
+exports.createAuthenticationError = createAuthenticationError;
+exports.createTimeoutError = createTimeoutError;
+exports.isAuthenticationError = isAuthenticationError;
+exports.isTimeoutError = isTimeoutError;
+exports.getErrorMetadata = getErrorMetadata;
+class ClaudeCodeAPIError extends Error {
+    constructor(options) {
+        var _a;
+        super(options.message);
+        this.name = 'ClaudeCodeAPIError';
+        this.cause = options.cause;
+        this.code = options.code;
+        this.exitCode = options.exitCode;
+        this.stderr = options.stderr;
+        this.isRetryable = (_a = options.isRetryable) !== null && _a !== void 0 ? _a : true;
+        this.data = options.data;
+    }
+}
+exports.ClaudeCodeAPIError = ClaudeCodeAPIError;
+class ClaudeCodeAuthenticationError extends Error {
+    constructor(message, cause) {
+        super(`Claude Code authentication failed: ${message}`);
+        this.name = 'ClaudeCodeAuthenticationError';
+        this.cause = cause;
+    }
+}
+exports.ClaudeCodeAuthenticationError = ClaudeCodeAuthenticationError;
+class ClaudeCodeTimeoutError extends ClaudeCodeAPIError {
+    constructor(message, timeout) {
+        super({
+            message: `Request timed out after ${timeout}ms: ${message}`,
+            code: 'timeout_error',
+            isRetryable: true
+        });
+        this.name = 'ClaudeCodeTimeoutError';
+    }
+}
+exports.ClaudeCodeTimeoutError = ClaudeCodeTimeoutError;
+function createAPICallError(options) {
+    var _a;
+    return new ClaudeCodeAPIError({
+        message: options.message,
+        cause: options.cause,
+        data: {
+            ...options.data,
+            isRetryable: ((_a = options.data) === null || _a === void 0 ? void 0 : _a.code) !== 'authentication_error'
+        }
     });
 }
-// Convenience functions
-async function generateConventionalTitle(request, config) {
-    const service = createAIService(config);
-    return service.generateTitle(request);
+function createAuthenticationError(options) {
+    return new ClaudeCodeAuthenticationError(options.message, options.cause);
 }
-async function isAIServiceHealthy(config) {
+function createTimeoutError(options) {
+    return new ClaudeCodeTimeoutError(options.message, options.timeout);
+}
+function isAuthenticationError(error) {
+    return error instanceof ClaudeCodeAuthenticationError ||
+        (error instanceof ClaudeCodeAPIError && error.code === 'authentication_error');
+}
+function isTimeoutError(error) {
+    return error instanceof ClaudeCodeTimeoutError ||
+        (error instanceof ClaudeCodeAPIError && error.code === 'timeout_error');
+}
+function getErrorMetadata(error) {
+    const metadata = {};
+    if (error.code)
+        metadata.code = error.code;
+    if (error.exitCode !== undefined)
+        metadata.exitCode = error.exitCode;
+    if (error.stderr)
+        metadata.stderr = error.stderr;
+    if (error.stdout)
+        metadata.promptExcerpt = error.stdout.substring(0, 500);
+    if (error.message)
+        metadata.promptExcerpt = error.message.substring(0, 500);
+    return metadata;
+}
+
+
+/***/ }),
+
+/***/ 5339:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+/**
+ * Claude Code provider factory and exports
+ */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ClaudeCodeLanguageModel = exports.claudeCode = void 0;
+exports.createClaudeCode = createClaudeCode;
+const language_model_1 = __nccwpck_require__(3393);
+/**
+ * Create a Claude Code provider using the CLI interface
+ */
+function createClaudeCode(options = {}) {
+    /**
+     * Create a language model instance
+     */
+    const createModel = (modelId, settings = {}) => {
+        const config = {
+            apiKey: '', // Not required for Claude Code CLI
+            model: modelId,
+            settings: {
+                ...options.defaultSettings,
+                ...settings
+            }
+        };
+        return new language_model_1.ClaudeCodeLanguageModel(config);
+    };
+    /**
+     * Provider function
+     */
+    const provider = function (modelId, settings) {
+        if (new.target) {
+            throw new Error('The Claude Code model function cannot be called with the new keyword.');
+        }
+        return createModel(modelId, settings);
+    };
+    provider.languageModel = createModel;
+    provider.chat = createModel;
+    return provider;
+}
+// Export the default instance
+exports.claudeCode = createClaudeCode();
+// Export everything
+var language_model_2 = __nccwpck_require__(3393);
+Object.defineProperty(exports, "ClaudeCodeLanguageModel", ({ enumerable: true, get: function () { return language_model_2.ClaudeCodeLanguageModel; } }));
+__exportStar(__nccwpck_require__(3134), exports);
+__exportStar(__nccwpck_require__(5752), exports);
+__exportStar(__nccwpck_require__(5736), exports);
+__exportStar(__nccwpck_require__(6229), exports);
+exports["default"] = exports.claudeCode;
+
+
+/***/ }),
+
+/***/ 5736:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * Extract JSON from Claude's response, handling markdown blocks and other formatting
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.extractJson = extractJson;
+exports.fixJsonFormatting = fixJsonFormatting;
+function extractJson(text) {
+    let jsonText = text.trim();
+    // Remove markdown code blocks if present
+    jsonText = jsonText.replace(/^```json\s*/gm, '');
+    jsonText = jsonText.replace(/^```\s*/gm, '');
+    jsonText = jsonText.replace(/```\s*$/gm, '');
+    // Remove common TypeScript/JavaScript patterns
+    jsonText = jsonText.replace(/^const\s+\w+\s*=\s*/, ''); // Remove "const varName = "
+    jsonText = jsonText.replace(/^let\s+\w+\s*=\s*/, ''); // Remove "let varName = "
+    jsonText = jsonText.replace(/^var\s+\w+\s*=\s*/, ''); // Remove "var varName = "
+    jsonText = jsonText.replace(/;?\s*$/, ''); // Remove trailing semicolons
+    // Try to extract JSON object or array
+    const objectMatch = jsonText.match(/{[\s\S]*}/);
+    const arrayMatch = jsonText.match(/\[[\s\S]*\]/);
+    if (objectMatch) {
+        jsonText = objectMatch[0];
+    }
+    else if (arrayMatch) {
+        jsonText = arrayMatch[0];
+    }
+    // First try to parse as valid JSON
     try {
-        const service = createAIService(config);
-        return service.isHealthy();
+        JSON.parse(jsonText);
+        return jsonText;
     }
     catch {
-        return false;
+        // If it's not valid JSON, try to fix common issues
+        try {
+            const converted = fixJsonFormatting(jsonText);
+            JSON.parse(converted);
+            return converted;
+        }
+        catch {
+            throw new Error(`Could not extract valid JSON from: ${text.substring(0, 200)}...`);
+        }
     }
 }
+function fixJsonFormatting(jsonString) {
+    let fixed = jsonString.trim();
+    // Fix trailing commas
+    fixed = fixed.replace(/,(\s*[}\]])/g, '$1');
+    // Fix missing quotes around keys
+    fixed = fixed.replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g, '$1"$2":');
+    // Fix single quotes to double quotes
+    fixed = fixed.replace(/'/g, '"');
+    // Fix unquoted string values (basic case)
+    fixed = fixed.replace(/:\s*([a-zA-Z_$][a-zA-Z0-9_$\s]*)\s*([,}])/g, (match, value, ending) => {
+        // Don't quote if it looks like a number, boolean, or null
+        if (/^(true|false|null|\d+(\.\d+)?)$/.test(value.trim())) {
+            return `: ${value.trim()}${ending}`;
+        }
+        return `: "${value.trim()}"${ending}`;
+    });
+    return fixed;
+}
+
+
+/***/ }),
+
+/***/ 3393:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+/**
+ * Claude Code Language Model implementation
+ * Uses @anthropic-ai/claude-code SDK for enhanced AI interactions
+ */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ClaudeCodeLanguageModel = void 0;
+const base_provider_1 = __nccwpck_require__(9868);
+const message_converter_1 = __nccwpck_require__(6229);
+const json_extractor_1 = __nccwpck_require__(5736);
+const errors_1 = __nccwpck_require__(5752);
+// Simple UUID v4 generator
+function generateUUID() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
+const modelMap = {
+    'opus': 'claude-3-5-sonnet-20241022',
+    'sonnet': 'claude-3-5-sonnet-20241022'
+};
+class ClaudeCodeLanguageModel extends base_provider_1.BaseAIProvider {
+    constructor(config) {
+        super(config, 'ClaudeCode');
+        this.claudeCode = null;
+        this.settings = config.settings || {};
+        this.sessionId = this.settings.resume || generateUUID();
+    }
+    getRequiredApiKeyName() {
+        return 'CLAUDE_CODE_API_KEY'; // Optional for Claude Code CLI
+    }
+    isRequiredApiKey() {
+        return false; // Claude Code CLI can work without API key
+    }
+    getClient() {
+        return this.claudeCode;
+    }
+    getModel() {
+        const mapped = modelMap[this.config.model || 'sonnet'];
+        return mapped !== null && mapped !== void 0 ? mapped : (this.config.model || 'claude-3-5-sonnet-20241022');
+    }
+    async loadClaudeCode() {
+        if (this.claudeCode) {
+            return this.claudeCode;
+        }
+        try {
+            // For testing and development, return mock Claude Code when SDK is not available
+            if (process.env.NODE_ENV === 'test' || !process.env.CLAUDE_CODE_AVAILABLE) {
+                this.claudeCode = {
+                    query: async (params) => ({
+                        text: JSON.stringify({
+                            suggestions: ['feat: mock claude code suggestion'],
+                            reasoning: 'Mock Claude Code response',
+                            confidence: 0.8
+                        })
+                    })
+                };
+                return this.claudeCode;
+            }
+            // Try to dynamically import Claude Code SDK (optional dependency)
+            let claudeCodeModule;
+            try {
+                // @ts-ignore - Optional dependency, may not be available
+                claudeCodeModule = await Promise.resolve().then(() => __importStar(__nccwpck_require__(6725)));
+            }
+            catch {
+                // Package not available, use fallback
+                throw new Error('Claude Code SDK not available');
+            }
+            this.claudeCode = claudeCodeModule;
+            return this.claudeCode;
+        }
+        catch (error) {
+            // Fallback to mock for development
+            this.claudeCode = {
+                query: async (params) => ({
+                    text: JSON.stringify({
+                        suggestions: ['feat: fallback claude code suggestion'],
+                        reasoning: 'Claude Code SDK not available, using fallback',
+                        confidence: 0.7
+                    })
+                })
+            };
+            return this.claudeCode;
+        }
+    }
+    async generateTitle(request) {
+        this.validateParams();
+        const maxRetries = 3;
+        let lastError;
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                const prompt = this.buildPrompt(request);
+                const systemMessage = this.buildSystemMessage(request.options);
+                // Convert to Claude Code format
+                const mode = { type: 'object-json' };
+                const { messagesPrompt, systemPrompt } = (0, message_converter_1.convertToClaudeCodeMessages)([
+                    { role: 'system', content: systemMessage },
+                    { role: 'user', content: prompt }
+                ], mode);
+                // Load and use Claude Code SDK
+                const claudeCode = await this.loadClaudeCode();
+                const response = await claudeCode.query({
+                    model: this.getModel(),
+                    prompt: messagesPrompt,
+                    systemPrompt: systemPrompt || systemMessage,
+                    mode: 'generate', // or 'stream'
+                    sessionId: this.sessionId,
+                    settings: {
+                        ...this.settings,
+                        cwd: this.settings.cwd || process.cwd(),
+                        verbose: this.config.debug || this.settings.verbose || false
+                    }
+                });
+                let text = response.text || response.content || '';
+                // Extract JSON from response
+                try {
+                    const extractedJson = (0, json_extractor_1.extractJson)(text);
+                    const parsed = JSON.parse(extractedJson);
+                    return {
+                        suggestions: Array.isArray(parsed.suggestions)
+                            ? parsed.suggestions
+                            : [parsed.suggestions || 'feat: improve PR title'],
+                        reasoning: parsed.reasoning || 'AI generated suggestions based on PR content',
+                        confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.8
+                    };
+                }
+                catch (jsonError) {
+                    // Fallback: try to extract suggestions from plain text
+                    const suggestions = this.extractSuggestionsFromText(text);
+                    return {
+                        suggestions,
+                        reasoning: 'Response could not be parsed as JSON, extracted from text',
+                        confidence: 0.6
+                    };
+                }
+            }
+            catch (error) {
+                lastError = error instanceof Error ? error : new Error(String(error));
+                if (attempt < maxRetries && !(0, errors_1.isAuthenticationError)(lastError) && !(0, errors_1.isTimeoutError)(lastError)) {
+                    await this.delay(Math.pow(2, attempt) * 1000);
+                }
+                else {
+                    break;
+                }
+            }
+        }
+        this.handleError(lastError, 'generateTitle');
+    }
+    async isHealthy() {
+        try {
+            const claudeCode = await this.loadClaudeCode();
+            const response = await claudeCode.query({
+                model: this.getModel(),
+                prompt: 'test',
+                systemPrompt: 'You are a test assistant. Reply with "OK".',
+                mode: 'generate',
+                sessionId: generateUUID(),
+                settings: {
+                    ...this.settings,
+                    cwd: this.settings.cwd || process.cwd()
+                }
+            });
+            const text = response.text || response.content || '';
+            return text.toLowerCase().includes('ok');
+        }
+        catch {
+            return false;
+        }
+    }
+}
+exports.ClaudeCodeLanguageModel = ClaudeCodeLanguageModel;
+
+
+/***/ }),
+
+/***/ 6229:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * Convert AI SDK prompt to Claude Code messages format
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.convertToClaudeCodeMessages = convertToClaudeCodeMessages;
+function convertToClaudeCodeMessages(prompt, mode) {
+    var _a;
+    const messages = [];
+    let systemPrompt;
+    for (const message of prompt) {
+        switch (message.role) {
+            case 'system':
+                systemPrompt = typeof message.content === 'string'
+                    ? message.content
+                    : ((_a = message.content) === null || _a === void 0 ? void 0 : _a.text) || message.content;
+                break;
+            case 'user':
+                if (typeof message.content === 'string') {
+                    messages.push(message.content);
+                }
+                else if (Array.isArray(message.content)) {
+                    // Handle multi-part content
+                    const textParts = message.content
+                        .filter((part) => part.type === 'text')
+                        .map((part) => part.text)
+                        .join('\n');
+                    if (textParts) {
+                        messages.push(textParts);
+                    }
+                    // Note: Image parts are not supported by Claude Code CLI
+                    const imageParts = message.content.filter((part) => part.type === 'image');
+                    if (imageParts.length > 0) {
+                        console.warn('Claude Code CLI does not support image inputs. Images will be ignored.');
+                    }
+                }
+                break;
+            case 'assistant':
+                if (typeof message.content === 'string') {
+                    messages.push(`Assistant: ${message.content}`);
+                }
+                else if (Array.isArray(message.content)) {
+                    const textParts = message.content
+                        .filter((part) => part.type === 'text')
+                        .map((part) => part.text)
+                        .join('\n');
+                    if (textParts) {
+                        messages.push(`Assistant: ${textParts}`);
+                    }
+                    // Handle tool calls
+                    const toolCalls = message.content.filter((part) => part.type === 'tool-call');
+                    for (const toolCall of toolCalls) {
+                        messages.push(`Tool Call: ${toolCall.toolName}(${JSON.stringify(toolCall.args)})`);
+                    }
+                }
+                break;
+            case 'tool':
+                messages.push(`Tool Result (${message.toolCallId}): ${JSON.stringify(message.result)}`);
+                break;
+            default:
+                console.warn(`Unknown message role: ${message.role}`);
+                break;
+        }
+    }
+    let messagesPrompt = messages.join('\n\n');
+    // Add JSON generation instruction if in JSON mode
+    if ((mode === null || mode === void 0 ? void 0 : mode.type) === 'object-json') {
+        const jsonInstruction = '\n\nPlease respond with valid JSON only, no additional text or formatting.';
+        messagesPrompt += jsonInstruction;
+    }
+    return {
+        messagesPrompt,
+        systemPrompt
+    };
+}
+
+
+/***/ }),
+
+/***/ 3134:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+/**
+ * TypeScript type definitions for Claude Code provider
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+
+
+/***/ }),
+
+/***/ 5367:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * AI Provider Factory
+ * Factory pattern for creating AI provider instances
+ * Inspired by claude-task-master architecture
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.AIProviderFactory = void 0;
+const openai_1 = __nccwpck_require__(975);
+const anthropic_1 = __nccwpck_require__(4341);
+const google_1 = __nccwpck_require__(294);
+const mistral_1 = __nccwpck_require__(585);
+const xai_1 = __nccwpck_require__(6655);
+const cohere_1 = __nccwpck_require__(85);
+const azure_1 = __nccwpck_require__(6654);
+const claude_code_1 = __nccwpck_require__(7509);
+class AIProviderFactory {
+    /**
+     * Create an AI provider instance
+     */
+    static create(provider, config) {
+        const cacheKey = `${provider}-${config.model || 'default'}-${config.baseURL || 'default'}`;
+        if (this.providers.has(cacheKey)) {
+            return this.providers.get(cacheKey);
+        }
+        let providerInstance;
+        switch (provider) {
+            case 'openai':
+                providerInstance = new openai_1.OpenAIProvider(config);
+                break;
+            case 'anthropic':
+                providerInstance = new anthropic_1.AnthropicProvider(config);
+                break;
+            case 'google':
+                providerInstance = new google_1.GoogleProvider(config);
+                break;
+            case 'mistral':
+                providerInstance = new mistral_1.MistralProvider(config);
+                break;
+            case 'xai':
+                providerInstance = new xai_1.XAIProvider(config);
+                break;
+            case 'cohere':
+                providerInstance = new cohere_1.CohereProvider(config);
+                break;
+            case 'azure':
+                providerInstance = new azure_1.AzureProvider(config);
+                break;
+            case 'claude-code':
+                providerInstance = new claude_code_1.ClaudeCodeProvider(config);
+                break;
+            default:
+                throw new Error(`Unsupported AI provider: ${provider}`);
+        }
+        this.providers.set(cacheKey, providerInstance);
+        return providerInstance;
+    }
+    /**
+     * Get provider metadata
+     */
+    static getProviderInfo(provider) {
+        if (!this.isProviderSupported(provider)) {
+            throw new Error(`Unsupported provider: ${provider}`);
+        }
+        return this.providerRegistry[provider];
+    }
+    /**
+     * Get all supported providers
+     */
+    static getSupportedProviders() {
+        return Object.keys(this.providerRegistry);
+    }
+    /**
+     * Get environment variable name for a provider
+     */
+    static getProviderEnvironmentKey(provider) {
+        if (!this.isProviderSupported(provider)) {
+            throw new Error(`Unsupported provider: ${provider}`);
+        }
+        return this.providerRegistry[provider].requiredApiKey;
+    }
+    /**
+     * Check if provider is supported
+     */
+    static isProviderSupported(provider) {
+        return provider in this.providerRegistry;
+    }
+    /**
+     * Get default model for a provider
+     */
+    static getDefaultModel(provider) {
+        if (!this.isProviderSupported(provider)) {
+            throw new Error(`Unsupported provider: ${provider}`);
+        }
+        return this.providerRegistry[provider].defaultModel;
+    }
+    /**
+     * Get supported models for a provider
+     */
+    static getSupportedModels(provider) {
+        if (!this.isProviderSupported(provider)) {
+            throw new Error(`Unsupported provider: ${provider}`);
+        }
+        return this.providerRegistry[provider].supportedModels;
+    }
+    /**
+     * Validate if a model is supported by a provider
+     */
+    static isModelSupported(provider, model) {
+        if (!this.isProviderSupported(provider)) {
+            return false;
+        }
+        const supportedModels = this.getSupportedModels(provider);
+        return supportedModels.includes(model);
+    }
+    /**
+     * Health check for a specific provider
+     */
+    static async healthCheck(provider, config) {
+        try {
+            const providerInstance = this.create(provider, config);
+            return await providerInstance.isHealthy();
+        }
+        catch {
+            return false;
+        }
+    }
+    /**
+     * Clear provider cache
+     */
+    static clearCache() {
+        this.providers.clear();
+    }
+    /**
+     * Get provider statistics
+     */
+    static getStats() {
+        return {
+            totalProviders: Object.keys(this.providerRegistry).length,
+            cachedInstances: this.providers.size,
+            supportedProviders: this.getSupportedProviders()
+        };
+    }
+}
+exports.AIProviderFactory = AIProviderFactory;
+AIProviderFactory.providers = new Map();
+AIProviderFactory.CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+AIProviderFactory.cacheTimestamps = new Map();
+// Provider registry with metadata
+AIProviderFactory.providerRegistry = {
+    openai: {
+        name: 'OpenAI',
+        className: 'OpenAIProvider',
+        requiredApiKey: 'OPENAI_API_KEY',
+        defaultModel: 'gpt-4o-mini',
+        supportedModels: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo']
+    },
+    anthropic: {
+        name: 'Anthropic',
+        className: 'AnthropicProvider',
+        requiredApiKey: 'ANTHROPIC_API_KEY',
+        defaultModel: 'claude-3-5-sonnet-20241022',
+        supportedModels: ['claude-3-5-sonnet-20241022', 'claude-3-haiku-20240307', 'claude-3-opus-20240229']
+    },
+    google: {
+        name: 'Google',
+        className: 'GoogleProvider',
+        requiredApiKey: 'GOOGLE_GENERATIVE_AI_API_KEY',
+        defaultModel: 'gemini-1.5-flash',
+        supportedModels: ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-pro']
+    },
+    mistral: {
+        name: 'Mistral',
+        className: 'MistralProvider',
+        requiredApiKey: 'MISTRAL_API_KEY',
+        defaultModel: 'mistral-large-latest',
+        supportedModels: ['mistral-large-latest', 'mistral-medium-latest', 'mistral-small-latest']
+    },
+    xai: {
+        name: 'XAI',
+        className: 'XAIProvider',
+        requiredApiKey: 'XAI_API_KEY',
+        defaultModel: 'grok-beta',
+        supportedModels: ['grok-beta', 'grok-vision-beta']
+    },
+    cohere: {
+        name: 'Cohere',
+        className: 'CohereProvider',
+        requiredApiKey: 'COHERE_API_KEY',
+        defaultModel: 'command-r-plus',
+        supportedModels: ['command-r-plus', 'command-r', 'command-light']
+    },
+    azure: {
+        name: 'Azure',
+        className: 'AzureProvider',
+        requiredApiKey: 'AZURE_API_KEY',
+        defaultModel: 'gpt-4o-mini',
+        supportedModels: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-35-turbo']
+    },
+    'claude-code': {
+        name: 'Claude Code',
+        className: 'ClaudeCodeProvider',
+        requiredApiKey: 'CLAUDE_CODE_API_KEY',
+        defaultModel: 'sonnet',
+        supportedModels: ['sonnet', 'opus', 'claude-3-5-sonnet-20241022']
+    }
+};
+
+
+/***/ }),
+
+/***/ 294:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Google AI Provider
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.GoogleProvider = void 0;
+const google_1 = __nccwpck_require__(260);
+const ai_1 = __nccwpck_require__(6619);
+const base_provider_1 = __nccwpck_require__(9868);
+class GoogleProvider extends base_provider_1.BaseAIProvider {
+    constructor(config) {
+        super(config, 'Google');
+    }
+    getRequiredApiKeyName() {
+        return 'GOOGLE_GENERATIVE_AI_API_KEY';
+    }
+    getClient() {
+        return this.config.baseURL
+            ? (0, google_1.createGoogleGenerativeAI)({
+                apiKey: this.config.apiKey,
+                baseURL: this.config.baseURL
+            })
+            : { model: (model) => (0, google_1.google)(model) };
+    }
+    async generateTitle(request) {
+        this.validateParams();
+        const maxRetries = 3;
+        let lastError;
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                const prompt = this.buildPrompt(request);
+                const systemMessage = this.buildSystemMessage(request.options);
+                const model = this.config.baseURL
+                    ? (0, google_1.createGoogleGenerativeAI)({
+                        apiKey: this.config.apiKey,
+                        baseURL: this.config.baseURL
+                    })(this.config.model || 'gemini-1.5-flash')
+                    : (0, google_1.google)(this.config.model || 'gemini-1.5-flash');
+                const result = await (0, ai_1.generateText)({
+                    model,
+                    system: systemMessage,
+                    prompt,
+                    maxTokens: this.config.maxTokens || 500,
+                    temperature: this.config.temperature || 0.3
+                });
+                return this.parseResponse(result.text);
+            }
+            catch (error) {
+                lastError = error instanceof Error ? error : new Error(String(error));
+                if (attempt < maxRetries) {
+                    await this.delay(Math.pow(2, attempt) * 1000);
+                }
+            }
+        }
+        this.handleError(lastError, 'generateTitle');
+    }
+    async isHealthy() {
+        try {
+            const model = this.config.baseURL
+                ? (0, google_1.createGoogleGenerativeAI)({
+                    apiKey: this.config.apiKey,
+                    baseURL: this.config.baseURL
+                })(this.config.model || 'gemini-1.5-flash')
+                : (0, google_1.google)(this.config.model || 'gemini-1.5-flash');
+            const result = await (0, ai_1.generateText)({
+                model,
+                system: 'You are a test assistant. Reply with "OK".',
+                prompt: 'test',
+                maxTokens: 10
+            });
+            return result.text.toLowerCase().includes('ok');
+        }
+        catch {
+            return false;
+        }
+    }
+}
+exports.GoogleProvider = GoogleProvider;
+
+
+/***/ }),
+
+/***/ 4093:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+/**
+ * AI Providers - Central export point
+ * Inspired by claude-task-master architecture
+ * https://github.com/eyaltoledano/claude-task-master/tree/main/src/ai-providers
+ */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __exportStar = (this && this.__exportStar) || function(m, exports) {
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.AIProviderFactory = exports.ClaudeCodeProvider = exports.AzureProvider = exports.CohereProvider = exports.XAIProvider = exports.MistralProvider = exports.GoogleProvider = exports.AnthropicProvider = exports.OpenAIProvider = exports.BaseAIProvider = void 0;
+// Base provider and types
+var base_provider_1 = __nccwpck_require__(9868);
+Object.defineProperty(exports, "BaseAIProvider", ({ enumerable: true, get: function () { return base_provider_1.BaseAIProvider; } }));
+// Individual provider implementations
+var openai_1 = __nccwpck_require__(975);
+Object.defineProperty(exports, "OpenAIProvider", ({ enumerable: true, get: function () { return openai_1.OpenAIProvider; } }));
+var anthropic_1 = __nccwpck_require__(4341);
+Object.defineProperty(exports, "AnthropicProvider", ({ enumerable: true, get: function () { return anthropic_1.AnthropicProvider; } }));
+var google_1 = __nccwpck_require__(294);
+Object.defineProperty(exports, "GoogleProvider", ({ enumerable: true, get: function () { return google_1.GoogleProvider; } }));
+var mistral_1 = __nccwpck_require__(585);
+Object.defineProperty(exports, "MistralProvider", ({ enumerable: true, get: function () { return mistral_1.MistralProvider; } }));
+var xai_1 = __nccwpck_require__(6655);
+Object.defineProperty(exports, "XAIProvider", ({ enumerable: true, get: function () { return xai_1.XAIProvider; } }));
+var cohere_1 = __nccwpck_require__(85);
+Object.defineProperty(exports, "CohereProvider", ({ enumerable: true, get: function () { return cohere_1.CohereProvider; } }));
+var azure_1 = __nccwpck_require__(6654);
+Object.defineProperty(exports, "AzureProvider", ({ enumerable: true, get: function () { return azure_1.AzureProvider; } }));
+var claude_code_1 = __nccwpck_require__(7509);
+Object.defineProperty(exports, "ClaudeCodeProvider", ({ enumerable: true, get: function () { return claude_code_1.ClaudeCodeProvider; } }));
+// Custom SDK implementations
+__exportStar(__nccwpck_require__(5339), exports);
+// Factory and utilities
+var factory_1 = __nccwpck_require__(5367);
+Object.defineProperty(exports, "AIProviderFactory", ({ enumerable: true, get: function () { return factory_1.AIProviderFactory; } }));
+
+
+/***/ }),
+
+/***/ 585:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Mistral AI Provider
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.MistralProvider = void 0;
+const mistral_1 = __nccwpck_require__(8189);
+const ai_1 = __nccwpck_require__(6619);
+const base_provider_1 = __nccwpck_require__(9868);
+class MistralProvider extends base_provider_1.BaseAIProvider {
+    constructor(config) {
+        super(config, 'Mistral');
+    }
+    getRequiredApiKeyName() {
+        return 'MISTRAL_API_KEY';
+    }
+    getClient() {
+        return this.config.baseURL
+            ? (0, mistral_1.createMistral)({
+                apiKey: this.config.apiKey,
+                baseURL: this.config.baseURL
+            })
+            : { model: (model) => (0, mistral_1.mistral)(model) };
+    }
+    async generateTitle(request) {
+        this.validateParams();
+        const maxRetries = 3;
+        let lastError;
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                const prompt = this.buildPrompt(request);
+                const systemMessage = this.buildSystemMessage(request.options);
+                const model = this.config.baseURL
+                    ? (0, mistral_1.createMistral)({
+                        apiKey: this.config.apiKey,
+                        baseURL: this.config.baseURL
+                    })(this.config.model || 'mistral-large-latest')
+                    : (0, mistral_1.mistral)(this.config.model || 'mistral-large-latest');
+                const result = await (0, ai_1.generateText)({
+                    model,
+                    system: systemMessage,
+                    prompt,
+                    maxTokens: this.config.maxTokens || 500,
+                    temperature: this.config.temperature || 0.3
+                });
+                return this.parseResponse(result.text);
+            }
+            catch (error) {
+                lastError = error instanceof Error ? error : new Error(String(error));
+                if (attempt < maxRetries) {
+                    await this.delay(Math.pow(2, attempt) * 1000);
+                }
+            }
+        }
+        this.handleError(lastError, 'generateTitle');
+    }
+    async isHealthy() {
+        try {
+            const model = this.config.baseURL
+                ? (0, mistral_1.createMistral)({
+                    apiKey: this.config.apiKey,
+                    baseURL: this.config.baseURL
+                })(this.config.model || 'mistral-large-latest')
+                : (0, mistral_1.mistral)(this.config.model || 'mistral-large-latest');
+            const result = await (0, ai_1.generateText)({
+                model,
+                system: 'You are a test assistant. Reply with "OK".',
+                prompt: 'test',
+                maxTokens: 10
+            });
+            return result.text.toLowerCase().includes('ok');
+        }
+        catch {
+            return false;
+        }
+    }
+}
+exports.MistralProvider = MistralProvider;
+
+
+/***/ }),
+
+/***/ 975:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * OpenAI Provider
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.OpenAIProvider = void 0;
+const openai_1 = __nccwpck_require__(7635);
+const ai_1 = __nccwpck_require__(6619);
+const base_provider_1 = __nccwpck_require__(9868);
+class OpenAIProvider extends base_provider_1.BaseAIProvider {
+    constructor(config) {
+        super(config, 'OpenAI');
+    }
+    getRequiredApiKeyName() {
+        return 'OPENAI_API_KEY';
+    }
+    getClient() {
+        return this.config.baseURL
+            ? (0, openai_1.createOpenAI)({
+                apiKey: this.config.apiKey,
+                baseURL: this.config.baseURL
+            })
+            : { model: (model) => (0, openai_1.openai)(model) };
+    }
+    async generateTitle(request) {
+        this.validateParams();
+        const maxRetries = 3;
+        let lastError;
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                const prompt = this.buildPrompt(request);
+                const systemMessage = this.buildSystemMessage(request.options);
+                const model = this.config.baseURL
+                    ? (0, openai_1.createOpenAI)({
+                        apiKey: this.config.apiKey,
+                        baseURL: this.config.baseURL
+                    })(this.config.model || 'gpt-4o-mini')
+                    : (0, openai_1.openai)(this.config.model || 'gpt-4o-mini');
+                const result = await (0, ai_1.generateText)({
+                    model,
+                    system: systemMessage,
+                    prompt,
+                    maxTokens: this.config.maxTokens || 500,
+                    temperature: this.config.temperature || 0.3
+                });
+                return this.parseResponse(result.text);
+            }
+            catch (error) {
+                lastError = error instanceof Error ? error : new Error(String(error));
+                if (attempt < maxRetries) {
+                    await this.delay(Math.pow(2, attempt) * 1000);
+                }
+            }
+        }
+        this.handleError(lastError, 'generateTitle');
+    }
+    async isHealthy() {
+        try {
+            const model = this.config.baseURL
+                ? (0, openai_1.createOpenAI)({
+                    apiKey: this.config.apiKey,
+                    baseURL: this.config.baseURL
+                })(this.config.model || 'gpt-4o-mini')
+                : (0, openai_1.openai)(this.config.model || 'gpt-4o-mini');
+            const result = await (0, ai_1.generateText)({
+                model,
+                system: 'You are a test assistant. Reply with "OK".',
+                prompt: 'test',
+                maxTokens: 10
+            });
+            return result.text.toLowerCase().includes('ok');
+        }
+        catch {
+            return false;
+        }
+    }
+}
+exports.OpenAIProvider = OpenAIProvider;
+
+
+/***/ }),
+
+/***/ 6655:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * XAI (xAI) Provider
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.XAIProvider = void 0;
+const xai_1 = __nccwpck_require__(6851);
+const ai_1 = __nccwpck_require__(6619);
+const base_provider_1 = __nccwpck_require__(9868);
+class XAIProvider extends base_provider_1.BaseAIProvider {
+    constructor(config) {
+        super(config, 'XAI');
+    }
+    getRequiredApiKeyName() {
+        return 'XAI_API_KEY';
+    }
+    getClient() {
+        return this.config.baseURL
+            ? (0, xai_1.createXai)({
+                apiKey: this.config.apiKey,
+                baseURL: this.config.baseURL
+            })
+            : { model: (model) => (0, xai_1.xai)(model) };
+    }
+    async generateTitle(request) {
+        this.validateParams();
+        const maxRetries = 3;
+        let lastError;
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                const prompt = this.buildPrompt(request);
+                const systemMessage = this.buildSystemMessage(request.options);
+                const model = this.config.baseURL
+                    ? (0, xai_1.createXai)({
+                        apiKey: this.config.apiKey,
+                        baseURL: this.config.baseURL
+                    })(this.config.model || 'grok-beta')
+                    : (0, xai_1.xai)(this.config.model || 'grok-beta');
+                const result = await (0, ai_1.generateText)({
+                    model,
+                    system: systemMessage,
+                    prompt,
+                    maxTokens: this.config.maxTokens || 500,
+                    temperature: this.config.temperature || 0.3
+                });
+                return this.parseResponse(result.text);
+            }
+            catch (error) {
+                lastError = error instanceof Error ? error : new Error(String(error));
+                if (attempt < maxRetries) {
+                    await this.delay(Math.pow(2, attempt) * 1000);
+                }
+            }
+        }
+        this.handleError(lastError, 'generateTitle');
+    }
+    async isHealthy() {
+        try {
+            const model = this.config.baseURL
+                ? (0, xai_1.createXai)({
+                    apiKey: this.config.apiKey,
+                    baseURL: this.config.baseURL
+                })(this.config.model || 'grok-beta')
+                : (0, xai_1.xai)(this.config.model || 'grok-beta');
+            const result = await (0, ai_1.generateText)({
+                model,
+                system: 'You are a test assistant. Reply with "OK".',
+                prompt: 'test',
+                maxTokens: 10
+            });
+            return result.text.toLowerCase().includes('ok');
+        }
+        catch {
+            return false;
+        }
+    }
+}
+exports.XAIProvider = XAIProvider;
 
 
 /***/ }),
@@ -55479,7 +56788,8 @@ class ActionConfigManager {
             'mistral',
             'xai',
             'cohere',
-            'azure'
+            'azure',
+            'claude-code'
         ];
         if (!validProviders.includes(provider)) {
             this.errors.push({
@@ -55558,11 +56868,7 @@ class ActionConfigManager {
             xai: [],
             cohere: [],
             azure: [],
-            vercel: [],
-            deepseek: [],
-            cerebras: [],
-            groq: [],
-            vertex: []
+            'claude-code': []
         };
         // Populate from the supportedModels JSON
         Object.entries(supported_models_json_1.default).forEach(([provider, models]) => {
@@ -55595,11 +56901,7 @@ class ActionConfigManager {
             xai: [/^grok-/],
             cohere: [/^command-/, /^embed-/],
             azure: [/^gpt-/, /^text-/],
-            vercel: [/^v0-/],
-            deepseek: [/^deepseek-/],
-            cerebras: [/^llama/, /^meta-/],
-            groq: [/^llama/, /^mixtral/, /^gemma/, /^meta-/],
-            vertex: [/^gemini-/, /^palm-/]
+            'claude-code': [/^sonnet$/, /^opus$/, /^claude-/]
         };
         const providerPatterns = patterns[provider] || [];
         return providerPatterns.some(pattern => pattern.test(model));
@@ -55677,6 +56979,135 @@ function estimateTokenCost(provider, modelId, inputTokens, outputTokens) {
         total: inputCost + outputCost
     };
 }
+
+
+/***/ }),
+
+/***/ 7242:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.AI_PROVIDERS = exports.CONVENTIONAL_TYPES = exports.PROCESSING_LIMITS = exports.CONFIG_DEFAULTS = void 0;
+// Centralized constants for better maintainability
+exports.CONFIG_DEFAULTS = {
+    AI_PROVIDER: 'openai',
+    MODE: 'suggest',
+    TEMPERATURE: 0.3,
+    MAX_TOKENS: 500,
+    MAX_LENGTH: 72,
+    MIN_DESCRIPTION_LENGTH: 3,
+    INCLUDE_SCOPE: false,
+    SKIP_IF_CONVENTIONAL: false,
+    MATCH_LANGUAGE: true,
+    AUTO_COMMENT: false,
+    DEBUG: false
+};
+exports.PROCESSING_LIMITS = {
+    MAX_CHANGED_FILES: 20,
+    MAX_DIFF_FILES: 5,
+    MAX_DIFF_SIZE: 3000,
+    MAX_PR_BODY_SIZE: 1500,
+    MAX_RETRIES: 3,
+    RETRY_DELAY_BASE: 1000
+};
+exports.CONVENTIONAL_TYPES = [
+    'feat',
+    'fix',
+    'docs',
+    'style',
+    'refactor',
+    'perf',
+    'test',
+    'build',
+    'ci',
+    'chore',
+    'revert'
+];
+exports.AI_PROVIDERS = [
+    'openai',
+    'anthropic',
+    'google',
+    'mistral',
+    'xai',
+    'cohere',
+    'azure',
+    'claude-code'
+];
+
+
+/***/ }),
+
+/***/ 4521:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Context extraction utilities
+ * Handles gathering PR context information from GitHub API
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.PRContextExtractor = void 0;
+const github_1 = __nccwpck_require__(3228);
+const core_1 = __nccwpck_require__(7484);
+const utils_1 = __nccwpck_require__(1798);
+const constants_1 = __nccwpck_require__(7242);
+class PRContextExtractor {
+    constructor(githubService) {
+        this.githubService = githubService;
+    }
+    async extractContext(prNumber, pullRequest) {
+        let changedFiles = [];
+        let prInfo = null;
+        let diffContent = '';
+        try {
+            // Get PR details
+            prInfo = await this.githubService.getPRInfo(prNumber);
+            // Get changed files
+            changedFiles = await this.githubService.getChangedFiles(prNumber);
+            utils_1.Logger.debug(`Found ${changedFiles.length} changed files`);
+            // Get diff content if there are changed files
+            if (changedFiles.length > 0) {
+                diffContent = await this.extractDiffContent(pullRequest, changedFiles.length);
+            }
+        }
+        catch (error) {
+            (0, core_1.warning)(`Failed to get PR context: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+        return {
+            number: prNumber,
+            title: pullRequest.title,
+            body: (prInfo === null || prInfo === void 0 ? void 0 : prInfo.body) || pullRequest.body || null,
+            isDraft: pullRequest.draft || false,
+            changedFiles,
+            diffContent
+        };
+    }
+    async extractDiffContent(pullRequest, fileCount) {
+        try {
+            const { data: compareData } = await this.githubService.octokit.rest.repos.compareCommits({
+                owner: github_1.context.repo.owner,
+                repo: github_1.context.repo.repo,
+                base: pullRequest.base.sha,
+                head: pullRequest.head.sha
+            });
+            if (compareData.files && compareData.files.length > 0) {
+                return compareData.files
+                    .slice(0, constants_1.PROCESSING_LIMITS.MAX_DIFF_FILES)
+                    .map(file => `--- ${file.filename}\n${file.patch || ''}`)
+                    .join('\n\n')
+                    .slice(0, constants_1.PROCESSING_LIMITS.MAX_DIFF_SIZE);
+            }
+        }
+        catch (diffError) {
+            utils_1.Logger.debug(`Failed to get diff: ${diffError instanceof Error ? diffError.message : 'Unknown error'}`);
+        }
+        return '';
+    }
+}
+exports.PRContextExtractor = PRContextExtractor;
 
 
 /***/ }),
@@ -55858,6 +57289,7 @@ exports.formatCommentWithMention = formatCommentWithMention;
 exports.withRetry = withRetry;
 const github_1 = __nccwpck_require__(3228);
 const github_2 = __nccwpck_require__(3228);
+const utils_1 = __nccwpck_require__(1798);
 class OctokitGitHubService {
     // Public getter for octokit instance
     get octokit() {
@@ -55955,24 +57387,15 @@ class OctokitGitHubService {
             return true;
         }
         catch (error) {
-            console.warn('Permission check failed:', error);
+            utils_1.Logger.error('Permission check failed:', error);
             // More detailed error logging for debugging
             if (error instanceof Error) {
-                console.warn('Permission check error details:', {
+                utils_1.Logger.error('Permission check error details:', {
                     message: error.message,
                     stack: error.stack
                 });
             }
             return false;
-        }
-    }
-    async getCurrentUser() {
-        try {
-            const { data: user } = await this._octokit.rest.users.getAuthenticated();
-            return user.login;
-        }
-        catch (error) {
-            throw new Error(`Failed to get current user: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 }
@@ -56039,6 +57462,450 @@ async function withRetry(operation, maxRetries = 3, delayMs = 1000) {
     }
     throw lastError;
 }
+
+
+/***/ }),
+
+/***/ 1289:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Modern AI Service using the new provider architecture
+ * This replaces the old VercelAIService with a more extensible design
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ModernAIService = void 0;
+const ai_providers_1 = __nccwpck_require__(4093);
+class ModernAIService {
+    constructor(config) {
+        this.config = {
+            maxTokens: 500,
+            temperature: 0.3,
+            maxRetries: 3,
+            debug: false,
+            ...config
+        };
+        // Validate provider
+        if (!ai_providers_1.AIProviderFactory.isProviderSupported(this.config.provider)) {
+            throw new Error(`Unsupported AI provider: ${this.config.provider}`);
+        }
+        // Set default model if not provided
+        if (!this.config.model) {
+            this.config.model = ai_providers_1.AIProviderFactory.getDefaultModel(this.config.provider);
+        }
+    }
+    async generateTitle(request) {
+        const provider = ai_providers_1.AIProviderFactory.create(this.config.provider, {
+            apiKey: this.config.apiKey,
+            baseURL: this.config.baseURL,
+            model: this.config.model,
+            maxTokens: this.config.maxTokens,
+            temperature: this.config.temperature
+        });
+        return provider.generateTitle(request);
+    }
+    async isHealthy() {
+        try {
+            const provider = ai_providers_1.AIProviderFactory.create(this.config.provider, {
+                apiKey: this.config.apiKey,
+                baseURL: this.config.baseURL,
+                model: this.config.model,
+                maxTokens: this.config.maxTokens,
+                temperature: this.config.temperature
+            });
+            return provider.isHealthy();
+        }
+        catch {
+            return false;
+        }
+    }
+    getProviderInfo() {
+        return ai_providers_1.AIProviderFactory.getProviderInfo(this.config.provider);
+    }
+    getSupportedModels() {
+        return ai_providers_1.AIProviderFactory.getSupportedModels(this.config.provider);
+    }
+    isModelSupported(model) {
+        return ai_providers_1.AIProviderFactory.isModelSupported(this.config.provider, model);
+    }
+    static getSupportedProviders() {
+        return ai_providers_1.AIProviderFactory.getSupportedProviders();
+    }
+    static getProviderEnvironmentKey(provider) {
+        return ai_providers_1.AIProviderFactory.getProviderEnvironmentKey(provider);
+    }
+}
+exports.ModernAIService = ModernAIService;
+
+
+/***/ }),
+
+/***/ 9196:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Core business logic for PR title processing
+ * Extracted from main index.ts for better separation of concerns
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.PRTitleProcessor = void 0;
+const core_1 = __nccwpck_require__(7484);
+const conventional_1 = __nccwpck_require__(7921);
+const utils_1 = __nccwpck_require__(1798);
+const constants_1 = __nccwpck_require__(7242);
+class PRTitleProcessor {
+    constructor(config, aiService, githubService) {
+        this.config = config;
+        this.aiService = aiService;
+        this.githubService = githubService;
+    }
+    async process(prContext) {
+        const { title, number: prNumber } = prContext;
+        // Validate current title
+        const validationResult = (0, conventional_1.validateTitle)(title, this.config.validationOptions);
+        const isConventional = validationResult.isValid;
+        (0, core_1.info)(`Current title is ${isConventional ? 'conventional' : 'not conventional'}`);
+        if (validationResult.errors.length > 0) {
+            utils_1.Logger.debug(`Validation errors: ${validationResult.errors.join(', ')}`);
+        }
+        // Check if we should skip processing
+        if (this.shouldSkipProcessing(isConventional)) {
+            (0, core_1.info)('Skipping processing: title is already conventional and skip-if-conventional is enabled');
+            return {
+                isConventional: true,
+                suggestions: [],
+                reasoning: 'Title is already conventional',
+                actionTaken: 'skipped'
+            };
+        }
+        // Generate AI suggestions
+        const suggestions = await this.generateSuggestions(prContext);
+        if (suggestions.suggestions.length === 0) {
+            (0, core_1.warning)('No title suggestions generated');
+            return {
+                isConventional,
+                suggestions: [],
+                reasoning: 'No suggestions could be generated',
+                actionTaken: 'error',
+                errorMessage: 'No title suggestions could be generated'
+            };
+        }
+        // Execute action based on mode
+        const actionTaken = await this.executeAction(prNumber, title, suggestions);
+        return {
+            isConventional,
+            suggestions: suggestions.suggestions,
+            reasoning: suggestions.reasoning,
+            actionTaken
+        };
+    }
+    shouldSkipProcessing(isConventional) {
+        return this.config.skipIfConventional && isConventional;
+    }
+    async generateSuggestions(prContext) {
+        (0, core_1.info)('Generating AI-powered title suggestions...');
+        return await this.aiService.generateTitle({
+            originalTitle: prContext.title,
+            prDescription: prContext.body || undefined,
+            prBody: prContext.body || undefined,
+            diffContent: prContext.diffContent || undefined,
+            changedFiles: prContext.changedFiles.slice(0, constants_1.PROCESSING_LIMITS.MAX_CHANGED_FILES),
+            options: {
+                includeScope: this.config.includeScope,
+                preferredTypes: this.config.validationOptions.allowedTypes,
+                maxLength: this.config.validationOptions.maxLength,
+                matchLanguage: this.config.matchLanguage
+            }
+        });
+    }
+    async executeAction(prNumber, currentTitle, aiResponse) {
+        if (this.config.mode === 'auto') {
+            return this.handleAutoMode(prNumber, currentTitle, aiResponse);
+        }
+        else {
+            return this.handleSuggestionMode(prNumber, currentTitle, aiResponse);
+        }
+    }
+    async handleAutoMode(prNumber, currentTitle, aiResponse) {
+        const bestSuggestion = aiResponse.suggestions[0];
+        try {
+            await this.githubService.updatePRTitle(prNumber, bestSuggestion);
+            (0, core_1.info)(`✅ Updated PR title to: "${bestSuggestion}"`);
+            if (this.config.autoComment) {
+                await this.addSuccessComment(prNumber, currentTitle, bestSuggestion, aiResponse.reasoning);
+            }
+            return 'updated';
+        }
+        catch (error) {
+            const errorMessage = `Failed to update PR title: ${error instanceof Error ? error.message : 'Unknown error'}`;
+            (0, core_1.warning)(errorMessage);
+            return 'error';
+        }
+    }
+    async handleSuggestionMode(prNumber, currentTitle, aiResponse) {
+        try {
+            const commentBody = this.formatSuggestionComment(currentTitle, aiResponse.suggestions, aiResponse.reasoning);
+            await this.githubService.createComment(prNumber, commentBody);
+            (0, core_1.info)(`💬 Added comment with ${aiResponse.suggestions.length} title suggestions`);
+            return 'commented';
+        }
+        catch (error) {
+            const errorMessage = `Failed to create comment: ${error instanceof Error ? error.message : 'Unknown error'}`;
+            (0, core_1.warning)(errorMessage);
+            return 'error';
+        }
+    }
+    async addSuccessComment(prNumber, originalTitle, newTitle, reasoning) {
+        try {
+            const commentBody = this.formatSuccessComment(originalTitle, newTitle, reasoning);
+            await this.githubService.createComment(prNumber, commentBody);
+            (0, core_1.info)(`💬 Added success notification comment`);
+        }
+        catch (error) {
+            (0, core_1.warning)(`Failed to create success comment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+    formatSuccessComment(originalTitle, newTitle, reasoning) {
+        const lines = [
+            `## ✅ PR Title Auto-Updated`,
+            `> Optimized according to Conventional Commits standard`,
+            '',
+            `### 📝 Changes Made`,
+            '',
+            '| | Title |',
+            '|---|---|',
+            `| **Original** | \`${originalTitle}\` |`,
+            `| **Updated** | \`${newTitle}\` ✨ |`,
+            ''
+        ];
+        if (reasoning) {
+            lines.push(`### 🤖 AI Analysis`, '', `> ${reasoning}`, '');
+        }
+        lines.push(`### 🎯 Benefits`, '', '✨ Follows team coding standards', '📊 Improves version control and change tracking', '🔍 Enhances code review efficiency', '📈 Better project maintenance experience', '', '---', '', `<div align="center">`, '', `🎉 **Your PR is now following best practices!** 🎉`, '', '_This comment was generated by [conventional-pr-title](https://github.com/overtrue/conventional-pr-title) action_', '', `</div>`);
+        return lines.join('\n');
+    }
+    formatSuggestionComment(currentTitle, suggestions, reasoning) {
+        if (this.config.commentTemplate) {
+            return this.config.commentTemplate
+                .replace(/\${currentTitle}/g, currentTitle)
+                .replace(/\${suggestions}/g, suggestions.map((s, i) => `${i + 1}. ${s}`).join('\n'))
+                .replace(/\${reasoning}/g, reasoning || '');
+        }
+        const lines = [
+            `## 🚀 AI-Powered PR Title Suggestions`,
+            '',
+            `> **Current title:** \`"${currentTitle}"\``,
+            `> doesn't follow the [Conventional Commits](https://conventionalcommits.org/) standard`,
+            '',
+            `### 💡 Suggested Titles`,
+            '',
+            ...suggestions.map((suggestion, index) => `**${index + 1}.** \`${suggestion}\` ${index === 0 ? '⭐ **(Recommended)**' : ''}`),
+            ''
+        ];
+        if (reasoning) {
+            lines.push(`### 🧠 AI Analysis`, '', `> ${reasoning}`, '');
+        }
+        lines.push('---', '', `### 📝 How to Apply`, '', '1. Click the **"Edit"** button next to your PR title', '2. Copy one of the suggested titles above', '3. Save the changes', '', '💫 **Tip**: Standardized PR titles help with team collaboration and project maintenance!', '', '_This comment was generated by [conventional-pr-title](https://github.com/overtrue/conventional-pr-title) action_');
+        return lines.join('\n');
+    }
+}
+exports.PRTitleProcessor = PRTitleProcessor;
+
+
+/***/ }),
+
+/***/ 1798:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.REGEX_PATTERNS = exports.PerformanceCache = exports.DIContainer = exports.Logger = void 0;
+exports.withRetry = withRetry;
+const core_1 = __nccwpck_require__(7484);
+/**
+ * Unified logging utilities for the application
+ */
+class Logger {
+    static configure(debugEnabled) {
+        Logger.isDebugEnabled = debugEnabled;
+    }
+    static debug(message, data) {
+        if (!Logger.isDebugEnabled)
+            return;
+        const timestamp = new Date().toISOString();
+        const prefix = `🤖 [DEBUG ${timestamp}]`;
+        if (data) {
+            (0, core_1.debug)(`${prefix} ${message}:`);
+            (0, core_1.debug)(JSON.stringify(data, null, 2));
+        }
+        else {
+            (0, core_1.debug)(`${prefix} ${message}`);
+        }
+    }
+    static error(message, error) {
+        if (!Logger.isDebugEnabled)
+            return;
+        const timestamp = new Date().toISOString();
+        const prefix = `❌ [ERROR ${timestamp}]`;
+        console.error(`${prefix} ${message}`);
+        if (error) {
+            console.error(error);
+        }
+    }
+    static info(message) {
+        (0, core_1.debug)(`ℹ️ ${message}`);
+    }
+}
+exports.Logger = Logger;
+Logger.isDebugEnabled = false;
+/**
+ * Simple dependency injection container for better testability
+ */
+class DIContainer {
+    static register(key, instance) {
+        DIContainer.services.set(key, instance);
+    }
+    static registerFactory(key, factory) {
+        DIContainer.factories.set(key, factory);
+    }
+    static get(key) {
+        // Check for direct instance first
+        if (DIContainer.services.has(key)) {
+            return DIContainer.services.get(key);
+        }
+        // Check for factory
+        if (DIContainer.factories.has(key)) {
+            const factory = DIContainer.factories.get(key);
+            const instance = factory();
+            DIContainer.services.set(key, instance); // Cache the instance
+            return instance;
+        }
+        throw new Error(`Service not found: ${key}`);
+    }
+    static has(key) {
+        return DIContainer.services.has(key) || DIContainer.factories.has(key);
+    }
+    static clear() {
+        DIContainer.services.clear();
+        DIContainer.factories.clear();
+    }
+}
+exports.DIContainer = DIContainer;
+DIContainer.services = new Map();
+DIContainer.factories = new Map();
+/**
+ * Performance optimization utilities
+ */
+class PerformanceCache {
+    static get(key) {
+        return PerformanceCache.cache.get(key);
+    }
+    static set(key, value) {
+        PerformanceCache.cache.set(key, value);
+    }
+    static has(key) {
+        return PerformanceCache.cache.has(key);
+    }
+    static clear() {
+        PerformanceCache.cache.clear();
+    }
+}
+exports.PerformanceCache = PerformanceCache;
+PerformanceCache.cache = new Map();
+/**
+ * Pre-compiled regex patterns for performance
+ */
+exports.REGEX_PATTERNS = {
+    CONVENTIONAL_COMMIT: /^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\(.+\))?(!)?: .{1,}$/,
+    SCOPE: /\(([^)]+)\)/,
+    TYPE: /^([^(:!]+)/,
+    CHINESE: /[\u4e00-\u9fff]/,
+    // Add more patterns as needed
+};
+/**
+ * Async retry utility with exponential backoff
+ */
+async function withRetry(operation, maxRetries = 3, baseDelay = 1000) {
+    let lastError;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            return await operation();
+        }
+        catch (error) {
+            lastError = error instanceof Error ? error : new Error(String(error));
+            if (attempt === maxRetries) {
+                throw new Error(`Operation failed after ${maxRetries + 1} attempts: ${lastError.message}`);
+            }
+            // Exponential backoff
+            await new Promise(resolve => setTimeout(resolve, baseDelay * Math.pow(2, attempt)));
+        }
+    }
+    throw lastError;
+}
+
+
+/***/ }),
+
+/***/ 6985:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+/**
+ * Validation and pre-checks
+ * Handles environment validation and permission checks
+ */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.EnvironmentValidator = void 0;
+const core_1 = __nccwpck_require__(7484);
+const github_1 = __nccwpck_require__(3228);
+class EnvironmentValidator {
+    static validateGitHubContext() {
+        var _a, _b;
+        // Prevent infinite loops: Skip if triggered by bot itself
+        if (github_1.context.actor === 'github-actions[bot]' ||
+            ((_b = (_a = github_1.context.payload) === null || _a === void 0 ? void 0 : _a.sender) === null || _b === void 0 ? void 0 : _b.type) === 'Bot') {
+            return {
+                shouldSkip: true,
+                reason: 'Action was triggered by a bot to prevent infinite loops'
+            };
+        }
+        // Validate that this is a pull request event
+        if (github_1.context.eventName !== 'pull_request' &&
+            github_1.context.eventName !== 'pull_request_target') {
+            throw new Error(`This action only supports pull_request and pull_request_target events, got: ${github_1.context.eventName}`);
+        }
+        // Validate PR payload
+        if (!github_1.context.payload.pull_request) {
+            throw new Error('Pull request information not found in event payload');
+        }
+        return { shouldSkip: false };
+    }
+    static async validatePermissions(config, githubService) {
+        if (config.mode === 'auto') {
+            const hasPermission = await githubService.checkPermissions();
+            if (!hasPermission) {
+                (0, core_1.warning)('Insufficient permissions to update PR title automatically. Falling back to suggestion mode.');
+                return { ...config, mode: 'suggest' };
+            }
+        }
+        return config;
+    }
+}
+exports.EnvironmentValidator = EnvironmentValidator;
+
+
+/***/ }),
+
+/***/ 6725:
+/***/ ((module) => {
+
+module.exports = eval("require")("@anthropic-ai/claude-code");
 
 
 /***/ }),
@@ -64342,7 +66209,7 @@ exports.NEVER = parseUtil_js_1.INVALID;
 /***/ ((module) => {
 
 "use strict";
-module.exports = /*#__PURE__*/JSON.parse('{"openai":{"gpt-4.1":{"id":"gpt-4.1","name":"GPT-4.1","description":"Latest GPT-4 variant with improved performance","cost_per_1m_tokens":{"input":2.5,"output":10},"context_length":128000,"max_output_tokens":16384,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":true},"gpt-4.1-mini":{"id":"gpt-4.1-mini","name":"GPT-4.1 Mini","description":"Efficient variant of GPT-4.1","cost_per_1m_tokens":{"input":0.15,"output":0.6},"context_length":128000,"max_output_tokens":16384,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":true,"default":true},"gpt-4.1-nano":{"id":"gpt-4.1-nano","name":"GPT-4.1 Nano","description":"Ultra-efficient nano variant of GPT-4.1","cost_per_1m_tokens":{"input":0.05,"output":0.2},"context_length":128000,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true},"gpt-4o":{"id":"gpt-4o","name":"GPT-4o","description":"Multimodal flagship model with vision capabilities","cost_per_1m_tokens":{"input":2.5,"output":10},"context_length":128000,"max_output_tokens":16384,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":true},"gpt-4o-mini":{"id":"gpt-4o-mini","name":"GPT-4o Mini","description":"Affordable and intelligent small model for fast, lightweight tasks","cost_per_1m_tokens":{"input":0.15,"output":0.6},"context_length":128000,"max_output_tokens":16384,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":true},"gpt-4":{"id":"gpt-4","name":"GPT-4","description":"Large language model for complex tasks","cost_per_1m_tokens":{"input":30,"output":60},"context_length":8192,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":false},"supported":true,"recommended":false},"o3-mini":{"id":"o3-mini","name":"o3 Mini","description":"Efficient reasoning model for complex problem solving","cost_per_1m_tokens":{"input":1,"output":4},"context_length":128000,"max_output_tokens":16384,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true},"o3":{"id":"o3","name":"o3","description":"Advanced reasoning model with enhanced problem-solving capabilities","cost_per_1m_tokens":{"input":5,"output":20},"context_length":128000,"max_output_tokens":16384,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":false},"o4-mini":{"id":"o4-mini","name":"o4 Mini","description":"Next-generation reasoning model - compact version","cost_per_1m_tokens":{"input":1.5,"output":6},"context_length":128000,"max_output_tokens":16384,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true},"o1":{"id":"o1","name":"o1","description":"Reasoning model designed for complex problem solving","cost_per_1m_tokens":{"input":15,"output":60},"context_length":128000,"max_output_tokens":32768,"capabilities":{"text":true,"image":false,"tools":false,"json_mode":false},"supported":true,"recommended":false},"o1-mini":{"id":"o1-mini","name":"o1 Mini","description":"Efficient reasoning model for coding and problem solving","cost_per_1m_tokens":{"input":3,"output":12},"context_length":128000,"max_output_tokens":65536,"capabilities":{"text":true,"image":false,"tools":false,"json_mode":false},"supported":true,"recommended":true},"o1-preview":{"id":"o1-preview","name":"o1 Preview","description":"Preview version of o1 reasoning model","cost_per_1m_tokens":{"input":15,"output":60},"context_length":128000,"max_output_tokens":32768,"capabilities":{"text":true,"image":false,"tools":false,"json_mode":false},"supported":true,"recommended":false},"gpt-3.5-turbo":{"id":"gpt-3.5-turbo","name":"GPT-3.5 Turbo","description":"Fast, inexpensive model for simple tasks","cost_per_1m_tokens":{"input":0.5,"output":1.5},"context_length":16385,"max_output_tokens":4096,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":false}},"anthropic":{"claude-opus-4-20250514":{"id":"claude-opus-4-20250514","name":"Claude 4 Opus","description":"Most powerful Claude model for highly complex tasks","cost_per_1m_tokens":{"input":15,"output":75},"context_length":200000,"max_output_tokens":8192,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":false},"supported":true,"recommended":true},"claude-sonnet-4-20250514":{"id":"claude-sonnet-4-20250514","name":"Claude 4 Sonnet","description":"Balanced Claude 4 model for most tasks","cost_per_1m_tokens":{"input":3,"output":15},"context_length":200000,"max_output_tokens":8192,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":false},"supported":true,"recommended":true,"default":true},"claude-3-7-sonnet-20250219":{"id":"claude-3-7-sonnet-20250219","name":"Claude 3.7 Sonnet","description":"Enhanced version of Claude 3 Sonnet with improved capabilities","cost_per_1m_tokens":{"input":3,"output":15},"context_length":200000,"max_output_tokens":8192,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":false},"supported":true,"recommended":true},"claude-3-5-sonnet-20241022":{"id":"claude-3-5-sonnet-20241022","name":"Claude 3.5 Sonnet","description":"Most intelligent model for complex tasks","cost_per_1m_tokens":{"input":3,"output":15},"context_length":200000,"max_output_tokens":8192,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":false},"supported":true,"recommended":true},"claude-3-5-sonnet-20240620":{"id":"claude-3-5-sonnet-20240620","name":"Claude 3.5 Sonnet (June)","description":"Earlier version of Claude 3.5 Sonnet","cost_per_1m_tokens":{"input":3,"output":15},"context_length":200000,"max_output_tokens":8192,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":false},"supported":true,"recommended":false},"claude-3-5-haiku-20241022":{"id":"claude-3-5-haiku-20241022","name":"Claude 3.5 Haiku","description":"Fastest and most compact model for near-instant responsiveness","cost_per_1m_tokens":{"input":0.25,"output":1.25},"context_length":200000,"max_output_tokens":8192,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":false},"supported":true,"recommended":true},"claude-3-haiku-20240307":{"id":"claude-3-haiku-20240307","name":"Claude 3 Haiku","description":"Fast and efficient model for everyday tasks","cost_per_1m_tokens":{"input":0.25,"output":1.25},"context_length":200000,"max_output_tokens":4096,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":false},"supported":true,"recommended":false},"claude-3-opus-20240229":{"id":"claude-3-opus-20240229","name":"Claude 3 Opus","description":"Most powerful Claude 3 model for highly complex tasks","cost_per_1m_tokens":{"input":15,"output":75},"context_length":200000,"max_output_tokens":4096,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":false},"supported":true,"recommended":false}},"google":{"gemini-2.0-flash-exp":{"id":"gemini-2.0-flash-exp","name":"Gemini 2.0 Flash Experimental","description":"Latest experimental Gemini model with enhanced multimodal capabilities","cost_per_1m_tokens":{"input":0.075,"output":0.3},"context_length":1000000,"max_output_tokens":8192,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":true,"default":true},"gemini-1.5-flash":{"id":"gemini-1.5-flash","name":"Gemini 1.5 Flash","description":"Fast and versatile performance across a variety of tasks","cost_per_1m_tokens":{"input":0.075,"output":0.3},"context_length":1000000,"max_output_tokens":8192,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":true},"gemini-1.5-pro":{"id":"gemini-1.5-pro","name":"Gemini 1.5 Pro","description":"Mid-size multimodal model that supports up to 2 million tokens","cost_per_1m_tokens":{"input":1.25,"output":5},"context_length":2000000,"max_output_tokens":8192,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":true},"gemini-pro":{"id":"gemini-pro","name":"Gemini Pro","description":"Best model for scaling across a wide range of tasks","cost_per_1m_tokens":{"input":0.5,"output":1.5},"context_length":30720,"max_output_tokens":2048,"capabilities":{"text":true,"image":false,"tools":false,"json_mode":false},"supported":true,"recommended":false}},"vertex":{"gemini-2.0-flash-exp":{"id":"gemini-2.0-flash-exp","name":"Gemini 2.0 Flash Experimental (Vertex)","description":"Latest experimental Gemini model via Google Vertex AI","cost_per_1m_tokens":{"input":0.075,"output":0.3},"context_length":1000000,"max_output_tokens":8192,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":true,"default":true},"gemini-1.5-flash":{"id":"gemini-1.5-flash","name":"Gemini 1.5 Flash (Vertex)","description":"Fast and versatile model via Google Vertex AI","cost_per_1m_tokens":{"input":0.075,"output":0.3},"context_length":1000000,"max_output_tokens":8192,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":true},"gemini-1.5-pro":{"id":"gemini-1.5-pro","name":"Gemini 1.5 Pro (Vertex)","description":"Powerful multimodal model via Google Vertex AI","cost_per_1m_tokens":{"input":1.25,"output":5},"context_length":2000000,"max_output_tokens":8192,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":true}},"mistral":{"pixtral-large-latest":{"id":"pixtral-large-latest","name":"Pixtral Large","description":"Mistral\'s large multimodal model with vision capabilities","cost_per_1m_tokens":{"input":3,"output":9},"context_length":128000,"max_output_tokens":8192,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":true,"default":true},"mistral-large-latest":{"id":"mistral-large-latest","name":"Mistral Large","description":"Top-tier reasoning model for high-complexity tasks","cost_per_1m_tokens":{"input":2,"output":6},"context_length":128000,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true},"mistral-medium-latest":{"id":"mistral-medium-latest","name":"Mistral Medium","description":"Balanced model for intermediate complexity tasks","cost_per_1m_tokens":{"input":0.7,"output":2.1},"context_length":128000,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":false},"mistral-medium-2505":{"id":"mistral-medium-2505","name":"Mistral Medium 2505","description":"Latest Mistral Medium model with enhanced capabilities","cost_per_1m_tokens":{"input":0.7,"output":2.1},"context_length":128000,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true},"mistral-small-latest":{"id":"mistral-small-latest","name":"Mistral Small","description":"Cost-efficient reasoning model for low-latency workloads","cost_per_1m_tokens":{"input":0.2,"output":0.6},"context_length":128000,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true},"pixtral-12b-2409":{"id":"pixtral-12b-2409","name":"Pixtral 12B","description":"Compact multimodal model with vision capabilities","cost_per_1m_tokens":{"input":0.15,"output":0.15},"context_length":128000,"max_output_tokens":8192,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":true}},"xai":{"grok-4":{"id":"grok-4","name":"Grok 4","description":"Latest generation Grok model with enhanced capabilities","cost_per_1m_tokens":{"input":5,"output":15},"context_length":131072,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true},"grok-3":{"id":"grok-3","name":"Grok 3","description":"Third generation Grok model with improved reasoning","cost_per_1m_tokens":{"input":4,"output":12},"context_length":131072,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true},"grok-3-fast":{"id":"grok-3-fast","name":"Grok 3 Fast","description":"Optimized version of Grok 3 for faster responses","cost_per_1m_tokens":{"input":3.5,"output":10},"context_length":131072,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true},"grok-3-mini":{"id":"grok-3-mini","name":"Grok 3 Mini","description":"Compact version of Grok 3 for efficient processing","cost_per_1m_tokens":{"input":1,"output":3},"context_length":131072,"max_output_tokens":4096,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true,"default":true},"grok-3-mini-fast":{"id":"grok-3-mini-fast","name":"Grok 3 Mini Fast","description":"Ultra-fast compact version of Grok 3","cost_per_1m_tokens":{"input":0.8,"output":2.5},"context_length":131072,"max_output_tokens":4096,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true},"grok-2-1212":{"id":"grok-2-1212","name":"Grok 2 (December)","description":"December 2024 version of Grok 2","cost_per_1m_tokens":{"input":3,"output":9},"context_length":131072,"max_output_tokens":4096,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":false},"grok-2-vision-1212":{"id":"grok-2-vision-1212","name":"Grok 2 Vision (December)","description":"December 2024 version of Grok 2 with vision capabilities","cost_per_1m_tokens":{"input":3.5,"output":10},"context_length":131072,"max_output_tokens":4096,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":false},"grok-beta":{"id":"grok-beta","name":"Grok Beta","description":"Beta version of Grok with experimental features","cost_per_1m_tokens":{"input":5,"output":15},"context_length":131072,"max_output_tokens":4096,"capabilities":{"text":true,"image":false,"tools":false,"json_mode":false},"supported":true,"recommended":false},"grok-vision-beta":{"id":"grok-vision-beta","name":"Grok Vision Beta","description":"Beta version of Grok with vision capabilities","cost_per_1m_tokens":{"input":5.5,"output":16},"context_length":131072,"max_output_tokens":4096,"capabilities":{"text":true,"image":true,"tools":false,"json_mode":false},"supported":true,"recommended":false}},"vercel":{"v0-1.0-md":{"id":"v0-1.0-md","name":"v0 1.0 MD","description":"Vercel\'s code generation model for UI components","cost_per_1m_tokens":{"input":2,"output":8},"context_length":128000,"max_output_tokens":8192,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":true,"default":true}},"deepseek":{"deepseek-chat":{"id":"deepseek-chat","name":"DeepSeek Chat","description":"DeepSeek\'s conversational AI model","cost_per_1m_tokens":{"input":0.14,"output":0.28},"context_length":128000,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true,"default":true},"deepseek-reasoner":{"id":"deepseek-reasoner","name":"DeepSeek Reasoner","description":"DeepSeek\'s reasoning-focused model","cost_per_1m_tokens":{"input":0.55,"output":2.19},"context_length":64000,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":false,"json_mode":false},"supported":true,"recommended":true}},"cerebras":{"llama3.1-8b":{"id":"llama3.1-8b","name":"Llama 3.1 8B","description":"Meta\'s Llama 3.1 8B model via Cerebras","cost_per_1m_tokens":{"input":0.1,"output":0.1},"context_length":128000,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true,"default":true},"llama3.1-70b":{"id":"llama3.1-70b","name":"Llama 3.1 70B","description":"Meta\'s Llama 3.1 70B model via Cerebras","cost_per_1m_tokens":{"input":0.6,"output":0.6},"context_length":128000,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true},"llama3.3-70b":{"id":"llama3.3-70b","name":"Llama 3.3 70B","description":"Meta\'s Llama 3.3 70B model via Cerebras","cost_per_1m_tokens":{"input":0.6,"output":0.6},"context_length":128000,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true}},"groq":{"meta-llama/llama-4-scout-17b-16e-instruct":{"id":"meta-llama/llama-4-scout-17b-16e-instruct","name":"Llama 4 Scout 17B","description":"Meta\'s Llama 4 Scout model via Groq","cost_per_1m_tokens":{"input":0.18,"output":0.18},"context_length":131072,"max_output_tokens":8192,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":true,"default":true},"llama-3.3-70b-versatile":{"id":"llama-3.3-70b-versatile","name":"Llama 3.3 70B Versatile","description":"Meta\'s Llama 3.3 70B versatile model via Groq","cost_per_1m_tokens":{"input":0.59,"output":0.79},"context_length":131072,"max_output_tokens":32768,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true},"llama-3.1-8b-instant":{"id":"llama-3.1-8b-instant","name":"Llama 3.1 8B Instant","description":"Meta\'s Llama 3.1 8B instant model via Groq","cost_per_1m_tokens":{"input":0.05,"output":0.08},"context_length":131072,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true},"mixtral-8x7b-32768":{"id":"mixtral-8x7b-32768","name":"Mixtral 8x7B","description":"Mistral\'s Mixtral 8x7B model via Groq","cost_per_1m_tokens":{"input":0.24,"output":0.24},"context_length":32768,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":false},"gemma2-9b-it":{"id":"gemma2-9b-it","name":"Gemma 2 9B IT","description":"Google\'s Gemma 2 9B instruction-tuned model via Groq","cost_per_1m_tokens":{"input":0.2,"output":0.2},"context_length":8192,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":false}},"cohere":{"command-r-plus":{"id":"command-r-plus","name":"Command R+","description":"Most powerful model for complex RAG workflows and multi-step tasks","cost_per_1m_tokens":{"input":3,"output":15},"context_length":128000,"max_output_tokens":4000,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":false},"supported":true,"recommended":true,"default":true},"command-r":{"id":"command-r","name":"Command R","description":"Balanced model for scaled conversational generation","cost_per_1m_tokens":{"input":0.5,"output":1.5},"context_length":128000,"max_output_tokens":4000,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":false},"supported":true,"recommended":false},"command":{"id":"command","name":"Command","description":"Flagship text generation model with instruction following","cost_per_1m_tokens":{"input":1,"output":2},"context_length":4096,"max_output_tokens":4000,"capabilities":{"text":true,"image":false,"tools":false,"json_mode":false},"supported":true,"recommended":false}},"azure":{"gpt-4o-mini":{"id":"gpt-4o-mini","name":"GPT-4o Mini (Azure)","description":"Azure-hosted GPT-4o Mini for enterprise deployments","cost_per_1m_tokens":{"input":0.165,"output":0.66},"context_length":128000,"max_output_tokens":16384,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":true,"default":true},"gpt-4o":{"id":"gpt-4o","name":"GPT-4o (Azure)","description":"Azure-hosted GPT-4o for enterprise deployments","cost_per_1m_tokens":{"input":5,"output":15},"context_length":128000,"max_output_tokens":16384,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":true},"gpt-35-turbo":{"id":"gpt-35-turbo","name":"GPT-3.5 Turbo (Azure)","description":"Azure-hosted GPT-3.5 Turbo for enterprise deployments","cost_per_1m_tokens":{"input":0.5,"output":1.5},"context_length":16385,"max_output_tokens":4096,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":false}},"metadata":{"version":"3.0.0","last_updated":"2025-01-31","total_models":54,"providers":10,"notes":["Costs are approximate and subject to change","Context lengths may vary based on input type","Default models are recommended for new users","Recommended models offer the best balance of cost and performance","Model availability may vary by provider and region","Vision capabilities marked based on official AI SDK documentation","Tool usage support varies by model and provider implementation"]}}');
+module.exports = /*#__PURE__*/JSON.parse('{"openai":{"gpt-4.1":{"id":"gpt-4.1","name":"GPT-4.1","description":"Latest GPT-4 variant with improved performance","cost_per_1m_tokens":{"input":2.5,"output":10},"context_length":128000,"max_output_tokens":16384,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":true},"gpt-4.1-mini":{"id":"gpt-4.1-mini","name":"GPT-4.1 Mini","description":"Efficient variant of GPT-4.1","cost_per_1m_tokens":{"input":0.15,"output":0.6},"context_length":128000,"max_output_tokens":16384,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":true,"default":true},"gpt-4.1-nano":{"id":"gpt-4.1-nano","name":"GPT-4.1 Nano","description":"Ultra-efficient nano variant of GPT-4.1","cost_per_1m_tokens":{"input":0.05,"output":0.2},"context_length":128000,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true},"gpt-4o":{"id":"gpt-4o","name":"GPT-4o","description":"Multimodal flagship model with vision capabilities","cost_per_1m_tokens":{"input":2.5,"output":10},"context_length":128000,"max_output_tokens":16384,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":true},"gpt-4o-mini":{"id":"gpt-4o-mini","name":"GPT-4o Mini","description":"Affordable and intelligent small model for fast, lightweight tasks","cost_per_1m_tokens":{"input":0.15,"output":0.6},"context_length":128000,"max_output_tokens":16384,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":true},"gpt-4":{"id":"gpt-4","name":"GPT-4","description":"Large language model for complex tasks","cost_per_1m_tokens":{"input":30,"output":60},"context_length":8192,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":false},"supported":true,"recommended":false},"o3-mini":{"id":"o3-mini","name":"o3 Mini","description":"Efficient reasoning model for complex problem solving","cost_per_1m_tokens":{"input":1,"output":4},"context_length":128000,"max_output_tokens":16384,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true},"o3":{"id":"o3","name":"o3","description":"Advanced reasoning model with enhanced problem-solving capabilities","cost_per_1m_tokens":{"input":5,"output":20},"context_length":128000,"max_output_tokens":16384,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":false},"o4-mini":{"id":"o4-mini","name":"o4 Mini","description":"Next-generation reasoning model - compact version","cost_per_1m_tokens":{"input":1.5,"output":6},"context_length":128000,"max_output_tokens":16384,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true},"o1":{"id":"o1","name":"o1","description":"Reasoning model designed for complex problem solving","cost_per_1m_tokens":{"input":15,"output":60},"context_length":128000,"max_output_tokens":32768,"capabilities":{"text":true,"image":false,"tools":false,"json_mode":false},"supported":true,"recommended":false},"o1-mini":{"id":"o1-mini","name":"o1 Mini","description":"Efficient reasoning model for coding and problem solving","cost_per_1m_tokens":{"input":3,"output":12},"context_length":128000,"max_output_tokens":65536,"capabilities":{"text":true,"image":false,"tools":false,"json_mode":false},"supported":true,"recommended":true},"o1-preview":{"id":"o1-preview","name":"o1 Preview","description":"Preview version of o1 reasoning model","cost_per_1m_tokens":{"input":15,"output":60},"context_length":128000,"max_output_tokens":32768,"capabilities":{"text":true,"image":false,"tools":false,"json_mode":false},"supported":true,"recommended":false},"gpt-3.5-turbo":{"id":"gpt-3.5-turbo","name":"GPT-3.5 Turbo","description":"Fast, inexpensive model for simple tasks","cost_per_1m_tokens":{"input":0.5,"output":1.5},"context_length":16385,"max_output_tokens":4096,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":false}},"anthropic":{"claude-opus-4-20250514":{"id":"claude-opus-4-20250514","name":"Claude 4 Opus","description":"Most powerful Claude model for highly complex tasks","cost_per_1m_tokens":{"input":15,"output":75},"context_length":200000,"max_output_tokens":8192,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":false},"supported":true,"recommended":true},"claude-sonnet-4-20250514":{"id":"claude-sonnet-4-20250514","name":"Claude 4 Sonnet","description":"Balanced Claude 4 model for most tasks","cost_per_1m_tokens":{"input":3,"output":15},"context_length":200000,"max_output_tokens":8192,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":false},"supported":true,"recommended":true,"default":true},"claude-3-7-sonnet-20250219":{"id":"claude-3-7-sonnet-20250219","name":"Claude 3.7 Sonnet","description":"Enhanced version of Claude 3 Sonnet with improved capabilities","cost_per_1m_tokens":{"input":3,"output":15},"context_length":200000,"max_output_tokens":8192,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":false},"supported":true,"recommended":true},"claude-3-5-sonnet-20241022":{"id":"claude-3-5-sonnet-20241022","name":"Claude 3.5 Sonnet","description":"Most intelligent model for complex tasks","cost_per_1m_tokens":{"input":3,"output":15},"context_length":200000,"max_output_tokens":8192,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":false},"supported":true,"recommended":true},"claude-3-5-sonnet-20240620":{"id":"claude-3-5-sonnet-20240620","name":"Claude 3.5 Sonnet (June)","description":"Earlier version of Claude 3.5 Sonnet","cost_per_1m_tokens":{"input":3,"output":15},"context_length":200000,"max_output_tokens":8192,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":false},"supported":true,"recommended":false},"claude-3-5-haiku-20241022":{"id":"claude-3-5-haiku-20241022","name":"Claude 3.5 Haiku","description":"Fastest and most compact model for near-instant responsiveness","cost_per_1m_tokens":{"input":0.25,"output":1.25},"context_length":200000,"max_output_tokens":8192,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":false},"supported":true,"recommended":true},"claude-3-haiku-20240307":{"id":"claude-3-haiku-20240307","name":"Claude 3 Haiku","description":"Fast and efficient model for everyday tasks","cost_per_1m_tokens":{"input":0.25,"output":1.25},"context_length":200000,"max_output_tokens":4096,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":false},"supported":true,"recommended":false},"claude-3-opus-20240229":{"id":"claude-3-opus-20240229","name":"Claude 3 Opus","description":"Most powerful Claude 3 model for highly complex tasks","cost_per_1m_tokens":{"input":15,"output":75},"context_length":200000,"max_output_tokens":4096,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":false},"supported":true,"recommended":false}},"google":{"gemini-2.0-flash-exp":{"id":"gemini-2.0-flash-exp","name":"Gemini 2.0 Flash Experimental","description":"Latest experimental Gemini model with enhanced multimodal capabilities","cost_per_1m_tokens":{"input":0.075,"output":0.3},"context_length":1000000,"max_output_tokens":8192,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":true,"default":true},"gemini-1.5-flash":{"id":"gemini-1.5-flash","name":"Gemini 1.5 Flash","description":"Fast and versatile performance across a variety of tasks","cost_per_1m_tokens":{"input":0.075,"output":0.3},"context_length":1000000,"max_output_tokens":8192,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":true},"gemini-1.5-pro":{"id":"gemini-1.5-pro","name":"Gemini 1.5 Pro","description":"Mid-size multimodal model that supports up to 2 million tokens","cost_per_1m_tokens":{"input":1.25,"output":5},"context_length":2000000,"max_output_tokens":8192,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":true},"gemini-pro":{"id":"gemini-pro","name":"Gemini Pro","description":"Best model for scaling across a wide range of tasks","cost_per_1m_tokens":{"input":0.5,"output":1.5},"context_length":30720,"max_output_tokens":2048,"capabilities":{"text":true,"image":false,"tools":false,"json_mode":false},"supported":true,"recommended":false}},"vertex":{"gemini-2.0-flash-exp":{"id":"gemini-2.0-flash-exp","name":"Gemini 2.0 Flash Experimental (Vertex)","description":"Latest experimental Gemini model via Google Vertex AI","cost_per_1m_tokens":{"input":0.075,"output":0.3},"context_length":1000000,"max_output_tokens":8192,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":true,"default":true},"gemini-1.5-flash":{"id":"gemini-1.5-flash","name":"Gemini 1.5 Flash (Vertex)","description":"Fast and versatile model via Google Vertex AI","cost_per_1m_tokens":{"input":0.075,"output":0.3},"context_length":1000000,"max_output_tokens":8192,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":true},"gemini-1.5-pro":{"id":"gemini-1.5-pro","name":"Gemini 1.5 Pro (Vertex)","description":"Powerful multimodal model via Google Vertex AI","cost_per_1m_tokens":{"input":1.25,"output":5},"context_length":2000000,"max_output_tokens":8192,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":true}},"mistral":{"pixtral-large-latest":{"id":"pixtral-large-latest","name":"Pixtral Large","description":"Mistral\'s large multimodal model with vision capabilities","cost_per_1m_tokens":{"input":3,"output":9},"context_length":128000,"max_output_tokens":8192,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":true,"default":true},"mistral-large-latest":{"id":"mistral-large-latest","name":"Mistral Large","description":"Top-tier reasoning model for high-complexity tasks","cost_per_1m_tokens":{"input":2,"output":6},"context_length":128000,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true},"mistral-medium-latest":{"id":"mistral-medium-latest","name":"Mistral Medium","description":"Balanced model for intermediate complexity tasks","cost_per_1m_tokens":{"input":0.7,"output":2.1},"context_length":128000,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":false},"mistral-medium-2505":{"id":"mistral-medium-2505","name":"Mistral Medium 2505","description":"Latest Mistral Medium model with enhanced capabilities","cost_per_1m_tokens":{"input":0.7,"output":2.1},"context_length":128000,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true},"mistral-small-latest":{"id":"mistral-small-latest","name":"Mistral Small","description":"Cost-efficient reasoning model for low-latency workloads","cost_per_1m_tokens":{"input":0.2,"output":0.6},"context_length":128000,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true},"pixtral-12b-2409":{"id":"pixtral-12b-2409","name":"Pixtral 12B","description":"Compact multimodal model with vision capabilities","cost_per_1m_tokens":{"input":0.15,"output":0.15},"context_length":128000,"max_output_tokens":8192,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":true}},"xai":{"grok-4":{"id":"grok-4","name":"Grok 4","description":"Latest generation Grok model with enhanced capabilities","cost_per_1m_tokens":{"input":5,"output":15},"context_length":131072,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true},"grok-3":{"id":"grok-3","name":"Grok 3","description":"Third generation Grok model with improved reasoning","cost_per_1m_tokens":{"input":4,"output":12},"context_length":131072,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true},"grok-3-fast":{"id":"grok-3-fast","name":"Grok 3 Fast","description":"Optimized version of Grok 3 for faster responses","cost_per_1m_tokens":{"input":3.5,"output":10},"context_length":131072,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true},"grok-3-mini":{"id":"grok-3-mini","name":"Grok 3 Mini","description":"Compact version of Grok 3 for efficient processing","cost_per_1m_tokens":{"input":1,"output":3},"context_length":131072,"max_output_tokens":4096,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true,"default":true},"grok-3-mini-fast":{"id":"grok-3-mini-fast","name":"Grok 3 Mini Fast","description":"Ultra-fast compact version of Grok 3","cost_per_1m_tokens":{"input":0.8,"output":2.5},"context_length":131072,"max_output_tokens":4096,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true},"grok-2-1212":{"id":"grok-2-1212","name":"Grok 2 (December)","description":"December 2024 version of Grok 2","cost_per_1m_tokens":{"input":3,"output":9},"context_length":131072,"max_output_tokens":4096,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":false},"grok-2-vision-1212":{"id":"grok-2-vision-1212","name":"Grok 2 Vision (December)","description":"December 2024 version of Grok 2 with vision capabilities","cost_per_1m_tokens":{"input":3.5,"output":10},"context_length":131072,"max_output_tokens":4096,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":false},"grok-beta":{"id":"grok-beta","name":"Grok Beta","description":"Beta version of Grok with experimental features","cost_per_1m_tokens":{"input":5,"output":15},"context_length":131072,"max_output_tokens":4096,"capabilities":{"text":true,"image":false,"tools":false,"json_mode":false},"supported":true,"recommended":false},"grok-vision-beta":{"id":"grok-vision-beta","name":"Grok Vision Beta","description":"Beta version of Grok with vision capabilities","cost_per_1m_tokens":{"input":5.5,"output":16},"context_length":131072,"max_output_tokens":4096,"capabilities":{"text":true,"image":true,"tools":false,"json_mode":false},"supported":true,"recommended":false}},"vercel":{"v0-1.0-md":{"id":"v0-1.0-md","name":"v0 1.0 MD","description":"Vercel\'s code generation model for UI components","cost_per_1m_tokens":{"input":2,"output":8},"context_length":128000,"max_output_tokens":8192,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":true,"default":true}},"deepseek":{"deepseek-chat":{"id":"deepseek-chat","name":"DeepSeek Chat","description":"DeepSeek\'s conversational AI model","cost_per_1m_tokens":{"input":0.14,"output":0.28},"context_length":128000,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true,"default":true},"deepseek-reasoner":{"id":"deepseek-reasoner","name":"DeepSeek Reasoner","description":"DeepSeek\'s reasoning-focused model","cost_per_1m_tokens":{"input":0.55,"output":2.19},"context_length":64000,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":false,"json_mode":false},"supported":true,"recommended":true}},"cerebras":{"llama3.1-8b":{"id":"llama3.1-8b","name":"Llama 3.1 8B","description":"Meta\'s Llama 3.1 8B model via Cerebras","cost_per_1m_tokens":{"input":0.1,"output":0.1},"context_length":128000,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true,"default":true},"llama3.1-70b":{"id":"llama3.1-70b","name":"Llama 3.1 70B","description":"Meta\'s Llama 3.1 70B model via Cerebras","cost_per_1m_tokens":{"input":0.6,"output":0.6},"context_length":128000,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true},"llama3.3-70b":{"id":"llama3.3-70b","name":"Llama 3.3 70B","description":"Meta\'s Llama 3.3 70B model via Cerebras","cost_per_1m_tokens":{"input":0.6,"output":0.6},"context_length":128000,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true}},"groq":{"meta-llama/llama-4-scout-17b-16e-instruct":{"id":"meta-llama/llama-4-scout-17b-16e-instruct","name":"Llama 4 Scout 17B","description":"Meta\'s Llama 4 Scout model via Groq","cost_per_1m_tokens":{"input":0.18,"output":0.18},"context_length":131072,"max_output_tokens":8192,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":true,"default":true},"llama-3.3-70b-versatile":{"id":"llama-3.3-70b-versatile","name":"Llama 3.3 70B Versatile","description":"Meta\'s Llama 3.3 70B versatile model via Groq","cost_per_1m_tokens":{"input":0.59,"output":0.79},"context_length":131072,"max_output_tokens":32768,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true},"llama-3.1-8b-instant":{"id":"llama-3.1-8b-instant","name":"Llama 3.1 8B Instant","description":"Meta\'s Llama 3.1 8B instant model via Groq","cost_per_1m_tokens":{"input":0.05,"output":0.08},"context_length":131072,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true},"mixtral-8x7b-32768":{"id":"mixtral-8x7b-32768","name":"Mixtral 8x7B","description":"Mistral\'s Mixtral 8x7B model via Groq","cost_per_1m_tokens":{"input":0.24,"output":0.24},"context_length":32768,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":false},"gemma2-9b-it":{"id":"gemma2-9b-it","name":"Gemma 2 9B IT","description":"Google\'s Gemma 2 9B instruction-tuned model via Groq","cost_per_1m_tokens":{"input":0.2,"output":0.2},"context_length":8192,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":false}},"cohere":{"command-r-plus":{"id":"command-r-plus","name":"Command R+","description":"Most powerful model for complex RAG workflows and multi-step tasks","cost_per_1m_tokens":{"input":3,"output":15},"context_length":128000,"max_output_tokens":4000,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":false},"supported":true,"recommended":true,"default":true},"command-r":{"id":"command-r","name":"Command R","description":"Balanced model for scaled conversational generation","cost_per_1m_tokens":{"input":0.5,"output":1.5},"context_length":128000,"max_output_tokens":4000,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":false},"supported":true,"recommended":false},"command":{"id":"command","name":"Command","description":"Flagship text generation model with instruction following","cost_per_1m_tokens":{"input":1,"output":2},"context_length":4096,"max_output_tokens":4000,"capabilities":{"text":true,"image":false,"tools":false,"json_mode":false},"supported":true,"recommended":false}},"azure":{"gpt-4o-mini":{"id":"gpt-4o-mini","name":"GPT-4o Mini (Azure)","description":"Azure-hosted GPT-4o Mini for enterprise deployments","cost_per_1m_tokens":{"input":0.165,"output":0.66},"context_length":128000,"max_output_tokens":16384,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":true,"default":true},"gpt-4o":{"id":"gpt-4o","name":"GPT-4o (Azure)","description":"Azure-hosted GPT-4o for enterprise deployments","cost_per_1m_tokens":{"input":5,"output":15},"context_length":128000,"max_output_tokens":16384,"capabilities":{"text":true,"image":true,"tools":true,"json_mode":true},"supported":true,"recommended":true},"gpt-35-turbo":{"id":"gpt-35-turbo","name":"GPT-3.5 Turbo (Azure)","description":"Azure-hosted GPT-3.5 Turbo for enterprise deployments","cost_per_1m_tokens":{"input":0.5,"output":1.5},"context_length":16385,"max_output_tokens":4096,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":false}},"claude-code":{"sonnet":{"id":"sonnet","name":"Claude Code Sonnet","description":"Claude Code CLI with Sonnet model for enhanced development tasks","cost_per_1m_tokens":{"input":0,"output":0},"context_length":200000,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true,"default":true},"opus":{"id":"opus","name":"Claude Code Opus","description":"Claude Code CLI with Opus model for complex development tasks","cost_per_1m_tokens":{"input":0,"output":0},"context_length":200000,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":true},"claude-3-5-sonnet-20241022":{"id":"claude-3-5-sonnet-20241022","name":"Claude Code 3.5 Sonnet","description":"Claude Code CLI with specific Claude 3.5 Sonnet model","cost_per_1m_tokens":{"input":0,"output":0},"context_length":200000,"max_output_tokens":8192,"capabilities":{"text":true,"image":false,"tools":true,"json_mode":true},"supported":true,"recommended":false}},"metadata":{"version":"3.0.0","last_updated":"2025-01-31","total_models":54,"providers":10,"notes":["Costs are approximate and subject to change","Context lengths may vary based on input type","Default models are recommended for new users","Recommended models offer the best balance of cost and performance","Model availability may vary by provider and region","Vision capabilities marked based on official AI SDK documentation","Tool usage support varies by model and provider implementation"]}}');
 
 /***/ })
 
@@ -64395,339 +66262,106 @@ exports.run = run;
 const core_1 = __nccwpck_require__(7484);
 const github_1 = __nccwpck_require__(3228);
 const config_1 = __nccwpck_require__(2973);
-const conventional_1 = __nccwpck_require__(7921);
-const ai_service_1 = __nccwpck_require__(6771);
+const modern_ai_service_1 = __nccwpck_require__(1289);
 const github_service_1 = __nccwpck_require__(9590);
-/**
- * Detect the language of the PR title
- */
-function detectLanguage(title) {
-    // Simple language detection based on character patterns
-    const chineseRegex = /[\u4e00-\u9fff]/;
-    const japaneseRegex = /[\u3040-\u309f\u30a0-\u30ff]/;
-    const koreanRegex = /[\uac00-\ud7af]/;
-    const arabicRegex = /[\u0600-\u06ff]/;
-    const russianRegex = /[\u0400-\u04ff]/;
-    const frenchRegex = /[àâäçéèêëïîôöùûüÿæœ]/i;
-    const germanRegex = /[äöüß]/i;
-    const spanishRegex = /[ñáéíóúü]/i;
-    if (chineseRegex.test(title))
-        return '中文';
-    if (japaneseRegex.test(title))
-        return '日本語';
-    if (koreanRegex.test(title))
-        return '한국어';
-    if (arabicRegex.test(title))
-        return 'العربية';
-    if (russianRegex.test(title))
-        return 'Русский';
-    if (frenchRegex.test(title))
-        return 'Français';
-    if (germanRegex.test(title))
-        return 'Deutsch';
-    if (spanishRegex.test(title))
-        return 'Español';
-    return 'English';
-}
+const utils_1 = __nccwpck_require__(1798);
+const pr_processor_1 = __nccwpck_require__(9196);
+const context_extractor_1 = __nccwpck_require__(4521);
+const validator_1 = __nccwpck_require__(6985);
 /**
  * Main entry point for the GitHub Action
+ * Simplified and modularized for better maintainability
  */
 async function run() {
-    var _a, _b, _c, _d;
+    var _a;
     try {
-        (0, core_1.debug)(`Action triggered by: ${github_1.context.eventName}`);
-        (0, core_1.debug)(`Repository: ${github_1.context.repo.owner}/${github_1.context.repo.repo}`);
-        (0, core_1.debug)(`Triggered by actor: ${github_1.context.actor}`);
-        // Prevent infinite loops: Skip if triggered by bot itself
-        if (github_1.context.actor === 'github-actions[bot]' ||
-            ((_b = (_a = github_1.context.payload) === null || _a === void 0 ? void 0 : _a.sender) === null || _b === void 0 ? void 0 : _b.type) === 'Bot') {
-            (0, core_1.info)('Skipping processing: Action was triggered by a bot to prevent infinite loops');
+        utils_1.Logger.debug(`Action triggered by: ${github_1.context.eventName}`);
+        utils_1.Logger.debug(`Repository: ${github_1.context.repo.owner}/${github_1.context.repo.repo}`);
+        utils_1.Logger.debug(`Triggered by actor: ${github_1.context.actor}`);
+        // Environment validation
+        const validationResult = validator_1.EnvironmentValidator.validateGitHubContext();
+        if (validationResult.shouldSkip) {
+            (0, core_1.info)(`Skipping processing: ${validationResult.reason}`);
             const configManager = new config_1.ActionConfigManager();
             configManager.setOutputs({
                 isConventional: true,
                 suggestedTitles: [],
-                originalTitle: ((_c = github_1.context.payload.pull_request) === null || _c === void 0 ? void 0 : _c.title) || 'Unknown',
+                originalTitle: ((_a = github_1.context.payload.pull_request) === null || _a === void 0 ? void 0 : _a.title) || 'Unknown',
                 actionTaken: 'skipped'
             });
             return;
         }
-        // Validate that this is a pull request event
-        if (github_1.context.eventName !== 'pull_request' &&
-            github_1.context.eventName !== 'pull_request_target') {
-            throw new Error(`This action only supports pull_request and pull_request_target events, got: ${github_1.context.eventName}`);
-        }
-        // Get PR information from context
         const pullRequest = github_1.context.payload.pull_request;
-        if (!pullRequest) {
-            throw new Error('Pull request information not found in event payload');
-        }
         const prNumber = pullRequest.number;
-        const currentTitle = pullRequest.title;
-        const isDraft = pullRequest.draft || false;
-        (0, core_1.info)(`Processing PR #${prNumber}: "${currentTitle}"`);
-        (0, core_1.debug)(`PR is draft: ${isDraft}`);
-        // Initialize configuration
+        (0, core_1.info)(`Processing PR #${prNumber}: "${pullRequest.title}"`);
+        // Initialize configuration and services
         const configManager = new config_1.ActionConfigManager();
-        const config = configManager.parseConfig();
-        (0, core_1.debug)(`Configuration loaded:`);
-        (0, core_1.debug)(`- AI Provider: ${config.aiProvider}`);
-        (0, core_1.debug)(`- Model: ${config.model || 'default'}`);
-        (0, core_1.debug)(`- Mode: ${config.mode}`);
-        (0, core_1.debug)(`- Skip if conventional: ${config.skipIfConventional}`);
-        // Validate current title against conventional commits
-        const validationResult = (0, conventional_1.validateTitle)(currentTitle, config.validationOptions);
-        const isConventional = validationResult.isValid;
-        (0, core_1.info)(`Current title is ${isConventional ? 'conventional' : 'not conventional'}`);
-        if (validationResult.errors.length > 0) {
-            (0, core_1.debug)(`Validation errors: ${validationResult.errors.join(', ')}`);
-        }
-        // Check if we should skip processing
-        if ((0, config_1.shouldSkipProcessing)(config, isConventional)) {
-            (0, core_1.info)('Skipping processing: title is already conventional and skip-if-conventional is enabled');
-            configManager.setOutputs({
-                isConventional: true,
-                suggestedTitles: [],
-                originalTitle: currentTitle,
-                actionTaken: 'skipped'
-            });
-            return;
-        }
+        let config = configManager.parseConfig();
+        utils_1.Logger.configure(config.debug);
+        utils_1.Logger.debug('Configuration loaded:', {
+            aiProvider: config.aiProvider,
+            model: config.model || 'default',
+            mode: config.mode,
+            skipIfConventional: config.skipIfConventional
+        });
         // Initialize services
-        const aiService = new ai_service_1.VercelAIService((0, config_1.createAIServiceConfig)(config));
+        const aiService = new modern_ai_service_1.ModernAIService((0, config_1.createAIServiceConfig)(config));
         const githubService = new github_service_1.OctokitGitHubService({
             token: config.githubToken
         });
-        // Check permissions if we're in auto mode
-        if ((0, config_1.isAutoMode)(config)) {
-            const hasPermission = await githubService.checkPermissions();
-            if (!hasPermission) {
-                (0, core_1.warning)('Insufficient permissions to update PR title automatically. Falling back to suggestion mode.');
-                config.mode = 'suggest';
-            }
-        }
-        // Get additional context for AI generation
-        let changedFiles = [];
-        let prInfo = null;
-        let diffContent = '';
-        try {
-            // Get PR details
-            prInfo = await githubService.getPRInfo(prNumber);
-            // Get changed files
-            changedFiles = await githubService.getChangedFiles(prNumber);
-            (0, core_1.debug)(`Found ${changedFiles.length} changed files`);
-            // Get diff content if there are changed files
-            if (changedFiles.length > 0) {
-                try {
-                    const { data: compareData } = await githubService.octokit.rest.repos.compareCommits({
-                        owner: github_1.context.repo.owner,
-                        repo: github_1.context.repo.repo,
-                        base: pullRequest.base.sha,
-                        head: pullRequest.head.sha
-                    });
-                    if (compareData.files && compareData.files.length > 0) {
-                        // Get patch content from first few files
-                        diffContent = compareData.files
-                            .slice(0, 5) // Limit to first 5 files to avoid token limits
-                            .map(file => `--- ${file.filename}\n${file.patch || ''}`)
-                            .join('\n\n')
-                            .slice(0, 3000); // Limit total diff size
-                    }
-                }
-                catch (diffError) {
-                    (0, core_1.debug)(`Failed to get diff: ${diffError instanceof Error ? diffError.message : 'Unknown error'}`);
-                }
-            }
-        }
-        catch (error) {
-            (0, core_1.warning)(`Failed to get PR context: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-        // Detect language from PR title (if enabled)
-        const detectedLanguage = config.matchLanguage
-            ? detectLanguage(currentTitle)
-            : 'English';
-        (0, core_1.debug)(`Language detection: ${config.matchLanguage ? 'enabled' : 'disabled'}`);
-        (0, core_1.debug)(`Detected language: ${detectedLanguage}`);
-        // Generate AI suggestions
-        (0, core_1.info)('Generating AI-powered title suggestions...');
-        const aiResponse = await aiService.generateTitle({
-            originalTitle: currentTitle,
-            prDescription: (prInfo === null || prInfo === void 0 ? void 0 : prInfo.body) || undefined,
-            prBody: (prInfo === null || prInfo === void 0 ? void 0 : prInfo.body) || undefined,
-            diffContent: diffContent || undefined,
-            changedFiles: changedFiles.slice(0, 20), // Limit to first 20 files to avoid token limits
-            options: {
-                includeScope: config.includeScope,
-                preferredTypes: config.validationOptions.allowedTypes,
-                maxLength: config.validationOptions.maxLength,
-                language: detectedLanguage
-            }
+        // Validate permissions and adjust config if needed
+        config = await validator_1.EnvironmentValidator.validatePermissions(config, githubService);
+        // Extract PR context
+        const contextExtractor = new context_extractor_1.PRContextExtractor(githubService);
+        const prContext = await contextExtractor.extractContext(prNumber, pullRequest);
+        // Process PR title
+        const processor = new pr_processor_1.PRTitleProcessor(config, aiService, githubService);
+        const result = await processor.process(prContext);
+        // Set outputs
+        configManager.setOutputs({
+            isConventional: result.isConventional,
+            suggestedTitles: result.suggestions,
+            originalTitle: prContext.title,
+            actionTaken: result.actionTaken,
+            errorMessage: result.errorMessage
         });
-        const suggestedTitles = aiResponse.suggestions;
-        (0, core_1.info)(`Generated ${suggestedTitles.length} title suggestions`);
-        if (suggestedTitles.length === 0) {
-            (0, core_1.warning)('No title suggestions generated');
-            configManager.setOutputs({
-                isConventional,
-                suggestedTitles: [],
-                originalTitle: currentTitle,
-                actionTaken: 'error',
-                errorMessage: 'No title suggestions could be generated'
-            });
-            return;
-        }
-        // Log suggestions for debugging
-        suggestedTitles.forEach((title, index) => {
-            (0, core_1.debug)(`Suggestion ${index + 1}: ${title}`);
-        });
-        let actionTaken;
-        if ((0, config_1.isAutoMode)(config)) {
-            // Auto mode: Update the PR title with the best suggestion
-            const bestSuggestion = suggestedTitles[0];
-            try {
-                await githubService.updatePRTitle(prNumber, bestSuggestion);
-                (0, core_1.info)(`✅ Updated PR title to: "${bestSuggestion}"`);
-                actionTaken = 'updated';
-                // Add success comment if enabled
-                if (config.autoComment) {
-                    const successCommentBody = formatSuccessComment(currentTitle, bestSuggestion, aiResponse.reasoning, detectedLanguage);
-                    try {
-                        await githubService.createComment(prNumber, successCommentBody);
-                        (0, core_1.info)(`💬 Added success notification comment`);
-                    }
-                    catch (commentError) {
-                        (0, core_1.warning)(`Failed to create success comment: ${commentError instanceof Error ? commentError.message : 'Unknown error'}`);
-                    }
-                }
-            }
-            catch (error) {
-                const errorMessage = `Failed to update PR title: ${error instanceof Error ? error.message : 'Unknown error'}`;
-                (0, core_1.warning)(errorMessage);
-                configManager.setOutputs({
-                    isConventional,
-                    suggestedTitles,
-                    originalTitle: currentTitle,
-                    actionTaken: 'error',
-                    errorMessage
-                });
-                return;
-            }
+        if (result.actionTaken === 'error') {
+            (0, core_1.setFailed)(`❌ Action failed: ${result.errorMessage}`);
         }
         else {
-            // Suggestion mode: Add a comment with suggestions
-            const commentBody = formatSuggestionComment(currentTitle, suggestedTitles, aiResponse.reasoning, config.commentTemplate);
-            try {
-                await githubService.createComment(prNumber, commentBody);
-                (0, core_1.info)(`💬 Added comment with ${suggestedTitles.length} title suggestions`);
-                actionTaken = 'commented';
-            }
-            catch (error) {
-                const errorMessage = `Failed to create comment: ${error instanceof Error ? error.message : 'Unknown error'}`;
-                (0, core_1.warning)(errorMessage);
-                configManager.setOutputs({
-                    isConventional,
-                    suggestedTitles,
-                    originalTitle: currentTitle,
-                    actionTaken: 'error',
-                    errorMessage
-                });
-                return;
-            }
+            (0, core_1.info)(`🎉 Action completed successfully (${result.actionTaken})`);
         }
-        // Set outputs for other actions/steps
-        configManager.setOutputs({
-            isConventional,
-            suggestedTitles,
-            originalTitle: currentTitle,
-            actionTaken
-        });
-        (0, core_1.info)(`🎉 Action completed successfully (${actionTaken})`);
     }
     catch (error) {
-        if (error instanceof config_1.ConfigurationError) {
-            const configManager = new config_1.ActionConfigManager();
-            configManager.handleConfigurationError(error);
-            return;
-        }
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-        (0, core_1.setFailed)(`❌ Action failed: ${errorMessage}`);
-        // Try to set error outputs if possible
-        try {
-            const configManager = new config_1.ActionConfigManager();
-            configManager.setOutputs({
-                isConventional: false,
-                suggestedTitles: [],
-                originalTitle: ((_d = github_1.context.payload.pull_request) === null || _d === void 0 ? void 0 : _d.title) || 'Unknown',
-                actionTaken: 'error',
-                errorMessage
-            });
-        }
-        catch {
-            // Ignore errors when setting outputs after failure
-        }
+        await handleError(error);
     }
 }
 /**
- * Format the success comment body for auto-updated PR titles
+ * Centralized error handling
  */
-function formatSuccessComment(originalTitle, newTitle, reasoning, language = 'English') {
-    const isChineseResponse = language === '中文';
-    const messages = isChineseResponse
-        ? {
-            title: '🤖 PR 标题已自动更新',
-            original: '原标题',
-            updated: '更新后标题',
-            reasoning: '更新原因',
-            footer: '此评论由 [conventional-pr-title](https://github.com/overtrue/conventional-pr-title) 操作自动生成。'
-        }
-        : {
-            title: '🤖 PR Title Auto-Updated',
-            original: 'Original title',
-            updated: 'Updated title',
-            reasoning: 'Reasoning',
-            footer: '_This comment was generated by [conventional-pr-title](https://github.com/overtrue/conventional-pr-title) action._'
-        };
-    const lines = [
-        `## ${messages.title}`,
-        '',
-        `**${messages.original}:** "${originalTitle}"`,
-        `**${messages.updated}:** "${newTitle}"`,
-        ''
-    ];
-    if (reasoning) {
-        lines.push(`**${messages.reasoning}:** ${reasoning}`);
-        lines.push('');
+async function handleError(error) {
+    var _a;
+    if (error instanceof config_1.ConfigurationError) {
+        const configManager = new config_1.ActionConfigManager();
+        configManager.handleConfigurationError(error);
+        return;
     }
-    lines.push(messages.footer);
-    return lines.join('\n');
-}
-/**
- * Format the suggestion comment body
- */
-function formatSuggestionComment(currentTitle, suggestions, reasoning, template) {
-    if (template) {
-        // Use custom template
-        return template
-            .replace(/\${currentTitle}/g, currentTitle)
-            .replace(/\${suggestions}/g, suggestions.map((s, i) => `${i + 1}. ${s}`).join('\n'))
-            .replace(/\${reasoning}/g, reasoning || '');
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    (0, core_1.setFailed)(`❌ Action failed: ${errorMessage}`);
+    // Try to set error outputs if possible
+    try {
+        const configManager = new config_1.ActionConfigManager();
+        configManager.setOutputs({
+            isConventional: false,
+            suggestedTitles: [],
+            originalTitle: ((_a = github_1.context.payload.pull_request) === null || _a === void 0 ? void 0 : _a.title) || 'Unknown',
+            actionTaken: 'error',
+            errorMessage
+        });
     }
-    // Use default template
-    const lines = [
-        '## 🤖 AI-Powered PR Title Suggestions',
-        '',
-        `The current PR title "${currentTitle}" doesn't follow the [Conventional Commits](https://conventionalcommits.org/) standard.`,
-        '',
-        '### Suggested titles:',
-        ...suggestions.map((suggestion, index) => `${index + 1}. \`${suggestion}\``),
-        ''
-    ];
-    if (reasoning) {
-        lines.push('### Reasoning:');
-        lines.push(reasoning);
-        lines.push('');
+    catch {
+        // Ignore errors when setting outputs after failure
     }
-    lines.push('### How to apply:', '1. Click the "Edit" button on your PR title', '2. Copy one of the suggested titles above', '3. Save the changes', '', '_This comment was generated by [conventional-pr-title](https://github.com/overtrue/conventional-pr-title) action._');
-    return lines.join('\n');
 }
 // Execute the action if this file is run directly
 if (require.main === require.cache[eval('__filename')]) {

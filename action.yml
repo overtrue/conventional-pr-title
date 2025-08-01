@@ -9,7 +9,7 @@ inputs:
 
   # AI Service Configuration
   ai-provider:
-    description: 'AI provider to use (openai, anthropic, google, mistral, xai, cohere, azure)'
+    description: 'AI provider to use (openai, anthropic, google, mistral, xai, cohere, azure, claude-code)'
     required: false
     default: 'anthropic'
   api-key:

@@ -1,4 +1,4 @@
-import { AIServiceConfig } from './ai-service';
+import { AIServiceConfig } from './shared/types';
 import { ValidationOptions } from './conventional';
 export type OperationMode = 'auto' | 'suggest';
 export type ActionResult = 'updated' | 'commented' | 'skipped' | 'error';

@@ -1,5 +1,6 @@
 import { getOctokit } from '@actions/github'
 import { context } from '@actions/github'
+import { Logger } from './utils'
 
 export interface GitHubConfig {
   token: string
@@ -152,28 +153,17 @@ export class OctokitGitHubService implements GitHubService {
       // since GITHUB_TOKEN should have the necessary permissions in most cases
       return true
     } catch (error) {
-      console.warn('Permission check failed:', error)
+      Logger.error('Permission check failed:', error)
 
       // More detailed error logging for debugging
       if (error instanceof Error) {
-        console.warn('Permission check error details:', {
+        Logger.error('Permission check error details:', {
           message: error.message,
           stack: error.stack
         })
       }
 
       return false
-    }
-  }
-
-  private async getCurrentUser(): Promise<string> {
-    try {
-      const { data: user } = await this._octokit.rest.users.getAuthenticated()
-      return user.login
-    } catch (error) {
-      throw new Error(
-        `Failed to get current user: ${error instanceof Error ? error.message : 'Unknown error'}`
-      )
     }
   }
 }
