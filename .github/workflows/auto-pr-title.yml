@@ -27,10 +27,10 @@ jobs:
         uses: ./
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          ai-provider: 'openai'
-          api-key: ${{ secrets.OPENAI_API_KEY }}
-          base-url: ${{ secrets.OPENAI_BASE_URL }}
-          model: 'openai/gpt-4o'
+          ai-provider: 'claude-code'
+          api-key: ${{ secrets.CLAUDE_CODE_API_KEY }}
+          base-url: ${{ secrets.CLAUDE_CODE_BASE_URL }}
+          model: 'claude-sonnet-4'
           mode: 'auto'
           temperature: '0.3'
           max-tokens: '200'
