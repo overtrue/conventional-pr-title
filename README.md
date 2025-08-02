@@ -436,3 +436,16 @@ That's it! 🎉 Your PRs will now get automatic conventional commit titles.
 
 **Made with ❤️ for better commit hygiene**
 test change
+
+## Test Auto PR Title Feature
+
+This PR is created to test the automatic PR title generation functionality with Claude AI.
+
+Expected behavior:
+- The workflow should run automatically
+- Claude AI should analyze the changes
+- PR title should be updated to follow conventional commits format
+
+### Changes Made
+- Added test documentation to README
+- Updated project description
