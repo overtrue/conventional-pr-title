@@ -55743,44 +55743,22 @@ class ClaudeCodeLanguageModel extends base_provider_1.BaseAIProvider {
             return this.claudeCode;
         }
         try {
-            // For testing and development, return mock Claude Code when SDK is not available
-            if (process.env.NODE_ENV === 'test' || !process.env.CLAUDE_CODE_AVAILABLE) {
-                this.claudeCode = {
-                    query: async (params) => ({
-                        text: JSON.stringify({
-                            suggestions: ['feat: mock claude code suggestion'],
-                            reasoning: 'Mock Claude Code response',
-                            confidence: 0.8
-                        })
-                    })
-                };
-                return this.claudeCode;
-            }
-            // Try to dynamically import Claude Code SDK (optional dependency)
+            // Try to dynamically import Claude Code SDK
             let claudeCodeModule;
             try {
                 // @ts-ignore - Optional dependency, may not be available
                 claudeCodeModule = await Promise.resolve().then(() => __importStar(__nccwpck_require__(6725)));
             }
-            catch {
-                // Package not available, use fallback
-                throw new Error('Claude Code SDK not available');
+            catch (error) {
+                // Package not available, throw error directly
+                throw new Error(`Claude Code SDK not available: ${error instanceof Error ? error.message : 'Unknown error'}`);
             }
             this.claudeCode = claudeCodeModule;
             return this.claudeCode;
         }
         catch (error) {
-            // Fallback to mock for development
-            this.claudeCode = {
-                query: async (params) => ({
-                    text: JSON.stringify({
-                        suggestions: ['feat: fallback claude code suggestion'],
-                        reasoning: 'Claude Code SDK not available, using fallback',
-                        confidence: 0.7
-                    })
-                })
-            };
-            return this.claudeCode;
+            // Re-throw the error instead of using fallback
+            throw error;
         }
     }
     async generateTitle(request) {
