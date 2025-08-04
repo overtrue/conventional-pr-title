@@ -62,6 +62,7 @@ describe('ActionConfigManager', () => {
         aiProvider: 'openai',
         apiKey: 'test-api-key',
         model: 'gpt-4o-mini',
+        baseURL: undefined,
         temperature: 0.3,
         maxTokens: 500,
         mode: 'suggest',
@@ -74,7 +75,10 @@ describe('ActionConfigManager', () => {
         customPrompt: undefined,
         includeScope: true,
         skipIfConventional: true,
-        commentTemplate: undefined
+        commentTemplate: undefined,
+        debug: false,
+        matchLanguage: false,
+        autoComment: false
       })
     })
 
@@ -204,7 +208,10 @@ describe('ActionConfigManager', () => {
           minDescriptionLength: 3
         },
         includeScope: true,
-        skipIfConventional: true
+        skipIfConventional: true,
+        debug: false,
+        matchLanguage: false,
+        autoComment: false
       }
 
       const errors = configManager.validateConfig(config)
@@ -227,7 +234,10 @@ describe('ActionConfigManager', () => {
           minDescriptionLength: 3
         },
         includeScope: true,
-        skipIfConventional: true
+        skipIfConventional: true,
+        debug: false,
+        matchLanguage: false,
+        autoComment: false
       }
 
       const errors = configManager.validateConfig(config)
@@ -251,7 +261,10 @@ describe('ActionConfigManager', () => {
           minDescriptionLength: 3
         },
         includeScope: true,
-        skipIfConventional: true
+        skipIfConventional: true,
+        debug: false,
+        matchLanguage: false,
+        autoComment: false
       }
 
       const errors = configManager.validateConfig(config)
@@ -274,7 +287,10 @@ describe('ActionConfigManager', () => {
           minDescriptionLength: 3
         },
         includeScope: true,
-        skipIfConventional: true
+        skipIfConventional: true,
+        debug: false,
+        matchLanguage: false,
+        autoComment: false
       }
 
       const errors = configManager.validateConfig(config)
@@ -297,7 +313,10 @@ describe('ActionConfigManager', () => {
           minDescriptionLength: 3
         },
         includeScope: true,
-        skipIfConventional: true
+        skipIfConventional: true,
+        debug: false,
+        matchLanguage: false,
+        autoComment: false
       }
 
       const errors = configManager.validateConfig(config)
@@ -407,7 +426,10 @@ describe('Utility Functions', () => {
       minDescriptionLength: 3
     },
     includeScope: true,
-    skipIfConventional: true
+    skipIfConventional: true,
+    debug: false,
+    matchLanguage: false,
+    autoComment: false
   }
 
   describe('createAIServiceConfig', () => {
@@ -418,8 +440,10 @@ describe('Utility Functions', () => {
         provider: 'openai',
         apiKey: 'test-key',
         model: 'gpt-4o-mini',
+        baseURL: undefined,
         temperature: 0.3,
-        maxTokens: 500
+        maxTokens: 500,
+        debug: false
       })
     })
   })
@@ -535,7 +559,10 @@ describe('Edge Cases', () => {
         minDescriptionLength: 3
       },
       includeScope: true,
-      skipIfConventional: true
+      skipIfConventional: true,
+      debug: false,
+      matchLanguage: false,
+      autoComment: false
     }
 
     const errors = configManager.validateConfig(config)
@@ -641,7 +668,7 @@ describe('Model Information Utilities', () => {
 
     test('should return array of valid provider types', () => {
       const providers = getAllSupportedProviders()
-      const validProviders = ['openai', 'anthropic', 'google', 'mistral', 'xai', 'cohere', 'azure', 'vercel', 'deepseek', 'cerebras', 'groq', 'vertex']
+      const validProviders = ['openai', 'anthropic', 'google', 'mistral', 'xai', 'cohere', 'azure', 'vercel', 'deepseek', 'cerebras', 'groq', 'vertex', 'claude-code']
       
       providers.forEach(provider => {
         expect(validProviders).toContain(provider)

@@ -6,50 +6,55 @@ jest.mock('ai', () => ({
 }))
 
 jest.mock('@ai-sdk/openai', () => ({
-  openai: jest.fn((model, config) => ({ provider: 'openai', model, config })),
-  createOpenAI: jest.fn((config) => (model) => ({ provider: 'openai', model, config }))
+  openai: jest.fn((model: any, config: any) => ({ provider: 'openai', model, config })),
+  createOpenAI: jest.fn((config: any) => (model: any) => ({ provider: 'openai', model, config }))
 }))
 
 jest.mock('@ai-sdk/anthropic', () => ({
-  anthropic: jest.fn((model, config) => ({ provider: 'anthropic', model, config })),
-  createAnthropic: jest.fn((config) => (model) => ({ provider: 'anthropic', model, config }))
+  anthropic: jest.fn((model: any, config: any) => ({ provider: 'anthropic', model, config })),
+  createAnthropic: jest.fn((config: any) => (model: any) => ({ provider: 'anthropic', model, config }))
 }))
 
 jest.mock('@ai-sdk/google', () => ({
-  google: jest.fn((model, config) => ({ provider: 'google', model, config })),
-  createGoogleGenerativeAI: jest.fn((config) => (model) => ({ provider: 'google', model, config }))
+  google: jest.fn((model: any, config: any) => ({ provider: 'google', model, config })),
+  createGoogleGenerativeAI: jest.fn((config: any) => (model: any) => ({ provider: 'google', model, config }))
 }))
 
 jest.mock('@ai-sdk/mistral', () => ({
-  mistral: jest.fn((model, config) => ({ provider: 'mistral', model, config })),
-  createMistral: jest.fn((config) => (model) => ({ provider: 'mistral', model, config }))
+  mistral: jest.fn((model: any, config: any) => ({ provider: 'mistral', model, config })),
+  createMistral: jest.fn((config: any) => (model: any) => ({ provider: 'mistral', model, config }))
 }))
 
 jest.mock('@ai-sdk/xai', () => ({
-  xai: jest.fn((model, config) => ({ provider: 'xai', model, config })),
-  createXai: jest.fn((config) => (model) => ({ provider: 'xai', model, config }))
+  xai: jest.fn((model: any, config: any) => ({ provider: 'xai', model, config })),
+  createXai: jest.fn((config: any) => (model: any) => ({ provider: 'xai', model, config }))
 }))
 
 jest.mock('@ai-sdk/cohere', () => ({
-  cohere: jest.fn((model, config) => ({ provider: 'cohere', model, config })),
-  createCohere: jest.fn((config) => (model) => ({ provider: 'cohere', model, config }))
+  cohere: jest.fn((model: any, config: any) => ({ provider: 'cohere', model, config })),
+  createCohere: jest.fn((config: any) => (model: any) => ({ provider: 'cohere', model, config }))
 }))
 
 jest.mock('@ai-sdk/azure', () => ({
-  azure: jest.fn((model, config) => ({ provider: 'azure', model, config })),
-  createAzure: jest.fn((config) => (model) => ({ provider: 'azure', model, config }))
+  azure: jest.fn((model: any, config: any) => ({ provider: 'azure', model, config })),
+  createAzure: jest.fn((config: any) => (model: any) => ({ provider: 'azure', model, config }))
 }))
 
 import { generateText } from 'ai'
-import { openai } from '@ai-sdk/openai'
-import { anthropic } from '@ai-sdk/anthropic'
-import { google } from '@ai-sdk/google'
-import { mistral } from '@ai-sdk/mistral'
-import { xai } from '@ai-sdk/xai'
-import { cohere } from '@ai-sdk/cohere'
-import { azure } from '@ai-sdk/azure'
+import { openai, createOpenAI } from '@ai-sdk/openai'
+import { anthropic, createAnthropic } from '@ai-sdk/anthropic'
+import { google, createGoogleGenerativeAI } from '@ai-sdk/google'
+import { mistral, createMistral } from '@ai-sdk/mistral'
+import { xai, createXai } from '@ai-sdk/xai'
+import { cohere, createCohere } from '@ai-sdk/cohere'
+import { azure, createAzure } from '@ai-sdk/azure'
 
 const mockGenerateText = generateText as jest.MockedFunction<typeof generateText>
+const mockCreateOpenAI = createOpenAI as jest.MockedFunction<typeof createOpenAI>
+const mockCreateAnthropic = createAnthropic as jest.MockedFunction<typeof createAnthropic>
+const mockCreateGoogleGenerativeAI = createGoogleGenerativeAI as jest.MockedFunction<typeof createGoogleGenerativeAI>
+const mockCreateMistral = createMistral as jest.MockedFunction<typeof createMistral>
+const mockCreateXai = createXai as jest.MockedFunction<typeof createXai>
 
 // Helper function to create proper mock response
 function createMockResponse(text: string) {
@@ -204,6 +209,10 @@ describe('VercelAIService', () => {
     test('should use OpenAI model correctly', async () => {
       const mockResponse = createMockResponse('{"suggestions": ["feat: test"], "reasoning": "test", "confidence": 0.8}')
       mockGenerateText.mockResolvedValueOnce(mockResponse)
+      
+      const mockOpenAIModel = { provider: 'openai', model: 'gpt-4' } as any
+      const mockProvider = jest.fn().mockReturnValue(mockOpenAIModel)
+      mockCreateOpenAI.mockReturnValue(mockProvider as any)
 
       const service = new VercelAIService({
         provider: 'openai',
@@ -213,12 +222,17 @@ describe('VercelAIService', () => {
 
       await service.generateTitle({ originalTitle: 'test' })
 
-      expect(openai).toHaveBeenCalledWith('gpt-4')
+      expect(mockCreateOpenAI).toHaveBeenCalledWith({ apiKey: 'test-key' })
+      expect(mockProvider).toHaveBeenCalledWith('gpt-4')
     })
 
     test('should use Anthropic model correctly', async () => {
       const mockResponse = createMockResponse('{"suggestions": ["feat: test"], "reasoning": "test", "confidence": 0.8}')
       mockGenerateText.mockResolvedValueOnce(mockResponse)
+      
+      const mockAnthropicModel = { provider: 'anthropic', model: 'claude-3-opus-20240229' } as any
+      const mockProvider = jest.fn().mockReturnValue(mockAnthropicModel)
+      mockCreateAnthropic.mockReturnValue(mockProvider as any)
 
       const service = new VercelAIService({
         provider: 'anthropic',
@@ -228,12 +242,17 @@ describe('VercelAIService', () => {
 
       await service.generateTitle({ originalTitle: 'test' })
 
-      expect(anthropic).toHaveBeenCalledWith('claude-3-opus-20240229')
+      expect(mockCreateAnthropic).toHaveBeenCalledWith({ apiKey: 'test-key' })
+      expect(mockProvider).toHaveBeenCalledWith('claude-3-opus-20240229')
     })
 
     test('should use Google model correctly', async () => {
       const mockResponse = createMockResponse('{"suggestions": ["feat: test"], "reasoning": "test", "confidence": 0.8}')
       mockGenerateText.mockResolvedValueOnce(mockResponse)
+      
+      const mockGoogleModel = { provider: 'google', model: 'gemini-1.5-pro' } as any
+      const mockProvider = jest.fn().mockReturnValue(mockGoogleModel)
+      mockCreateGoogleGenerativeAI.mockReturnValue(mockProvider as any)
 
       const service = new VercelAIService({
         provider: 'google',
@@ -243,12 +262,17 @@ describe('VercelAIService', () => {
 
       await service.generateTitle({ originalTitle: 'test' })
 
-      expect(google).toHaveBeenCalledWith('gemini-1.5-pro')
+      expect(mockCreateGoogleGenerativeAI).toHaveBeenCalledWith({ apiKey: 'test-key' })
+      expect(mockProvider).toHaveBeenCalledWith('gemini-1.5-pro')
     })
 
     test('should use Mistral model correctly', async () => {
       const mockResponse = createMockResponse('{"suggestions": ["feat: test"], "reasoning": "test", "confidence": 0.8}')
       mockGenerateText.mockResolvedValueOnce(mockResponse)
+      
+      const mockMistralModel = { provider: 'mistral', model: 'mistral-large-latest' } as any
+      const mockProvider = jest.fn().mockReturnValue(mockMistralModel)
+      mockCreateMistral.mockReturnValue(mockProvider as any)
 
       const service = new VercelAIService({
         provider: 'mistral',
@@ -258,12 +282,17 @@ describe('VercelAIService', () => {
 
       await service.generateTitle({ originalTitle: 'test' })
 
-      expect(mistral).toHaveBeenCalledWith('mistral-large-latest')
+      expect(mockCreateMistral).toHaveBeenCalledWith({ apiKey: 'test-key' })
+      expect(mockProvider).toHaveBeenCalledWith('mistral-large-latest')
     })
 
     test('should use XAI model correctly', async () => {
       const mockResponse = createMockResponse('{"suggestions": ["feat: test"], "reasoning": "test", "confidence": 0.8}')
       mockGenerateText.mockResolvedValueOnce(mockResponse)
+      
+      const mockXaiModel = { provider: 'xai', model: 'grok-beta' } as any
+      const mockProvider = jest.fn().mockReturnValue(mockXaiModel)
+      mockCreateXai.mockReturnValue(mockProvider as any)
 
       const service = new VercelAIService({
         provider: 'xai',
@@ -273,7 +302,8 @@ describe('VercelAIService', () => {
 
       await service.generateTitle({ originalTitle: 'test' })
 
-      expect(xai).toHaveBeenCalledWith('grok-beta')
+      expect(mockCreateXai).toHaveBeenCalledWith({ apiKey: 'test-key' })
+      expect(mockProvider).toHaveBeenCalledWith('grok-beta')
     })
 
     test('should throw error for unsupported provider', async () => {
@@ -313,7 +343,7 @@ describe('VercelAIService', () => {
       })
 
       await expect(service.generateTitle({ originalTitle: 'test' }))
-        .rejects.toThrow('AI service failed after 1 retries')
+        .rejects.toThrow('AI service failed after 2 attempts')
 
       expect(mockGenerateText).toHaveBeenCalledTimes(2) // Initial + 1 retry
     })

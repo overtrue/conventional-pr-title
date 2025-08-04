@@ -274,10 +274,6 @@ describe('OctokitGitHubService', () => {
 
     test('should return true for write permissions', async () => {
       mockOctokit.rest.repos.get.mockResolvedValueOnce({ data: {} })
-      mockOctokit.rest.users.getAuthenticated.mockResolvedValueOnce({ data: { login: 'test-user' } })
-      mockOctokit.rest.repos.getCollaboratorPermissionLevel.mockResolvedValueOnce({
-        data: { permission: 'write' }
-      })
 
       const service = new OctokitGitHubService({ token: 'test-token' })
       const hasPermission = await service.checkPermissions()
@@ -285,17 +281,13 @@ describe('OctokitGitHubService', () => {
       expect(hasPermission).toBe(true)
     })
 
-    test('should return false for read permissions', async () => {
+    test('should return true when repo access succeeds', async () => {
       mockOctokit.rest.repos.get.mockResolvedValueOnce({ data: {} })
-      mockOctokit.rest.users.getAuthenticated.mockResolvedValueOnce({ data: { login: 'test-user' } })
-      mockOctokit.rest.repos.getCollaboratorPermissionLevel.mockResolvedValueOnce({
-        data: { permission: 'read' }
-      })
 
       const service = new OctokitGitHubService({ token: 'test-token' })
       const hasPermission = await service.checkPermissions()
 
-      expect(hasPermission).toBe(false)
+      expect(hasPermission).toBe(true)
     })
 
     test('should return false when permission check fails', async () => {

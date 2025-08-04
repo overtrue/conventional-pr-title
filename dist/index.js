@@ -55721,7 +55721,8 @@ const modelMap = {
 class ClaudeCodeLanguageModel extends base_provider_1.BaseAIProvider {
     constructor(config) {
         super(config, 'ClaudeCode');
-        this.claudeCode = null;
+        this.claudeCodeModule = null;
+        this._moduleLoadPromise = null;
         this.settings = config.settings || {};
         this.sessionId = this.settings.resume || generateUUID();
     }
@@ -55732,34 +55733,104 @@ class ClaudeCodeLanguageModel extends base_provider_1.BaseAIProvider {
         return false; // Claude Code CLI can work without API key
     }
     getClient() {
-        return this.claudeCode;
+        return this.claudeCodeModule;
     }
     getModel() {
         const mapped = modelMap[this.config.model || 'sonnet'];
         return mapped !== null && mapped !== void 0 ? mapped : (this.config.model || 'claude-3-5-sonnet-20241022');
     }
-    async loadClaudeCode() {
-        if (this.claudeCode) {
-            return this.claudeCode;
+    /**
+     * Load Claude Code module with caching and better error handling
+     */
+    async loadClaudeCodeModule() {
+        if (this.claudeCodeModule) {
+            return this.claudeCodeModule;
         }
+        if (this._moduleLoadPromise) {
+            return this._moduleLoadPromise;
+        }
+        this._moduleLoadPromise = this._loadModule();
         try {
-            // Try to dynamically import Claude Code SDK
-            let claudeCodeModule;
-            try {
-                // @ts-ignore - Optional dependency, may not be available
-                claudeCodeModule = await Promise.resolve().then(() => __importStar(__nccwpck_require__(6725)));
-            }
-            catch (error) {
-                // Package not available, throw error directly
-                throw new Error(`Claude Code SDK not available: ${error instanceof Error ? error.message : 'Unknown error'}`);
-            }
-            this.claudeCode = claudeCodeModule;
-            return this.claudeCode;
+            this.claudeCodeModule = await this._moduleLoadPromise;
+            return this.claudeCodeModule;
         }
         catch (error) {
-            // Re-throw the error instead of using fallback
+            this._moduleLoadPromise = null;
             throw error;
         }
+    }
+    async _loadModule() {
+        const moduleLoadErrors = [];
+        // Try different import paths
+        const importPaths = [
+            '@anthropic-ai/claude-code',
+            'claude-code',
+            '@claude/claude-code'
+        ];
+        for (const path of importPaths) {
+            try {
+                const module = await Promise.resolve(`${path}`).then(s => __importStar(require(s)));
+                // Validate the module has expected methods
+                if (module && (module.generateText || module.query || module.experimental_generateText)) {
+                    if (this.config.debug) {
+                        console.log(`Claude Code module loaded from: ${path}`);
+                    }
+                    return module;
+                }
+                else {
+                    moduleLoadErrors.push(`${path}: Module loaded but missing expected methods`);
+                }
+            }
+            catch (error) {
+                const errorMsg = error instanceof Error ? error.message : String(error);
+                moduleLoadErrors.push(`${path}: ${errorMsg}`);
+            }
+        }
+        // All import attempts failed
+        const errorDetails = moduleLoadErrors.join(', ');
+        throw (0, errors_1.createAuthenticationError)({
+            message: `Claude Code SDK not available. Tried paths: ${errorDetails}. ` +
+                'Please install @anthropic-ai/claude-code or ensure Claude Code CLI is properly set up.'
+        });
+    }
+    /**
+     * Generate text using Claude Code with enhanced error handling
+     */
+    async generateWithClaudeCode(prompt, systemPrompt, mode = 'generate') {
+        const claudeCode = await this.loadClaudeCodeModule();
+        const params = {
+            model: this.getModel(),
+            prompt,
+            systemPrompt,
+            mode,
+            sessionId: this.sessionId,
+            settings: {
+                ...this.settings,
+                cwd: this.settings.cwd || process.cwd(),
+                verbose: this.config.debug || this.settings.verbose || false,
+                executable: this.settings.executable || 'npx',
+                pathToClaudeCodeExecutable: this.settings.pathToClaudeCodeExecutable,
+                permissionMode: this.settings.permissionMode || 'default',
+                maxTurns: this.settings.maxTurns,
+                maxThinkingTokens: this.settings.maxThinkingTokens,
+                allowedTools: this.settings.allowedTools,
+                disallowedTools: this.settings.disallowedTools,
+                env: this.settings.env
+            }
+        };
+        // Try different methods based on what's available
+        if (claudeCode.query) {
+            return await claudeCode.query(params);
+        }
+        else if (claudeCode.generateText || claudeCode.experimental_generateText) {
+            const generateFn = claudeCode.generateText || claudeCode.experimental_generateText;
+            if (generateFn) {
+                return await generateFn(params);
+            }
+        }
+        throw (0, errors_1.createAPICallError)({
+            message: 'No suitable generation method found in Claude Code module'
+        });
     }
     async generateTitle(request) {
         this.validateParams();
@@ -55775,22 +55846,29 @@ class ClaudeCodeLanguageModel extends base_provider_1.BaseAIProvider {
                     { role: 'system', content: systemMessage },
                     { role: 'user', content: prompt }
                 ], mode);
-                // Load and use Claude Code SDK
-                const claudeCode = await this.loadClaudeCode();
-                const response = await claudeCode.query({
-                    model: this.getModel(),
-                    prompt: messagesPrompt,
-                    systemPrompt: systemPrompt || systemMessage,
-                    mode: 'generate', // or 'stream'
-                    sessionId: this.sessionId,
-                    settings: {
-                        ...this.settings,
-                        cwd: this.settings.cwd || process.cwd(),
-                        verbose: this.config.debug || this.settings.verbose || false
+                // Generate using enhanced Claude Code method
+                const response = await this.generateWithClaudeCode(messagesPrompt, systemPrompt || systemMessage, 'generate');
+                // Extract response text with multiple fallbacks
+                let text = '';
+                if (response) {
+                    text = response.text || response.content || response.message || response.output || '';
+                    // Handle streaming responses
+                    if (!text && response.stream) {
+                        const chunks = [];
+                        for await (const chunk of response.stream) {
+                            if (chunk.text || chunk.content) {
+                                chunks.push(chunk.text || chunk.content);
+                            }
+                        }
+                        text = chunks.join('');
                     }
-                });
-                let text = response.text || response.content || '';
-                // Extract JSON from response
+                }
+                if (!text) {
+                    throw (0, errors_1.createAPICallError)({
+                        message: 'Empty response from Claude Code'
+                    });
+                }
+                // Extract JSON from response with better error handling
                 try {
                     const extractedJson = (0, json_extractor_1.extractJson)(text);
                     const parsed = JSON.parse(extractedJson);
@@ -55803,6 +55881,10 @@ class ClaudeCodeLanguageModel extends base_provider_1.BaseAIProvider {
                     };
                 }
                 catch (jsonError) {
+                    if (this.config.debug) {
+                        console.warn('JSON parsing failed:', jsonError);
+                        console.warn('Raw response:', text);
+                    }
                     // Fallback: try to extract suggestions from plain text
                     const suggestions = this.extractSuggestionsFromText(text);
                     return {
@@ -55814,7 +55896,13 @@ class ClaudeCodeLanguageModel extends base_provider_1.BaseAIProvider {
             }
             catch (error) {
                 lastError = error instanceof Error ? error : new Error(String(error));
-                if (attempt < maxRetries && !(0, errors_1.isAuthenticationError)(lastError) && !(0, errors_1.isTimeoutError)(lastError)) {
+                if (this.config.debug) {
+                    console.warn(`Claude Code attempt ${attempt + 1} failed:`, lastError.message);
+                }
+                // Check if we should retry
+                if (attempt < maxRetries &&
+                    !(0, errors_1.isAuthenticationError)(lastError) &&
+                    !(0, errors_1.isTimeoutError)(lastError)) {
                     await this.delay(Math.pow(2, attempt) * 1000);
                 }
                 else {
@@ -55826,22 +55914,14 @@ class ClaudeCodeLanguageModel extends base_provider_1.BaseAIProvider {
     }
     async isHealthy() {
         try {
-            const claudeCode = await this.loadClaudeCode();
-            const response = await claudeCode.query({
-                model: this.getModel(),
-                prompt: 'test',
-                systemPrompt: 'You are a test assistant. Reply with "OK".',
-                mode: 'generate',
-                sessionId: generateUUID(),
-                settings: {
-                    ...this.settings,
-                    cwd: this.settings.cwd || process.cwd()
-                }
-            });
-            const text = response.text || response.content || '';
+            const response = await this.generateWithClaudeCode('test', 'You are a test assistant. Reply with "OK".', 'generate');
+            const text = (response === null || response === void 0 ? void 0 : response.text) || (response === null || response === void 0 ? void 0 : response.content) || '';
             return text.toLowerCase().includes('ok');
         }
-        catch {
+        catch (error) {
+            if (this.config.debug) {
+                console.warn('Health check failed:', error);
+            }
             return false;
         }
     }
@@ -57876,14 +57956,6 @@ class EnvironmentValidator {
     }
 }
 exports.EnvironmentValidator = EnvironmentValidator;
-
-
-/***/ }),
-
-/***/ 6725:
-/***/ ((module) => {
-
-module.exports = eval("require")("@anthropic-ai/claude-code");
 
 
 /***/ }),

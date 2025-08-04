@@ -148,6 +148,7 @@ describe('AIProviderFactory', () => {
       expect(AIProviderFactory.getProviderEnvironmentKey('openai')).toBe('OPENAI_API_KEY')
       expect(AIProviderFactory.getProviderEnvironmentKey('anthropic')).toBe('ANTHROPIC_API_KEY')
       expect(AIProviderFactory.getProviderEnvironmentKey('google')).toBe('GOOGLE_GENERATIVE_AI_API_KEY')
+      expect(AIProviderFactory.getProviderEnvironmentKey('claude-code')).toBe('CLAUDE_CODE_API_KEY')
     })
 
     test('should throw for unsupported provider', () => {
@@ -172,6 +173,17 @@ describe('AIProviderFactory', () => {
       const provider = AIProviderFactory.create('anthropic', {
         apiKey: 'test-key',
         model: 'claude-3-5-sonnet-20241022'
+      })
+
+      expect(provider).toBeDefined()
+      expect(provider.generateTitle).toBeDefined()
+      expect(provider.isHealthy).toBeDefined()
+    })
+
+    test('should create Claude Code provider instance', () => {
+      const provider = AIProviderFactory.create('claude-code', {
+        apiKey: '', // Not required for Claude Code
+        model: 'sonnet'
       })
 
       expect(provider).toBeDefined()

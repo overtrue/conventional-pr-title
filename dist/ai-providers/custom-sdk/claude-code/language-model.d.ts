@@ -8,7 +8,8 @@ import { ClaudeCodeSettings } from './types';
 export declare class ClaudeCodeLanguageModel extends BaseAIProvider {
     private readonly settings;
     private readonly sessionId;
-    private claudeCode;
+    private claudeCodeModule;
+    private _moduleLoadPromise;
     constructor(config: AIProviderConfig & {
         settings?: ClaudeCodeSettings;
     });
@@ -16,7 +17,15 @@ export declare class ClaudeCodeLanguageModel extends BaseAIProvider {
     protected isRequiredApiKey(): boolean;
     getClient(): any;
     private getModel;
-    private loadClaudeCode;
+    /**
+     * Load Claude Code module with caching and better error handling
+     */
+    private loadClaudeCodeModule;
+    private _loadModule;
+    /**
+     * Generate text using Claude Code with enhanced error handling
+     */
+    private generateWithClaudeCode;
     generateTitle(request: TitleGenerationRequest): Promise<TitleGenerationResponse>;
     isHealthy(): Promise<boolean>;
 }
