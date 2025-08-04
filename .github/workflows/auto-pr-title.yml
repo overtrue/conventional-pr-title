@@ -28,9 +28,6 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install Claude Code CLI
-        run: npm install -g @anthropic-ai/claude-code
-
       - name: Auto-generate conventional PR title
         uses: ./
         with:
