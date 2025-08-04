@@ -30,13 +30,32 @@ export class ModernAIService implements AIService {
   }
 
   async generateTitle(request: TitleGenerationRequest): Promise<TitleGenerationResponse> {
-    const provider = AIProviderFactory.create(this.config.provider, {
+    let provider = AIProviderFactory.create(this.config.provider, {
       apiKey: this.config.apiKey!,
       baseURL: this.config.baseURL,
       model: this.config.model,
       maxTokens: this.config.maxTokens,
       temperature: this.config.temperature
     })
+
+    // If using Claude Code, check if it's healthy first
+    if (this.config.provider === 'claude-code') {
+      const isHealthy = await provider.isHealthy()
+      if (!isHealthy) {
+        if (this.config.debug) {
+          console.warn('Claude Code provider is not healthy, falling back to Anthropic')
+        }
+        
+        // Fallback to Anthropic with same API key
+        provider = AIProviderFactory.create('anthropic', {
+          apiKey: this.config.apiKey!,
+          baseURL: this.config.baseURL,
+          model: this.config.model === 'sonnet' ? 'claude-3-5-sonnet-20241022' : this.config.model,
+          maxTokens: this.config.maxTokens,
+          temperature: this.config.temperature
+        })
+      }
+    }
 
     return provider.generateTitle(request)
   }

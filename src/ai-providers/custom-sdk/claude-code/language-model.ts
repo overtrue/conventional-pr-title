@@ -138,6 +138,22 @@ export class ClaudeCodeLanguageModel extends BaseAIProvider {
       }
     }
 
+    // In GitHub Actions environment, Claude Code might not be available
+    // Return a mock module that will fail gracefully
+    if (process.env.GITHUB_ACTIONS) {
+      if (this.config.debug) {
+        console.warn('Claude Code SDK not available in GitHub Actions, provider will be marked as unhealthy')
+      }
+      // Return a dummy module that will make health checks fail
+      return {
+        generateText: async () => {
+          throw createAuthenticationError({
+            message: 'Claude Code SDK not available in GitHub Actions environment'
+          })
+        }
+      }
+    }
+
     // All import attempts failed
     const errorDetails = moduleLoadErrors.join(', ')
     throw createAuthenticationError({

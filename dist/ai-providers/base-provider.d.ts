@@ -11,6 +11,8 @@ export interface AIProviderConfig {
     temperature?: number;
     timeout?: number;
     debug?: boolean;
+    allowedTools?: string[];
+    disallowedTools?: string[];
 }
 export declare abstract class BaseAIProvider {
     protected config: AIProviderConfig;

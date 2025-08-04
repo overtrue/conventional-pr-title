@@ -13,6 +13,9 @@ export interface AIProviderConfig {
   temperature?: number
   timeout?: number
   debug?: boolean
+  // Claude Code specific options
+  allowedTools?: string[]
+  disallowedTools?: string[]
 }
 
 export abstract class BaseAIProvider {
