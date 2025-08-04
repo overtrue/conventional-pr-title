@@ -17,6 +17,14 @@ import {
 } from './errors'
 import { ClaudeCodeSettings, ClaudeCodeModelId } from './types'
 
+// Static import of Claude Code SDK
+let claudeCodeSDK: any = null
+try {
+  claudeCodeSDK = require('@anthropic-ai/claude-code')
+} catch (error) {
+  // SDK not available, will fallback to dynamic import
+}
+
 // Simple UUID v4 generator
 function generateUUID(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -93,6 +101,16 @@ export class ClaudeCodeLanguageModel extends BaseAIProvider {
 
   private async _loadModule(): Promise<ClaudeCodeModule> {
     const moduleLoadErrors: string[] = []
+
+    // First try static import if available
+    if (claudeCodeSDK) {
+      if (claudeCodeSDK.generateText || claudeCodeSDK.query || claudeCodeSDK.experimental_generateText) {
+        if (this.config.debug) {
+          console.log('Claude Code module loaded from static import')
+        }
+        return claudeCodeSDK
+      }
+    }
 
     // Try different import paths
     const importPaths = [
