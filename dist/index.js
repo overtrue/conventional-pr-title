@@ -55706,6 +55706,14 @@ const base_provider_1 = __nccwpck_require__(9868);
 const message_converter_1 = __nccwpck_require__(6229);
 const json_extractor_1 = __nccwpck_require__(5736);
 const errors_1 = __nccwpck_require__(5752);
+// Static import of Claude Code SDK
+let claudeCodeSDK = null;
+try {
+    claudeCodeSDK = __nccwpck_require__(4258);
+}
+catch (error) {
+    // SDK not available, will fallback to dynamic import
+}
 // Simple UUID v4 generator
 function generateUUID() {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
@@ -55761,6 +55769,15 @@ class ClaudeCodeLanguageModel extends base_provider_1.BaseAIProvider {
     }
     async _loadModule() {
         const moduleLoadErrors = [];
+        // First try static import if available
+        if (claudeCodeSDK) {
+            if (claudeCodeSDK.generateText || claudeCodeSDK.query || claudeCodeSDK.experimental_generateText) {
+                if (this.config.debug) {
+                    console.log('Claude Code module loaded from static import');
+                }
+                return claudeCodeSDK;
+            }
+        }
         // Try different import paths
         const importPaths = [
             '@anthropic-ai/claude-code',
@@ -66255,6 +66272,451 @@ exports.NEVER = parseUtil_js_1.INVALID;
 
 /***/ }),
 
+/***/ 4258:
+/***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __nccwpck_require__) => {
+
+"use strict";
+// ESM COMPAT FLAG
+__nccwpck_require__.r(__webpack_exports__);
+
+// EXPORTS
+__nccwpck_require__.d(__webpack_exports__, {
+  AbortError: () => (/* binding */ AbortError),
+  query: () => (/* binding */ query)
+});
+
+// EXTERNAL MODULE: external "child_process"
+var external_child_process_ = __nccwpck_require__(5317);
+// EXTERNAL MODULE: external "path"
+var external_path_ = __nccwpck_require__(6928);
+// EXTERNAL MODULE: external "url"
+var external_url_ = __nccwpck_require__(7016);
+;// CONCATENATED MODULE: external "readline"
+const external_readline_namespaceObject = require("readline");
+// EXTERNAL MODULE: external "fs"
+var external_fs_ = __nccwpck_require__(9896);
+// EXTERNAL MODULE: external "events"
+var external_events_ = __nccwpck_require__(4434);
+;// CONCATENATED MODULE: ./node_modules/@anthropic-ai/claude-code/sdk.mjs
+// (c) Anthropic PBC. All rights reserved. Use is subject to Anthropic's Commercial Terms of Service (https://www.anthropic.com/legal/commercial-terms).
+
+// Version: 1.0.67
+
+// src/entrypoints/sdk.ts
+
+
+
+
+
+
+// src/utils/stream.ts
+class Stream {
+  returned;
+  queue = [];
+  readResolve;
+  readReject;
+  isDone = false;
+  hasError;
+  started = false;
+  constructor(returned) {
+    this.returned = returned;
+  }
+  [Symbol.asyncIterator]() {
+    if (this.started) {
+      throw new Error("Stream can only be iterated once");
+    }
+    this.started = true;
+    return this;
+  }
+  next() {
+    if (this.queue.length > 0) {
+      return Promise.resolve({
+        done: false,
+        value: this.queue.shift()
+      });
+    }
+    if (this.isDone) {
+      return Promise.resolve({ done: true, value: undefined });
+    }
+    if (this.hasError) {
+      return Promise.reject(this.hasError);
+    }
+    return new Promise((resolve, reject) => {
+      this.readResolve = resolve;
+      this.readReject = reject;
+    });
+  }
+  enqueue(value) {
+    if (this.readResolve) {
+      const resolve = this.readResolve;
+      this.readResolve = undefined;
+      this.readReject = undefined;
+      resolve({ done: false, value });
+    } else {
+      this.queue.push(value);
+    }
+  }
+  done() {
+    this.isDone = true;
+    if (this.readResolve) {
+      const resolve = this.readResolve;
+      this.readResolve = undefined;
+      this.readReject = undefined;
+      resolve({ done: true, value: undefined });
+    }
+  }
+  error(error) {
+    this.hasError = error;
+    if (this.readReject) {
+      const reject = this.readReject;
+      this.readResolve = undefined;
+      this.readReject = undefined;
+      reject(error);
+    }
+  }
+  return() {
+    this.isDone = true;
+    if (this.returned) {
+      this.returned();
+    }
+    return Promise.resolve({ done: true, value: undefined });
+  }
+}
+
+// src/utils/abortController.ts
+
+var DEFAULT_MAX_LISTENERS = 50;
+function createAbortController(maxListeners = DEFAULT_MAX_LISTENERS) {
+  const controller = new AbortController;
+  (0,external_events_.setMaxListeners)(maxListeners, controller.signal);
+  return controller;
+}
+
+// src/entrypoints/sdk.ts
+function query({
+  prompt,
+  options: {
+    abortController = createAbortController(),
+    allowedTools = [],
+    appendSystemPrompt,
+    customSystemPrompt,
+    cwd,
+    disallowedTools = [],
+    executable = isRunningWithBun() ? "bun" : "node",
+    executableArgs = [],
+    maxTurns,
+    mcpServers,
+    pathToClaudeCodeExecutable,
+    permissionMode = "default",
+    permissionPromptToolName,
+    canUseTool,
+    continue: continueConversation,
+    resume,
+    model,
+    fallbackModel,
+    strictMcpConfig,
+    stderr,
+    env
+  } = {}
+}) {
+  if (!env) {
+    env = { ...process.env };
+  }
+  if (!env.CLAUDE_CODE_ENTRYPOINT) {
+    env.CLAUDE_CODE_ENTRYPOINT = "sdk-ts";
+  }
+  if (pathToClaudeCodeExecutable === undefined) {
+    const filename = (0,external_url_.fileURLToPath)(import.meta.url);
+    const dirname = (0,external_path_.join)(filename, "..");
+    pathToClaudeCodeExecutable = (0,external_path_.join)(dirname, "cli.js");
+  }
+  const args = ["--output-format", "stream-json", "--verbose"];
+  if (customSystemPrompt)
+    args.push("--system-prompt", customSystemPrompt);
+  if (appendSystemPrompt)
+    args.push("--append-system-prompt", appendSystemPrompt);
+  if (maxTurns)
+    args.push("--max-turns", maxTurns.toString());
+  if (model)
+    args.push("--model", model);
+  if (canUseTool) {
+    if (typeof prompt === "string") {
+      throw new Error("canUseTool callback requires --input-format stream-json. Please set prompt as an AsyncIterable.");
+    }
+    if (permissionPromptToolName) {
+      throw new Error("canUseTool callback cannot be used with permissionPromptToolName. Please use one or the other.");
+    }
+    permissionPromptToolName = "stdio";
+  }
+  if (permissionPromptToolName) {
+    args.push("--permission-prompt-tool", permissionPromptToolName);
+  }
+  if (continueConversation)
+    args.push("--continue");
+  if (resume)
+    args.push("--resume", resume);
+  if (allowedTools.length > 0) {
+    args.push("--allowedTools", allowedTools.join(","));
+  }
+  if (disallowedTools.length > 0) {
+    args.push("--disallowedTools", disallowedTools.join(","));
+  }
+  if (mcpServers && Object.keys(mcpServers).length > 0) {
+    args.push("--mcp-config", JSON.stringify({ mcpServers }));
+  }
+  if (strictMcpConfig) {
+    args.push("--strict-mcp-config");
+  }
+  if (permissionMode !== "default") {
+    args.push("--permission-mode", permissionMode);
+  }
+  if (fallbackModel) {
+    if (model && fallbackModel === model) {
+      throw new Error("Fallback model cannot be the same as the main model. Please specify a different model for fallbackModel option.");
+    }
+    args.push("--fallback-model", fallbackModel);
+  }
+  if (typeof prompt === "string") {
+    args.push("--print");
+    args.push("--", prompt.trim());
+  } else {
+    args.push("--input-format", "stream-json");
+  }
+  if (!(0,external_fs_.existsSync)(pathToClaudeCodeExecutable)) {
+    throw new ReferenceError(`Claude Code executable not found at ${pathToClaudeCodeExecutable}. Is options.pathToClaudeCodeExecutable set?`);
+  }
+  logDebug(`Spawning Claude Code process: ${executable} ${[...executableArgs, pathToClaudeCodeExecutable, ...args].join(" ")}`);
+  const child = (0,external_child_process_.spawn)(executable, [...executableArgs, pathToClaudeCodeExecutable, ...args], {
+    cwd,
+    stdio: ["pipe", "pipe", "pipe"],
+    signal: abortController.signal,
+    env
+  });
+  let childStdin;
+  if (typeof prompt === "string") {
+    child.stdin.end();
+  } else {
+    streamToStdin(prompt, child.stdin, abortController);
+    childStdin = child.stdin;
+  }
+  if (env.DEBUG || stderr) {
+    child.stderr.on("data", (data) => {
+      if (env.DEBUG) {
+        console.error("Claude Code stderr:", data.toString());
+      }
+      if (stderr) {
+        stderr(data.toString());
+      }
+    });
+  }
+  const cleanup = () => {
+    if (!child.killed) {
+      child.kill("SIGTERM");
+    }
+  };
+  abortController.signal.addEventListener("abort", cleanup);
+  process.on("exit", cleanup);
+  const processExitPromise = new Promise((resolve) => {
+    child.on("close", (code) => {
+      if (abortController.signal.aborted) {
+        query2.setError(new AbortError("Claude Code process aborted by user"));
+      }
+      if (code !== 0) {
+        query2.setError(new Error(`Claude Code process exited with code ${code}`));
+      } else {
+        resolve();
+      }
+    });
+  });
+  const query2 = new Query(childStdin, child.stdout, processExitPromise, canUseTool);
+  child.on("error", (error) => {
+    if (abortController.signal.aborted) {
+      query2.setError(new AbortError("Claude Code process aborted by user"));
+    } else {
+      query2.setError(new Error(`Failed to spawn Claude Code process: ${error.message}`));
+    }
+  });
+  processExitPromise.finally(() => {
+    cleanup();
+    abortController.signal.removeEventListener("abort", cleanup);
+  });
+  return query2;
+}
+
+class Query {
+  childStdin;
+  childStdout;
+  processExitPromise;
+  canUseTool;
+  pendingControlResponses = new Map;
+  sdkMessages;
+  inputStream = new Stream;
+  intialization;
+  constructor(childStdin, childStdout, processExitPromise, canUseTool) {
+    this.childStdin = childStdin;
+    this.childStdout = childStdout;
+    this.processExitPromise = processExitPromise;
+    this.canUseTool = canUseTool;
+    this.readMessages();
+    this.sdkMessages = this.readSdkMessages();
+    if (this.childStdin) {
+      this.intialization = this.initialize();
+    }
+  }
+  setError(error) {
+    this.inputStream.error(error);
+  }
+  next(...[value]) {
+    return this.sdkMessages.next(...[value]);
+  }
+  return(value) {
+    return this.sdkMessages.return(value);
+  }
+  throw(e) {
+    return this.sdkMessages.throw(e);
+  }
+  [Symbol.asyncIterator]() {
+    return this.sdkMessages;
+  }
+  [Symbol.asyncDispose]() {
+    return this.sdkMessages[Symbol.asyncDispose]();
+  }
+  async readMessages() {
+    const rl = (0,external_readline_namespaceObject.createInterface)({ input: this.childStdout });
+    try {
+      for await (const line of rl) {
+        if (line.trim()) {
+          const message = JSON.parse(line);
+          if (message.type === "control_response") {
+            const handler = this.pendingControlResponses.get(message.response.request_id);
+            if (handler) {
+              handler(message.response);
+            }
+            continue;
+          } else if (message.type === "control_request") {
+            this.handleControlRequest(message);
+            continue;
+          }
+          this.inputStream.enqueue(message);
+        }
+      }
+      await this.processExitPromise;
+    } catch (error) {
+      this.inputStream.error(error);
+    } finally {
+      this.inputStream.done();
+      rl.close();
+    }
+  }
+  async handleControlRequest(request) {
+    try {
+      const response = await this.processControlRequest(request);
+      const controlResponse = {
+        type: "control_response",
+        response: {
+          subtype: "success",
+          request_id: request.request_id,
+          response
+        }
+      };
+      this.childStdin?.write(JSON.stringify(controlResponse) + `
+`);
+    } catch (error) {
+      const controlErrorResponse = {
+        type: "control_response",
+        response: {
+          subtype: "error",
+          request_id: request.request_id,
+          error: error.message || String(error)
+        }
+      };
+      this.childStdin?.write(JSON.stringify(controlErrorResponse) + `
+`);
+    }
+  }
+  async processControlRequest(request) {
+    if (request.request.subtype === "can_use_tool") {
+      if (!this.canUseTool) {
+        throw new Error("canUseTool callback is not provided.");
+      }
+      return this.canUseTool(request.request.tool_name, request.request.input);
+    }
+    throw new Error("Unsupported control request subtype: " + request.request.subtype);
+  }
+  async* readSdkMessages() {
+    for await (const message of this.inputStream) {
+      yield message;
+    }
+  }
+  async initialize() {
+    if (!this.childStdin) {
+      throw new Error("Cannot initialize without child stdin");
+    }
+    const initRequest = {
+      subtype: "initialize"
+    };
+    const response = await this.request(initRequest, this.childStdin);
+    return response.response;
+  }
+  async interrupt() {
+    if (!this.childStdin) {
+      throw new Error("Interrupt requires --input-format stream-json");
+    }
+    await this.request({
+      subtype: "interrupt"
+    }, this.childStdin);
+  }
+  request(request, childStdin) {
+    const requestId = Math.random().toString(36).substring(2, 15);
+    const sdkRequest = {
+      request_id: requestId,
+      type: "control_request",
+      request
+    };
+    return new Promise((resolve, reject) => {
+      this.pendingControlResponses.set(requestId, (response) => {
+        if (response.subtype === "success") {
+          resolve(response);
+        } else {
+          reject(new Error(response.error));
+        }
+      });
+      childStdin.write(JSON.stringify(sdkRequest) + `
+`);
+    });
+  }
+  async supportedCommands() {
+    if (!this.intialization) {
+      throw new Error("Interrupt requires --input-format stream-json");
+    }
+    return (await this.intialization).commands;
+  }
+}
+async function streamToStdin(stream, stdin, abortController) {
+  for await (const message of stream) {
+    if (abortController.signal.aborted)
+      break;
+    stdin.write(JSON.stringify(message) + `
+`);
+  }
+  stdin.end();
+}
+function logDebug(message) {
+  if (process.env.DEBUG) {
+    console.debug(message);
+  }
+}
+function isRunningWithBun() {
+  return process.versions.bun !== undefined || process.env.BUN_INSTALL !== undefined;
+}
+
+class AbortError extends Error {
+}
+
+
+
+/***/ }),
+
 /***/ 9774:
 /***/ ((module) => {
 
@@ -66296,6 +66758,34 @@ module.exports = /*#__PURE__*/JSON.parse('{"openai":{"gpt-4.1":{"id":"gpt-4.1","
 /******/ 	}
 /******/ 	
 /************************************************************************/
+/******/ 	/* webpack/runtime/define property getters */
+/******/ 	(() => {
+/******/ 		// define getter functions for harmony exports
+/******/ 		__nccwpck_require__.d = (exports, definition) => {
+/******/ 			for(var key in definition) {
+/******/ 				if(__nccwpck_require__.o(definition, key) && !__nccwpck_require__.o(exports, key)) {
+/******/ 					Object.defineProperty(exports, key, { enumerable: true, get: definition[key] });
+/******/ 				}
+/******/ 			}
+/******/ 		};
+/******/ 	})();
+/******/ 	
+/******/ 	/* webpack/runtime/hasOwnProperty shorthand */
+/******/ 	(() => {
+/******/ 		__nccwpck_require__.o = (obj, prop) => (Object.prototype.hasOwnProperty.call(obj, prop))
+/******/ 	})();
+/******/ 	
+/******/ 	/* webpack/runtime/make namespace object */
+/******/ 	(() => {
+/******/ 		// define __esModule on exports
+/******/ 		__nccwpck_require__.r = (exports) => {
+/******/ 			if(typeof Symbol !== 'undefined' && Symbol.toStringTag) {
+/******/ 				Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
+/******/ 			}
+/******/ 			Object.defineProperty(exports, '__esModule', { value: true });
+/******/ 		};
+/******/ 	})();
+/******/ 	
 /******/ 	/* webpack/runtime/compat */
 /******/ 	
 /******/ 	if (typeof __nccwpck_require__ !== 'undefined') __nccwpck_require__.ab = __dirname + "/";
