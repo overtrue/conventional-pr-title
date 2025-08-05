@@ -1,5 +1,5 @@
 import { getBooleanInput, getInput } from '@actions/core'
-import { ConfigManager, ConfigurationError } from '../src/config'
+import { ConfigManager, ConfigurationError } from '../../src/config'
 
 // Mock @actions/core
 jest.mock('@actions/core', () => ({

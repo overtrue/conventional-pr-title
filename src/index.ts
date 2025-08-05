@@ -1,32 +1,46 @@
-import { setFailed, info } from '@actions/core'
+import { debug, info, setFailed, warning } from '@actions/core'
 import { context } from '@actions/github'
-import {
-  ActionConfigManager,
-  ConfigurationError,
-  createAIServiceConfig
-} from './config'
-import { ModernAIService } from './modern-ai-service'
-import { OctokitGitHubService } from './github-service'
-import { Logger } from './utils'
-import { PRTitleProcessor } from './pr-processor'
-import { PRContextExtractor } from './context-extractor'
-import { EnvironmentValidator } from './validator'
+import { ConfigManager, ConfigurationError } from './config'
+import { createGitHubService } from './github'
+import { PRProcessor } from './processor'
 
 /**
- * Main entry point for the GitHub Action
- * Simplified and modularized for better maintainability
+ * Validate GitHub context
+ */
+function validateGitHubContext(): { shouldSkip: boolean; reason?: string } {
+  // Check event type
+  if (!['pull_request', 'pull_request_target'].includes(context.eventName)) {
+    return {
+      shouldSkip: true,
+      reason: `Unsupported event: ${context.eventName}. This action only works with pull_request events.`
+    }
+  }
+
+  // Check PR data
+  if (!context.payload.pull_request) {
+    return {
+      shouldSkip: true,
+      reason: 'No pull request found in the event payload.'
+    }
+  }
+
+  return { shouldSkip: false }
+}
+
+/**
+ * Main entry function
  */
 async function run(): Promise<void> {
   try {
-    Logger.debug(`Action triggered by: ${context.eventName}`)
-    Logger.debug(`Repository: ${context.repo.owner}/${context.repo.repo}`)
-    Logger.debug(`Triggered by actor: ${context.actor}`)
+    debug(`Action triggered by: ${context.eventName}`)
+    debug(`Repository: ${context.repo.owner}/${context.repo.repo}`)
+    debug(`Triggered by actor: ${context.actor}`)
 
-    // Environment validation
-    const validationResult = EnvironmentValidator.validateGitHubContext()
+    // Validate environment
+    const validationResult = validateGitHubContext()
     if (validationResult.shouldSkip) {
       info(`Skipping processing: ${validationResult.reason}`)
-      const configManager = new ActionConfigManager()
+      const configManager = new ConfigManager()
       configManager.setOutputs({
         isConventional: true,
         suggestedTitles: [],
@@ -41,34 +55,31 @@ async function run(): Promise<void> {
 
     info(`Processing PR #${prNumber}: "${pullRequest.title}"`)
 
-    // Initialize configuration and services
-    const configManager = new ActionConfigManager()
-    let config = configManager.parseConfig()
-    
-    Logger.configure(config.debug)
+    // Parse configuration
+    const configManager = new ConfigManager()
+    const config = configManager.parseConfig()
 
-    Logger.debug('Configuration loaded:', {
-      aiProvider: config.aiProvider,
-      model: config.model || 'default',
-      mode: config.mode,
-      skipIfConventional: config.skipIfConventional
-    })
+    if (config.debug) {
+      debug(`Configuration loaded: model=${config.model}, mode=${config.mode}, skipIfConventional=${config.skipIfConventional}`)
+    }
 
     // Initialize services
-    const aiService = new ModernAIService(createAIServiceConfig(config))
-    const githubService = new OctokitGitHubService({
-      token: config.githubToken
-    })
+    const githubService = createGitHubService(config.githubToken)
+    const processor = new PRProcessor(config, githubService)
 
-    // Validate permissions and adjust config if needed
-    config = await EnvironmentValidator.validatePermissions(config, githubService)
+    // Check permissions (auto mode requires write permissions)
+    if (config.mode === 'auto') {
+      const hasPermissions = await githubService.checkPermissions()
+      if (!hasPermissions) {
+        warning('Insufficient permissions for auto mode, falling back to suggestion mode')
+        config.mode = 'suggest'
+      }
+    }
 
     // Extract PR context
-    const contextExtractor = new PRContextExtractor(githubService)
-    const prContext = await contextExtractor.extractContext(prNumber, pullRequest)
+    const prContext = await githubService.extractPRContext(prNumber, pullRequest)
 
     // Process PR title
-    const processor = new PRTitleProcessor(config, aiService, githubService)
     const result = await processor.process(prContext)
 
     // Set outputs
@@ -92,11 +103,11 @@ async function run(): Promise<void> {
 }
 
 /**
- * Centralized error handling
+ * Error handling
  */
 async function handleError(error: unknown): Promise<void> {
   if (error instanceof ConfigurationError) {
-    const configManager = new ActionConfigManager()
+    const configManager = new ConfigManager()
     configManager.handleConfigurationError(error)
     return
   }
@@ -104,9 +115,9 @@ async function handleError(error: unknown): Promise<void> {
   const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
   setFailed(`❌ Action failed: ${errorMessage}`)
 
-  // Try to set error outputs if possible
+  // Try to set error outputs
   try {
-    const configManager = new ActionConfigManager()
+    const configManager = new ConfigManager()
     configManager.setOutputs({
       isConventional: false,
       suggestedTitles: [],
@@ -115,14 +126,14 @@ async function handleError(error: unknown): Promise<void> {
       errorMessage
     })
   } catch {
-    // Ignore errors when setting outputs after failure
+    // Ignore output setting errors
   }
 }
 
-// Export the run function for testing
+// Export for testing
 export { run }
 
-// Execute the action if this file is run directly
+// Execute if run directly
 if (require.main === module) {
   run().catch(error => {
     console.error('Unhandled error:', error)

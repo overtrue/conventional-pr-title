@@ -1,150 +1,161 @@
-import { debug as coreDebug } from '@actions/core'
+import { ConventionalCommit, ValidationOptions, ValidationResult } from './types'
+
+// =============================================================================
+// AI-related utility functions
+// =============================================================================
+
+// AI SDK v5 automatically retrieves API keys from environment variables
 
 /**
- * Unified logging utilities for the application
+ * Process template string replacement
  */
-export class Logger {
-  private static isDebugEnabled = false
-  
-  static configure(debugEnabled: boolean): void {
-    Logger.isDebugEnabled = debugEnabled
-  }
-  
-  static debug(message: string, data?: any): void {
-    if (!Logger.isDebugEnabled) return
-    
-    const timestamp = new Date().toISOString()
-    const prefix = `🤖 [DEBUG ${timestamp}]`
-    
-    if (data) {
-      coreDebug(`${prefix} ${message}:`)
-      coreDebug(JSON.stringify(data, null, 2))
-    } else {
-      coreDebug(`${prefix} ${message}`)
-    }
-  }
-  
-  static error(message: string, error?: any): void {
-    if (!Logger.isDebugEnabled) return
-    
-    const timestamp = new Date().toISOString()
-    const prefix = `❌ [ERROR ${timestamp}]`
-    
-    console.error(`${prefix} ${message}`)
-    if (error) {
-      console.error(error)
-    }
-  }
-  
-  static info(message: string): void {
-    coreDebug(`ℹ️ ${message}`)
-  }
-}
+export function processTemplate(template: string, variables: Record<string, any>): string {
+  let result = template
 
-/**
- * Simple dependency injection container for better testability
- */
-export class DIContainer {
-  private static services = new Map<string, any>()
-  private static factories = new Map<string, () => any>()
-  
-  static register<T>(key: string, instance: T): void {
-    DIContainer.services.set(key, instance)
+  // Handle simple variable replacement {{variable}}
+  for (const [key, value] of Object.entries(variables)) {
+    const regex = new RegExp(`{{${key}}}`, 'g')
+    result = result.replace(regex, String(value || ''))
   }
-  
-  static registerFactory<T>(key: string, factory: () => T): void {
-    DIContainer.factories.set(key, factory)
-  }
-  
-  static get<T>(key: string): T {
-    // Check for direct instance first
-    if (DIContainer.services.has(key)) {
-      return DIContainer.services.get(key) as T
-    }
-    
-    // Check for factory
-    if (DIContainer.factories.has(key)) {
-      const factory = DIContainer.factories.get(key)!
-      const instance = factory()
-      DIContainer.services.set(key, instance) // Cache the instance
-      return instance as T
-    }
-    
-    throw new Error(`Service not found: ${key}`)
-  }
-  
-  static has(key: string): boolean {
-    return DIContainer.services.has(key) || DIContainer.factories.has(key)
-  }
-  
-  static clear(): void {
-    DIContainer.services.clear()
-    DIContainer.factories.clear()
-  }
-}
 
-/**
- * Performance optimization utilities
- */
-export class PerformanceCache {
-  private static cache = new Map<string, any>()
-  
-  static get<T>(key: string): T | undefined {
-    return PerformanceCache.cache.get(key)
-  }
-  
-  static set<T>(key: string, value: T): void {
-    PerformanceCache.cache.set(key, value)
-  }
-  
-  static has(key: string): boolean {
-    return PerformanceCache.cache.has(key)
-  }
-  
-  static clear(): void {
-    PerformanceCache.cache.clear()
-  }
-}
-
-/**
- * Pre-compiled regex patterns for performance
- */
-export const REGEX_PATTERNS = {
-  CONVENTIONAL_COMMIT: /^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\(.+\))?(!)?: .{1,}$/,
-  SCOPE: /\(([^)]+)\)/,
-  TYPE: /^([^(:!]+)/,
-  CHINESE: /[\u4e00-\u9fff]/,
-  // Add more patterns as needed
-} as const
-
-/**
- * Async retry utility with exponential backoff
- */
-export async function withRetry<T>(
-  operation: () => Promise<T>,
-  maxRetries: number = 3,
-  baseDelay: number = 1000
-): Promise<T> {
-  let lastError: Error
-  
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      return await operation()
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error))
-      
-      if (attempt === maxRetries) {
-        throw new Error(
-          `Operation failed after ${maxRetries + 1} attempts: ${lastError.message}`
-        )
+  // Handle conditional blocks {{#variable}}...{{/variable}}
+  result = result.replace(/{{#(\w+)}}([\s\S]*?){{\/\1}}/g, (match, key, content) => {
+    const value = variables[key]
+    if (value && (Array.isArray(value) ? value.length > 0 : true)) {
+      if (Array.isArray(value)) {
+        // Handle array loops {{#each array}}
+        return content.replace(/{{#each\s+\w+}}([\s\S]*?){{\/each}}/g, (_: string, itemTemplate: string) => {
+          return value.map(item =>
+            itemTemplate.replace(/{{this}}/g, String(item))
+          ).join('')
+        })
       }
-      
-      // Exponential backoff
-      await new Promise(resolve => 
-        setTimeout(resolve, baseDelay * Math.pow(2, attempt))
-      )
+      return content
     }
+    return ''
+  })
+
+  return result.trim()
+}
+
+// =============================================================================
+// Conventional Commits utility functions
+// =============================================================================
+
+// Default allowed commit types
+export const DEFAULT_TYPES = [
+  'feat', 'fix', 'docs', 'style', 'refactor', 'perf',
+  'test', 'build', 'ci', 'chore', 'revert'
+]
+
+// Default validation options
+export const DEFAULT_OPTIONS: ValidationOptions = {
+  allowedTypes: DEFAULT_TYPES,
+  requireScope: false,
+  maxLength: 72,
+  minDescriptionLength: 3
+}
+
+/**
+ * Parse conventional commit format message
+ */
+export function parseConventionalCommit(message: string): ConventionalCommit | null {
+  const conventionalCommitRegex = /^([a-z0-9]+)(?:\(([^)]+)\))?(!)?: (.+)$/i
+  const match = message.trim().match(conventionalCommitRegex)
+
+  if (!match) {
+    return null
   }
-  
-  throw lastError!
+
+  const [, type, scope, breaking, description] = match
+
+  return {
+    type: type.toLowerCase(),
+    scope: scope?.trim(),
+    breaking: !!breaking,
+    description: description.trim(),
+    body: undefined,
+    footer: undefined
+  }
+}
+
+/**
+ * Validate if PR title follows Conventional Commits standard
+ */
+export function validateTitle(
+  title: string,
+  options: ValidationOptions = DEFAULT_OPTIONS
+): ValidationResult {
+  const opts = { ...DEFAULT_OPTIONS, ...options }
+  const errors: string[] = []
+  const suggestions: string[] = []
+
+  // Basic validation
+  if (!title || title.trim().length === 0) {
+    errors.push('Title cannot be empty')
+    return { isValid: false, errors, suggestions }
+  }
+
+  const trimmedTitle = title.trim()
+
+  // Length validation
+  if (trimmedTitle.length > opts.maxLength) {
+    errors.push(`Title exceeds maximum length of ${opts.maxLength} characters`)
+    suggestions.push(`Consider shortening the title to ${opts.maxLength} characters or less`)
+  }
+
+  // Parse conventional commit format
+  const parsed = parseConventionalCommit(trimmedTitle)
+  if (!parsed) {
+    errors.push('Title does not follow conventional commit format')
+    suggestions.push('Use format: type(scope): description')
+    return { isValid: false, errors, suggestions }
+  }
+
+  // Check if type is allowed
+  if (!opts.allowedTypes.includes(parsed.type)) {
+    errors.push(`Type '${parsed.type}' is not allowed`)
+    suggestions.push(`Use one of: ${opts.allowedTypes.join(', ')}`)
+  }
+
+  // Check if scope is required
+  if (opts.requireScope && !parsed.scope) {
+    errors.push('Scope is required')
+    suggestions.push('Add a scope in parentheses after the type')
+  }
+
+  // Check description length
+  if (parsed.description.length < opts.minDescriptionLength) {
+    errors.push(`Description must be at least ${opts.minDescriptionLength} characters`)
+    suggestions.push('Provide a more descriptive message')
+  }
+
+  // Check description format
+  if (parsed.description.endsWith('.')) {
+    errors.push('Description should not end with a period')
+    suggestions.push('Remove the trailing period')
+  }
+
+  if (parsed.description[0] !== parsed.description[0].toLowerCase()) {
+    errors.push('Description should start with lowercase')
+    suggestions.push('Use lowercase for the first letter of description')
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+    suggestions,
+    parsed
+  }
+}
+
+/**
+ * Check if title already follows Conventional Commits format
+ */
+export function isConventionalTitle(
+  title: string,
+  options?: Partial<ValidationOptions>
+): boolean {
+  const result = validateTitle(title, { ...DEFAULT_OPTIONS, ...options })
+  return result.isValid
 }

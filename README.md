@@ -4,83 +4,22 @@ A GitHub Action that automatically suggests or updates PR titles to follow the [
 
 ## Features
 
-- 🤖 **AI-Powered**: Leverages multiple AI providers (OpenAI, Anthropic, Google, Mistral, xAI, Cohere, Azure) to generate intelligent title suggestions
+- 🤖 **AI-Powered**: Leverages AI providers to generate intelligent title suggestions
 - 📝 **Conventional Commits**: Ensures PR titles follow the Conventional Commits specification
 - 🔄 **Dual Modes**: Auto-update titles or suggest improvements via comments
 - ⚙️ **Highly Configurable**: Extensive customization options for validation rules and AI behavior
 - 🎯 **Smart Analysis**: Analyzes changed files and PR content for context-aware suggestions
-- 💰 **Cost Tracking**: Built-in cost estimation and model recommendations
 - 🛡️ **Robust**: Comprehensive error handling with retry mechanisms and fallbacks
-
-## Supported AI Models
-
-The action supports **54 models** across **10 providers**:
-
-### 🔥 Latest Models (2025)
-
-- **OpenAI**: `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`, `o3`, `o3-mini`, `o4-mini`
-- **Anthropic**: `claude-opus-4-20250514`, `claude-sonnet-4-20250514`, `claude-3-7-sonnet-20250219`
-- **xAI**: `grok-4`, `grok-3`, `grok-3-fast`, `grok-3-mini`, `grok-3-mini-fast`
-- **Google**: `gemini-2.0-flash-exp`, `gemini-1.5-flash`, `gemini-1.5-pro`
-- **Mistral**: `pixtral-large-latest`, `mistral-medium-2505`, `pixtral-12b-2409`
-
-### 📋 Full Provider Support
-
-- **OpenAI**: GPT-4 series, o1/o3/o4 reasoning models, GPT-3.5 Turbo
-- **Anthropic**: Claude 4, Claude 3.5/3.7 Sonnet, Claude 3.5 Haiku
-- **Google**: Gemini 2.0/1.5 Flash/Pro, Gemini Pro
-- **Mistral**: Pixtral Large/12B, Mistral Large/Medium/Small (latest versions)
-- **xAI**: Grok 4/3/2 series with vision variants
-- **Cohere**: Command R+, Command R, Command
-- **Azure**: Enterprise-hosted OpenAI models
-- **Vercel**: v0 code generation models
-- **DeepSeek**: Chat and reasoning models
-- **Cerebras**: Ultra-fast Llama models
-- **Groq**: High-speed Llama, Mixtral, and Gemma models
-- **Vertex AI**: Google Cloud-hosted Gemini models
 
 ## Quick Start
 
-### 🏗️ Build & Publish (GitHub Action 规范)
-
-> **注意：dist/ 目录必须提交到仓库，不能 .gitignore！**
-
-1. 安装依赖：
-
-   ```bash
-   npm install
-   ```
-
-2. 构建 TypeScript：
-
-   ```bash
-   npm run build
-   ```
-
-3. 打包产物（推荐 ncc）：
-
-   ```bash
-   npm run package
-   ```
-
-4. 提交 dist/ 目录：
-
-   ```bash
-   git add dist/ && git commit -m "build: update dist for action"
-   ```
-
-5. 推送到主分支，确保 action.yml 的 main 字段指向 dist/index.js。
-
-> **CI/CD 注意事项**：
->
-> - GitHub Action 必须提交构建产物（dist/）到主分支，否则 marketplace/PR 流水线会报“File not found: dist/index.js”。
-> - 推荐本地构建后再 push。
+### 🚀 Simple Usage
 
 ```yaml
 name: PR Title Check
 on:
   pull_request:
-    types: [opened, edited, synchronize]
+    types: [opened, synchronize, reopened, edited]
 
 jobs:
   conventional-title:
@@ -89,8 +28,125 @@ jobs:
       - uses: overtrue/conventional-pr-title@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          ai-provider: 'openai'
-          api-key: ${{ secrets.OPENAI_API_KEY }}
+          model: 'openai/gpt-4o-mini'  # 或者简写为 'openai'
+```
+
+### 🔧 Advanced Usage
+
+```yaml
+name: PR Title Check
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+jobs:
+  conventional-title:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: overtrue/conventional-pr-title@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          model: 'anthropic/claude-3-5-sonnet-20241022'
+          mode: 'auto'  # 自动更新标题
+          include-scope: 'true'
+          debug: 'true'
+```
+
+### 📝 Model Examples
+
+The action supports multiple AI providers with flexible model specification:
+
+```yaml
+# OpenAI models
+model: 'openai/gpt-4o-mini'      # 完整格式
+model: 'openai'                  # 简写格式，使用默认模型
+
+# Anthropic models
+model: 'anthropic/claude-3-5-sonnet-20241022'
+model: 'anthropic'               # 使用默认 Claude 模型
+
+# Google models
+model: 'google/gemini-1.5-flash'
+model: 'google'                  # 使用默认 Gemini 模型
+
+# Other providers
+model: 'mistral/mistral-large-latest'
+model: 'xai/grok-beta'
+model: 'cohere/command-r-plus'
+model: 'azure/gpt-4o-mini'
+model: 'vertex/gemini-1.5-flash'
+```
+
+> For more models, please refer to the [AI SDK v5 Providers and Models documentation](https://v5.ai-sdk.dev/docs/foundations/providers-and-models).
+
+### 🔑 Environment Variables
+
+#### API Keys (Required)
+Set your API keys as GitHub secrets:
+
+```bash
+# OpenAI
+OPENAI_API_KEY=sk-...
+
+# Anthropic
+ANTHROPIC_API_KEY=sk-ant-...
+
+# Google
+GOOGLE_API_KEY=...
+
+# Mistral
+MISTRAL_API_KEY=...
+
+# xAI
+XAI_API_KEY=...
+
+# Cohere
+COHERE_API_KEY=...
+
+# Azure
+AZURE_API_KEY=...
+
+# Vertex AI
+GOOGLE_VERTEX_API_KEY=...
+```
+
+#### Custom Base URLs (Optional)
+For using custom endpoints or proxy servers:
+
+```bash
+# OpenAI
+OPENAI_BASE_URL=https://api.openai.com/v1
+
+# Anthropic
+ANTHROPIC_BASE_URL=https://api.anthropic.com/v1
+
+# Google
+GOOGLE_BASE_URL=https://generativelanguage.googleapis.com
+
+# Mistral
+MISTRAL_BASE_URL=https://api.mistral.ai
+
+# xAI
+XAI_BASE_URL=https://api.x.ai
+
+# Cohere
+COHERE_BASE_URL=https://api.cohere.ai
+
+# Azure
+AZURE_BASE_URL=https://your-resource.openai.azure.com
+
+# Vertex AI
+GOOGLE_VERTEX_BASE_URL=https://us-central1-aiplatform.googleapis.com
+```
+
+#### Example with Custom Endpoint
+```yaml
+- uses: ./
+  with:
+    model: 'openai/gpt-4o-mini'
+  env:
+    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    OPENAI_BASE_URL: ${{ secrets.CUSTOM_OPENAI_ENDPOINT }}
 ```
 
 ## Configuration
@@ -100,339 +156,109 @@ jobs:
 | Input | Description | Example |
 |-------|-------------|---------|
 | `github-token` | GitHub token for API access | `${{ secrets.GITHUB_TOKEN }}` |
-| `api-key` | AI provider API key | `${{ secrets.OPENAI_API_KEY }}` |
+| `model` | AI model to use (provider/model format or just provider) | `openai/gpt-4o-mini`, `anthropic` |
 
-### AI Configuration
+### Optional Inputs
 
-| Input | Description | Default |
-|-------|-------------|---------|
-| `ai-provider` | AI provider (`openai`, `anthropic`, `google`, `mistral`, `xai`, `cohere`, `azure`, `vercel`, `deepseek`, `cerebras`, `groq`, `vertex`) | `openai` |
-| `model` | Specific model to use | Provider-specific default |
-| `temperature` | AI creativity (0.0-1.0) | `0.3` |
-| `max-tokens` | Maximum response tokens | `500` |
-
-### Operation Modes
-
-| Input | Description | Default |
-|-------|-------------|---------|
-| `mode` | `auto` (update title) or `suggest` (comment) | `suggest` |
-| `skip-if-conventional` | Skip processing if title is already conventional | `true` |
+| Input | Description | Default | Example |
+|-------|-------------|---------|---------|
+| `mode` | Operation mode: `auto` or `suggest` | `suggest` | `auto` |
+| `include-scope` | Whether to prefer including scope in generated titles | `true` | `false` |
+| `skip-if-conventional` | Skip processing if title already follows conventional commits | `true` | `false` |
+| `debug` | Enable debug logging | `false` | `true` |
 
 ### Validation Rules
 
 | Input | Description | Default |
 |-------|-------------|---------|
-| `allowed-types` | Comma-separated conventional commit types | `feat,fix,docs,style,refactor,test,chore,perf,ci,build,revert` |
-| `require-scope` | Require scope in commit format | `false` |
-| `max-length` | Maximum title length | `72` |
-| `min-description-length` | Minimum description length | `3` |
+| `allowed-types` | Comma-separated list of allowed commit types | `feat,fix,docs,style,refactor,test,chore,perf,ci,build,revert` |
+| `require-scope` | Whether to require a scope in commit messages | `false` |
+| `max-length` | Maximum allowed length for PR title | `72` |
+| `min-description-length` | Minimum length for description part | `3` |
 
 ### Customization
 
 | Input | Description | Default |
 |-------|-------------|---------|
-| `include-scope` | Prefer including scope in suggestions | `true` |
-| `custom-prompt` | Custom AI prompt template | _(empty)_ |
-| `comment-template` | Custom comment template | _(empty)_ |
+| `custom-prompt` | Custom prompt template for AI title generation | `''` |
+| `comment-template` | Custom template for suggestion comments | `''` |
+| `match-language` | Respond in the same language as the original PR title | `true` |
+| `auto-comment` | Add a comment when auto-updating PR title | `true` |
+
+## Supported AI Models
+
+For the complete list of supported models and providers, please refer to the [AI SDK v5 Providers and Models documentation](https://v5.ai-sdk.dev/docs/foundations/providers-and-models).
+
+The action supports all providers and models available in AI SDK v5, including:
+
+- **OpenAI**: GPT-4 series, o1/o3/o4 reasoning models, GPT-3.5 Turbo
+- **Anthropic**: Claude 4, Claude 3.5/3.7 Sonnet, Claude 3.5 Haiku
+- **Google**: Gemini 2.0/1.5 Flash/Pro, Gemini Pro
+- **Mistral**: Pixtral Large/12B, Mistral Large/Medium/Small
+- **xAI**: Grok 4/3/2 series with vision variants
+- **Cohere**: Command R+, Command R, Command
+- **Azure**: Enterprise-hosted OpenAI models
+- **Vertex AI**: Google Cloud-hosted Gemini models
 
 ## Examples
 
-### Basic Setup (Suggestion Mode)
+### Basic Configuration
 
 ```yaml
 - uses: overtrue/conventional-pr-title@v1
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}
-    ai-provider: 'anthropic'
-    api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-    model: 'claude-sonnet-4-20250514'
+    model: 'openai'
 ```
 
-### Auto-Update Mode
+### Advanced Configuration
 
 ```yaml
 - uses: overtrue/conventional-pr-title@v1
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}
-    ai-provider: 'openai'
-    api-key: ${{ secrets.OPENAI_API_KEY }}
-    model: 'gpt-4.1-mini'
+    model: 'anthropic/claude-3-5-sonnet-20241022'
     mode: 'auto'
-    temperature: '0.2'
+    allowed-types: 'feat,fix,docs,refactor'
+    include-scope: 'true'
+    max-length: '100'
+    debug: 'true'
 ```
 
-### Strict Validation
+### Custom Prompt
 
 ```yaml
 - uses: overtrue/conventional-pr-title@v1
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}
-    ai-provider: 'google'
-    api-key: ${{ secrets.GOOGLE_API_KEY }}
-    allowed-types: 'feat,fix,docs'
-    require-scope: 'true'
-    max-length: '50'
-    skip-if-conventional: 'false'
-```
-
-### Custom Templates
-
-```yaml
-- uses: overtrue/conventional-pr-title@v1
-  with:
-    github-token: ${{ secrets.GITHUB_TOKEN }}
-    ai-provider: 'mistral'
-    api-key: ${{ secrets.MISTRAL_API_KEY }}
-    custom-prompt: 'Generate titles focusing on user impact'
-    comment-template: |
-      🎯 **Suggested PR Titles:**
-      ${suggestions}
-
-      **Current Title:** ${currentTitle}
-      **Reasoning:** ${reasoning}
+    model: 'openai/gpt-4o-mini'
+    custom-prompt: 'Generate a conventional commit title that emphasizes the business impact of this change.'
 ```
 
 ## Outputs
 
-| Output | Description | Type |
-|--------|-------------|------|
-| `is-conventional` | Whether title follows conventional format | `boolean` |
-| `suggested-titles` | AI-generated title suggestions | `string[]` (JSON) |
-| `original-title` | Original PR title | `string` |
-| `action-taken` | Action performed (`updated`, `commented`, `skipped`, `error`) | `string` |
-| `error-message` | Error message if action failed | `string` |
-
-### Using Outputs
-
-```yaml
-- uses: overtrue/conventional-pr-title@v1
-  id: pr-title
-  with:
-    github-token: ${{ secrets.GITHUB_TOKEN }}
-    ai-provider: 'openai'
-    api-key: ${{ secrets.OPENAI_API_KEY }}
-
-- name: Check Results
-  run: |
-    echo "Is conventional: ${{ steps.pr-title.outputs.is-conventional }}"
-    echo "Action taken: ${{ steps.pr-title.outputs.action-taken }}"
-    echo "Suggestions: ${{ steps.pr-title.outputs.suggested-titles }}"
-```
-
-## AI Provider Setup
-
-### OpenAI
-
-1. Get API key from [OpenAI Platform](https://platform.openai.com/api-keys)
-2. Add as repository secret: `OPENAI_API_KEY`
-3. Recommended models: `gpt-4.1-mini`, `gpt-4o-mini`, `o3-mini`
-
-### Anthropic (Claude)
-
-1. Get API key from [Anthropic Console](https://console.anthropic.com/)
-2. Add as repository secret: `ANTHROPIC_API_KEY`
-3. Recommended models: `claude-sonnet-4-20250514`, `claude-3-5-haiku-20241022`
-
-### Google (Gemini)
-
-1. Get API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
-2. Add as repository secret: `GOOGLE_API_KEY`
-3. Recommended models: `gemini-1.5-flash`, `gemini-1.5-pro`
-
-### Other Providers
-
-- **Mistral**: Get key from [Mistral AI](https://console.mistral.ai/) → `MISTRAL_API_KEY`
-- **xAI**: Get key from [xAI Console](https://console.x.ai/) → `XAI_API_KEY`
-- **Cohere**: Get key from [Cohere Dashboard](https://dashboard.cohere.com/) → `COHERE_API_KEY`
-- **Azure**: Set up Azure OpenAI resource → `AZURE_API_KEY`
-- **Vercel**: Get key from [Vercel AI](https://vercel.com/ai) → `VERCEL_API_KEY`
-- **DeepSeek**: Get key from [DeepSeek Platform](https://platform.deepseek.com/) → `DEEPSEEK_API_KEY`
-- **Cerebras**: Get key from [Cerebras Cloud](https://cloud.cerebras.ai/) → `CEREBRAS_API_KEY`
-- **Groq**: Get key from [Groq Console](https://console.groq.com/) → `GROQ_API_KEY`
-- **Vertex AI**: Set up Google Cloud Vertex AI → `GOOGLE_VERTEX_AI_API_KEY`
-
-## Conventional Commits Format
-
-The action enforces the [Conventional Commits](https://conventionalcommits.org/) specification:
-
-```
-<type>[optional scope]: <description>
-
-[optional body]
-
-[optional footer(s)]
-```
-
-### Common Types
-
-- `feat`: New feature
-- `fix`: Bug fix
-- `docs`: Documentation changes
-- `style`: Code style changes (formatting, etc.)
-- `refactor`: Code refactoring
-- `test`: Adding or updating tests
-- `chore`: Maintenance tasks
-- `perf`: Performance improvements
-- `ci`: CI/CD changes
-- `build`: Build system changes
-- `revert`: Reverting changes
-
-### Examples
-
-- ✅ `feat(auth): add OAuth2 integration`
-- ✅ `fix: resolve memory leak in data processing`
-- ✅ `docs: update API documentation`
-- ❌ `Add new feature` (missing type)
-- ❌ `fix: Fix the bug.` (period not allowed)
-
-## Troubleshooting
-
-### Common Issues
-
-**Action fails with "Configuration Error"**
-
-- Ensure all required inputs are provided
-- Check that API keys are correctly set as repository secrets
-- Verify the AI provider name is spelled correctly
-
-**AI service timeout or errors**
-
-- Check API key permissions and quotas
-- Try a different model or provider
-- Reduce `max-tokens` if hitting limits
-
-**Permission denied errors**
-
-- Ensure `github-token` has sufficient permissions
-- For auto-update mode, token needs write access to pull requests
-
-**No suggestions generated**
-
-- Check if `skip-if-conventional` is enabled and title is already conventional
-- Verify the AI provider service is available
-- Try adjusting `temperature` or `custom-prompt`
-
-**Workflow doesn't re-run after PR title changes**
-
-- This is GitHub's intended behavior to prevent infinite loops when using `GITHUB_TOKEN`
-- **Solution 1**: Use a Personal Access Token:
-  1. Create a PAT with `repo` permissions at <https://github.com/settings/tokens>
-  2. Add it as repository secret: `PAT_TOKEN`
-  3. The workflow will use PAT if available, falling back to GITHUB_TOKEN
-- **Solution 2**: Manually trigger the workflow:
-  1. Go to Actions → "Auto PR Title with Conventional Commits"
-  2. Click "Run workflow" and enter the PR number
-
-### Debug Mode
-
-Add debug logging to your workflow:
-
-```yaml
-- uses: overtrue/conventional-pr-title@v1
-  env:
-    ACTIONS_STEP_DEBUG: true
-  with:
-    # ... your configuration
-```
+| Output | Description |
+|--------|-------------|
+| `is-conventional` | Whether the PR title follows conventional commits format |
+| `suggested-titles` | JSON array of AI-suggested conventional commits titles |
+| `original-title` | Original PR title before processing |
+| `action-taken` | Action taken: "updated", "commented", "skipped", or "error" |
+| `error-message` | Error message if action failed |
 
 ## Contributing
 
 1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/amazing-feature`
-3. Make your changes and add tests
-4. Run tests: `npm test`
-5. Build: `npm run build && npm run package`
-6. Commit: `git commit -m "feat: add amazing feature"`
-7. Push: `git push origin feature/amazing-feature`
-8. Open a Pull Request
-
-### Development Setup
-
-```bash
-# Clone and install
-git clone https://github.com/overtrue/conventional-pr-title.git
-cd conventional-pr-title
-npm install
-
-# Run tests
-npm test
-
-# Build and package
-npm run all
-```
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Development Status
+## References
 
-This GitHub Action is currently in development and has not been officially released yet.
-
-### Current Features
-
-- ✨ Support for **54 models** across **10 AI providers**
-- 🤖 Auto-update and suggestion modes for PR titles
-- 📝 Conventional Commits validation and enforcement
-- ⚙️ Comprehensive configuration options
-- 💰 Built-in cost estimation and model recommendations
-- 🛡️ Robust error handling and retry mechanisms
-- 📊 Comprehensive test coverage (152 tests passing)
-
-## Testing
-
-To test this action in your repository:
-
-1. **Set up API keys**: Add at least one AI provider API key to your repository secrets (e.g., `OPENAI_API_KEY`)
-2. **Create a test PR**: Make a PR with a non-conventional title like "Add some features"
-3. **Run the test workflow**: Go to Actions → "Test PR Title Action" → "Run workflow"
-
-See [TESTING.md](TESTING.md) for detailed testing instructions and troubleshooting.
-
-### Quick Test
-
-```yaml
-# .github/workflows/test.yml
-name: Test PR Title
-on:
-  pull_request:
-    types: [opened, edited]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: your-username/conventional-pr-title@main
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          ai-provider: 'openai'
-          api-key: ${{ secrets.OPENAI_API_KEY }}
-```
-
----
-
-## 🚀 Quick Setup for Auto PR Title (Optional)
-
-Want automatic PR title correction? Follow these simple steps:
-
-### 2. Configure Repository Secrets
-
-Go to your repository Settings → Secrets and variables → Actions, then add:
-
-- **`ANTHROPIC_API_KEY`**: Your Claude API key from [Anthropic Console](https://console.anthropic.com/)
-- **`ANTHROPIC_BASE_URL`**: (Optional) Custom base URL if using a proxy
-
-### 3. Customize Settings (Optional)
-
-Edit `.github/workflows/auto-pr-title.yml` to adjust:
-
-- **Mode**: `auto` (updates titles) or `suggest` (adds comments)
-- **AI Model**: Choose your preferred Claude model
-- **Validation Rules**: Customize allowed types, max length, etc.
-
-That's it! 🎉 Your PRs will now get automatic conventional commit titles.
-
----
-
-**Made with ❤️ for better commit hygiene**
-test change
+- [Conventional Commits](https://conventionalcommits.org/)
+- [AI SDK v5 Providers and Models](https://v5.ai-sdk.dev/docs/foundations/providers-and-models)
+- [GitHub Actions](https://docs.github.com/en/actions)
