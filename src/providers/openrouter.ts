@@ -6,8 +6,8 @@ import { AIProvider } from './base-provider'
  */
 export class OpenRouterProvider implements AIProvider {
   readonly name = 'openrouter'
-  readonly defaultModel = 'openai/gpt-3.5-turbo'
-  readonly description = 'OpenRouter models'
+  readonly defaultModel = 'openai/gpt-4o'
+  readonly description = 'OpenRouter - Access to 300+ models'
 
   async createModel(modelId: string, options: Record<string, any> = {}): Promise<LanguageModel> {
     try {
@@ -23,10 +23,26 @@ export class OpenRouterProvider implements AIProvider {
       if (options.headers) {
         config.headers = options.headers
       }
+      if (options.extraBody) {
+        config.extraBody = options.extraBody
+      }
+
+      // OpenRouter will validate API key during actual API calls
 
       const openrouterProvider = createOpenRouter(config)
-      return openrouterProvider(modelId)
+
+      // Support both model-only and model-with-settings formats
+      const model = openrouterProvider(modelId, options.modelSettings || {})
+
+      if (!model) {
+        throw new Error(`Failed to create OpenRouter model with ID: ${modelId}`)
+      }
+
+      return model
     } catch (error) {
+      if (error instanceof Error) {
+        throw error
+      }
       throw new Error(`Failed to create OpenRouter model: ${error}`)
     }
   }
