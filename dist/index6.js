@@ -20,136 +20,63 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
-  createDeepInfra: () => createDeepInfra,
-  deepinfra: () => deepinfra
+  cerebras: () => cerebras,
+  createCerebras: () => createCerebras
 });
 module.exports = __toCommonJS(src_exports);
 
-// src/deepinfra-provider.ts
+// src/cerebras-provider.ts
 var import_openai_compatible = require("@ai-sdk/openai-compatible");
-var import_provider_utils2 = require("@ai-sdk/provider-utils");
-
-// src/deepinfra-image-model.ts
+var import_provider = require("@ai-sdk/provider");
 var import_provider_utils = require("@ai-sdk/provider-utils");
 var import_v4 = require("zod/v4");
-var DeepInfraImageModel = class {
-  constructor(modelId, config) {
-    this.modelId = modelId;
-    this.config = config;
-    this.specificationVersion = "v2";
-    this.maxImagesPerCall = 1;
-  }
-  get provider() {
-    return this.config.provider;
-  }
-  async doGenerate({
-    prompt,
-    n,
-    size,
-    aspectRatio,
-    seed,
-    providerOptions,
-    headers,
-    abortSignal
-  }) {
-    var _a, _b, _c, _d;
-    const warnings = [];
-    const splitSize = size == null ? void 0 : size.split("x");
-    const currentDate = (_c = (_b = (_a = this.config._internal) == null ? void 0 : _a.currentDate) == null ? void 0 : _b.call(_a)) != null ? _c : /* @__PURE__ */ new Date();
-    const { value: response, responseHeaders } = await (0, import_provider_utils.postJsonToApi)({
-      url: `${this.config.baseURL}/${this.modelId}`,
-      headers: (0, import_provider_utils.combineHeaders)(this.config.headers(), headers),
-      body: {
-        prompt,
-        num_images: n,
-        ...aspectRatio && { aspect_ratio: aspectRatio },
-        ...splitSize && { width: splitSize[0], height: splitSize[1] },
-        ...seed != null && { seed },
-        ...(_d = providerOptions.deepinfra) != null ? _d : {}
-      },
-      failedResponseHandler: (0, import_provider_utils.createJsonErrorResponseHandler)({
-        errorSchema: deepInfraErrorSchema,
-        errorToMessage: (error) => error.detail.error
-      }),
-      successfulResponseHandler: (0, import_provider_utils.createJsonResponseHandler)(
-        deepInfraImageResponseSchema
-      ),
-      abortSignal,
-      fetch: this.config.fetch
-    });
-    return {
-      images: response.images.map(
-        (image) => image.replace(/^data:image\/\w+;base64,/, "")
-      ),
-      warnings,
-      response: {
-        timestamp: currentDate,
-        modelId: this.modelId,
-        headers: responseHeaders
-      }
-    };
-  }
+var cerebrasErrorSchema = import_v4.z.object({
+  message: import_v4.z.string(),
+  type: import_v4.z.string(),
+  param: import_v4.z.string(),
+  code: import_v4.z.string()
+});
+var cerebrasErrorStructure = {
+  errorSchema: cerebrasErrorSchema,
+  errorToMessage: (data) => data.message
 };
-var deepInfraErrorSchema = import_v4.z.object({
-  detail: import_v4.z.object({
-    error: import_v4.z.string()
-  })
-});
-var deepInfraImageResponseSchema = import_v4.z.object({
-  images: import_v4.z.array(import_v4.z.string())
-});
-
-// src/deepinfra-provider.ts
-function createDeepInfra(options = {}) {
+function createCerebras(options = {}) {
   var _a;
-  const baseURL = (0, import_provider_utils2.withoutTrailingSlash)(
-    (_a = options.baseURL) != null ? _a : "https://api.deepinfra.com/v1"
+  const baseURL = (0, import_provider_utils.withoutTrailingSlash)(
+    (_a = options.baseURL) != null ? _a : "https://api.cerebras.ai/v1"
   );
   const getHeaders = () => ({
-    Authorization: `Bearer ${(0, import_provider_utils2.loadApiKey)({
+    Authorization: `Bearer ${(0, import_provider_utils.loadApiKey)({
       apiKey: options.apiKey,
-      environmentVariableName: "DEEPINFRA_API_KEY",
-      description: "DeepInfra's API key"
+      environmentVariableName: "CEREBRAS_API_KEY",
+      description: "Cerebras API key"
     })}`,
     ...options.headers
   });
-  const getCommonModelConfig = (modelType) => ({
-    provider: `deepinfra.${modelType}`,
-    url: ({ path }) => `${baseURL}/openai${path}`,
-    headers: getHeaders,
-    fetch: options.fetch
-  });
-  const createChatModel = (modelId) => {
-    return new import_openai_compatible.OpenAICompatibleChatLanguageModel(
-      modelId,
-      getCommonModelConfig("chat")
-    );
+  const createLanguageModel = (modelId) => {
+    return new import_openai_compatible.OpenAICompatibleChatLanguageModel(modelId, {
+      provider: `cerebras.chat`,
+      url: ({ path }) => `${baseURL}${path}`,
+      headers: getHeaders,
+      fetch: options.fetch,
+      errorStructure: cerebrasErrorStructure
+    });
   };
-  const createCompletionModel = (modelId) => new import_openai_compatible.OpenAICompatibleCompletionLanguageModel(
-    modelId,
-    getCommonModelConfig("completion")
-  );
-  const createTextEmbeddingModel = (modelId) => new import_openai_compatible.OpenAICompatibleEmbeddingModel(
-    modelId,
-    getCommonModelConfig("embedding")
-  );
-  const createImageModel = (modelId) => new DeepInfraImageModel(modelId, {
-    ...getCommonModelConfig("image"),
-    baseURL: baseURL ? `${baseURL}/inference` : "https://api.deepinfra.com/v1/inference"
-  });
-  const provider = (modelId) => createChatModel(modelId);
-  provider.completionModel = createCompletionModel;
-  provider.chatModel = createChatModel;
-  provider.image = createImageModel;
-  provider.imageModel = createImageModel;
-  provider.languageModel = createChatModel;
-  provider.textEmbeddingModel = createTextEmbeddingModel;
+  const provider = (modelId) => createLanguageModel(modelId);
+  provider.languageModel = createLanguageModel;
+  provider.chat = createLanguageModel;
+  provider.textEmbeddingModel = (modelId) => {
+    throw new import_provider.NoSuchModelError({ modelId, modelType: "textEmbeddingModel" });
+  };
+  provider.imageModel = (modelId) => {
+    throw new import_provider.NoSuchModelError({ modelId, modelType: "imageModel" });
+  };
   return provider;
 }
-var deepinfra = createDeepInfra();
+var cerebras = createCerebras();
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
-  createDeepInfra,
-  deepinfra
+  cerebras,
+  createCerebras
 });
 //# sourceMappingURL=index.js.map

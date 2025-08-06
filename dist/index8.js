@@ -20,620 +20,695 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
-  bedrock: () => bedrock,
-  createAmazonBedrock: () => createAmazonBedrock
+  createGoogleGenerativeAI: () => createGoogleGenerativeAI,
+  google: () => google
 });
 module.exports = __toCommonJS(src_exports);
 
-// src/bedrock-provider.ts
-var import_provider_utils8 = require("@ai-sdk/provider-utils");
-var import_internal2 = require("@ai-sdk/anthropic/internal");
+// src/google-provider.ts
+var import_provider_utils9 = require("@ai-sdk/provider-utils");
 
-// src/bedrock-chat-language-model.ts
-var import_provider_utils4 = require("@ai-sdk/provider-utils");
+// src/google-generative-ai-embedding-model.ts
+var import_provider = require("@ai-sdk/provider");
+var import_provider_utils2 = require("@ai-sdk/provider-utils");
 var import_v43 = require("zod/v4");
 
-// src/bedrock-api-types.ts
-var BEDROCK_CACHE_POINT = {
-  cachePoint: { type: "default" }
-};
-var BEDROCK_STOP_REASONS = [
-  "stop",
-  "stop_sequence",
-  "end_turn",
-  "length",
-  "max_tokens",
-  "content-filter",
-  "content_filtered",
-  "guardrail_intervened",
-  "tool-calls",
-  "tool_use"
-];
-var BEDROCK_IMAGE_MIME_TYPES = {
-  "image/jpeg": "jpeg",
-  "image/png": "png",
-  "image/gif": "gif",
-  "image/webp": "webp"
-};
-var BEDROCK_DOCUMENT_MIME_TYPES = {
-  "application/pdf": "pdf",
-  "text/csv": "csv",
-  "application/msword": "doc",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
-  "application/vnd.ms-excel": "xls",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
-  "text/html": "html",
-  "text/plain": "txt",
-  "text/markdown": "md"
-};
-
-// src/bedrock-chat-options.ts
-var import_v4 = require("zod/v4");
-var bedrockProviderOptions = import_v4.z.object({
-  /**
-   * Additional inference parameters that the model supports,
-   * beyond the base set of inference parameters that Converse
-   * supports in the inferenceConfig field
-   */
-  additionalModelRequestFields: import_v4.z.record(import_v4.z.string(), import_v4.z.any()).optional(),
-  reasoningConfig: import_v4.z.object({
-    type: import_v4.z.union([import_v4.z.literal("enabled"), import_v4.z.literal("disabled")]).optional(),
-    budgetTokens: import_v4.z.number().optional()
-  }).optional()
-});
-
-// src/bedrock-error.ts
-var import_v42 = require("zod/v4");
-var BedrockErrorSchema = import_v42.z.object({
-  message: import_v42.z.string(),
-  type: import_v42.z.string().nullish()
-});
-
-// src/bedrock-event-stream-response-handler.ts
-var import_provider = require("@ai-sdk/provider");
+// src/google-error.ts
 var import_provider_utils = require("@ai-sdk/provider-utils");
-var import_eventstream_codec = require("@smithy/eventstream-codec");
-var import_util_utf8 = require("@smithy/util-utf8");
-var createBedrockEventStreamResponseHandler = (chunkSchema) => async ({ response }) => {
-  const responseHeaders = (0, import_provider_utils.extractResponseHeaders)(response);
-  if (response.body == null) {
-    throw new import_provider.EmptyResponseBodyError({});
+var import_v4 = require("zod/v4");
+var googleErrorDataSchema = import_v4.z.object({
+  error: import_v4.z.object({
+    code: import_v4.z.number().nullable(),
+    message: import_v4.z.string(),
+    status: import_v4.z.string()
+  })
+});
+var googleFailedResponseHandler = (0, import_provider_utils.createJsonErrorResponseHandler)({
+  errorSchema: googleErrorDataSchema,
+  errorToMessage: (data) => data.error.message
+});
+
+// src/google-generative-ai-embedding-options.ts
+var import_v42 = require("zod/v4");
+var googleGenerativeAIEmbeddingProviderOptions = import_v42.z.object({
+  /**
+   * Optional. Optional reduced dimension for the output embedding.
+   * If set, excessive values in the output embedding are truncated from the end.
+   */
+  outputDimensionality: import_v42.z.number().optional(),
+  /**
+   * Optional. Specifies the task type for generating embeddings.
+   * Supported task types:
+   * - SEMANTIC_SIMILARITY: Optimized for text similarity.
+   * - CLASSIFICATION: Optimized for text classification.
+   * - CLUSTERING: Optimized for clustering texts based on similarity.
+   * - RETRIEVAL_DOCUMENT: Optimized for document retrieval.
+   * - RETRIEVAL_QUERY: Optimized for query-based retrieval.
+   * - QUESTION_ANSWERING: Optimized for answering questions.
+   * - FACT_VERIFICATION: Optimized for verifying factual information.
+   * - CODE_RETRIEVAL_QUERY: Optimized for retrieving code blocks based on natural language queries.
+   */
+  taskType: import_v42.z.enum([
+    "SEMANTIC_SIMILARITY",
+    "CLASSIFICATION",
+    "CLUSTERING",
+    "RETRIEVAL_DOCUMENT",
+    "RETRIEVAL_QUERY",
+    "QUESTION_ANSWERING",
+    "FACT_VERIFICATION",
+    "CODE_RETRIEVAL_QUERY"
+  ]).optional()
+});
+
+// src/google-generative-ai-embedding-model.ts
+var GoogleGenerativeAIEmbeddingModel = class {
+  constructor(modelId, config) {
+    this.specificationVersion = "v2";
+    this.maxEmbeddingsPerCall = 2048;
+    this.supportsParallelCalls = true;
+    this.modelId = modelId;
+    this.config = config;
   }
-  const codec = new import_eventstream_codec.EventStreamCodec(import_util_utf8.toUtf8, import_util_utf8.fromUtf8);
-  let buffer = new Uint8Array(0);
-  const textDecoder = new TextDecoder();
-  return {
-    responseHeaders,
-    value: response.body.pipeThrough(
-      new TransformStream({
-        async transform(chunk, controller) {
-          var _a, _b;
-          const newBuffer = new Uint8Array(buffer.length + chunk.length);
-          newBuffer.set(buffer);
-          newBuffer.set(chunk, buffer.length);
-          buffer = newBuffer;
-          while (buffer.length >= 4) {
-            const totalLength = new DataView(
-              buffer.buffer,
-              buffer.byteOffset,
-              buffer.byteLength
-            ).getUint32(0, false);
-            if (buffer.length < totalLength) {
+  get provider() {
+    return this.config.provider;
+  }
+  async doEmbed({
+    values,
+    headers,
+    abortSignal,
+    providerOptions
+  }) {
+    const googleOptions = await (0, import_provider_utils2.parseProviderOptions)({
+      provider: "google",
+      providerOptions,
+      schema: googleGenerativeAIEmbeddingProviderOptions
+    });
+    if (values.length > this.maxEmbeddingsPerCall) {
+      throw new import_provider.TooManyEmbeddingValuesForCallError({
+        provider: this.provider,
+        modelId: this.modelId,
+        maxEmbeddingsPerCall: this.maxEmbeddingsPerCall,
+        values
+      });
+    }
+    const mergedHeaders = (0, import_provider_utils2.combineHeaders)(
+      await (0, import_provider_utils2.resolve)(this.config.headers),
+      headers
+    );
+    if (values.length === 1) {
+      const {
+        responseHeaders: responseHeaders2,
+        value: response2,
+        rawValue: rawValue2
+      } = await (0, import_provider_utils2.postJsonToApi)({
+        url: `${this.config.baseURL}/models/${this.modelId}:embedContent`,
+        headers: mergedHeaders,
+        body: {
+          model: `models/${this.modelId}`,
+          content: {
+            parts: [{ text: values[0] }]
+          },
+          outputDimensionality: googleOptions == null ? void 0 : googleOptions.outputDimensionality,
+          taskType: googleOptions == null ? void 0 : googleOptions.taskType
+        },
+        failedResponseHandler: googleFailedResponseHandler,
+        successfulResponseHandler: (0, import_provider_utils2.createJsonResponseHandler)(
+          googleGenerativeAISingleEmbeddingResponseSchema
+        ),
+        abortSignal,
+        fetch: this.config.fetch
+      });
+      return {
+        embeddings: [response2.embedding.values],
+        usage: void 0,
+        response: { headers: responseHeaders2, body: rawValue2 }
+      };
+    }
+    const {
+      responseHeaders,
+      value: response,
+      rawValue
+    } = await (0, import_provider_utils2.postJsonToApi)({
+      url: `${this.config.baseURL}/models/${this.modelId}:batchEmbedContents`,
+      headers: mergedHeaders,
+      body: {
+        requests: values.map((value) => ({
+          model: `models/${this.modelId}`,
+          content: { role: "user", parts: [{ text: value }] },
+          outputDimensionality: googleOptions == null ? void 0 : googleOptions.outputDimensionality,
+          taskType: googleOptions == null ? void 0 : googleOptions.taskType
+        }))
+      },
+      failedResponseHandler: googleFailedResponseHandler,
+      successfulResponseHandler: (0, import_provider_utils2.createJsonResponseHandler)(
+        googleGenerativeAITextEmbeddingResponseSchema
+      ),
+      abortSignal,
+      fetch: this.config.fetch
+    });
+    return {
+      embeddings: response.embeddings.map((item) => item.values),
+      usage: void 0,
+      response: { headers: responseHeaders, body: rawValue }
+    };
+  }
+};
+var googleGenerativeAITextEmbeddingResponseSchema = import_v43.z.object({
+  embeddings: import_v43.z.array(import_v43.z.object({ values: import_v43.z.array(import_v43.z.number()) }))
+});
+var googleGenerativeAISingleEmbeddingResponseSchema = import_v43.z.object({
+  embedding: import_v43.z.object({ values: import_v43.z.array(import_v43.z.number()) })
+});
+
+// src/google-generative-ai-language-model.ts
+var import_provider_utils6 = require("@ai-sdk/provider-utils");
+var import_v47 = require("zod/v4");
+
+// src/convert-json-schema-to-openapi-schema.ts
+function convertJSONSchemaToOpenAPISchema(jsonSchema) {
+  if (jsonSchema == null || isEmptyObjectSchema(jsonSchema)) {
+    return void 0;
+  }
+  if (typeof jsonSchema === "boolean") {
+    return { type: "boolean", properties: {} };
+  }
+  const {
+    type,
+    description,
+    required,
+    properties,
+    items,
+    allOf,
+    anyOf,
+    oneOf,
+    format,
+    const: constValue,
+    minLength,
+    enum: enumValues
+  } = jsonSchema;
+  const result = {};
+  if (description)
+    result.description = description;
+  if (required)
+    result.required = required;
+  if (format)
+    result.format = format;
+  if (constValue !== void 0) {
+    result.enum = [constValue];
+  }
+  if (type) {
+    if (Array.isArray(type)) {
+      if (type.includes("null")) {
+        result.type = type.filter((t) => t !== "null")[0];
+        result.nullable = true;
+      } else {
+        result.type = type;
+      }
+    } else if (type === "null") {
+      result.type = "null";
+    } else {
+      result.type = type;
+    }
+  }
+  if (enumValues !== void 0) {
+    result.enum = enumValues;
+  }
+  if (properties != null) {
+    result.properties = Object.entries(properties).reduce(
+      (acc, [key, value]) => {
+        acc[key] = convertJSONSchemaToOpenAPISchema(value);
+        return acc;
+      },
+      {}
+    );
+  }
+  if (items) {
+    result.items = Array.isArray(items) ? items.map(convertJSONSchemaToOpenAPISchema) : convertJSONSchemaToOpenAPISchema(items);
+  }
+  if (allOf) {
+    result.allOf = allOf.map(convertJSONSchemaToOpenAPISchema);
+  }
+  if (anyOf) {
+    if (anyOf.some(
+      (schema) => typeof schema === "object" && (schema == null ? void 0 : schema.type) === "null"
+    )) {
+      const nonNullSchemas = anyOf.filter(
+        (schema) => !(typeof schema === "object" && (schema == null ? void 0 : schema.type) === "null")
+      );
+      if (nonNullSchemas.length === 1) {
+        const converted = convertJSONSchemaToOpenAPISchema(nonNullSchemas[0]);
+        if (typeof converted === "object") {
+          result.nullable = true;
+          Object.assign(result, converted);
+        }
+      } else {
+        result.anyOf = nonNullSchemas.map(convertJSONSchemaToOpenAPISchema);
+        result.nullable = true;
+      }
+    } else {
+      result.anyOf = anyOf.map(convertJSONSchemaToOpenAPISchema);
+    }
+  }
+  if (oneOf) {
+    result.oneOf = oneOf.map(convertJSONSchemaToOpenAPISchema);
+  }
+  if (minLength !== void 0) {
+    result.minLength = minLength;
+  }
+  return result;
+}
+function isEmptyObjectSchema(jsonSchema) {
+  return jsonSchema != null && typeof jsonSchema === "object" && jsonSchema.type === "object" && (jsonSchema.properties == null || Object.keys(jsonSchema.properties).length === 0) && !jsonSchema.additionalProperties;
+}
+
+// src/convert-to-google-generative-ai-messages.ts
+var import_provider2 = require("@ai-sdk/provider");
+var import_provider_utils3 = require("@ai-sdk/provider-utils");
+function convertToGoogleGenerativeAIMessages(prompt, options) {
+  var _a;
+  const systemInstructionParts = [];
+  const contents = [];
+  let systemMessagesAllowed = true;
+  const isGemmaModel = (_a = options == null ? void 0 : options.isGemmaModel) != null ? _a : false;
+  for (const { role, content } of prompt) {
+    switch (role) {
+      case "system": {
+        if (!systemMessagesAllowed) {
+          throw new import_provider2.UnsupportedFunctionalityError({
+            functionality: "system messages are only supported at the beginning of the conversation"
+          });
+        }
+        systemInstructionParts.push({ text: content });
+        break;
+      }
+      case "user": {
+        systemMessagesAllowed = false;
+        const parts = [];
+        for (const part of content) {
+          switch (part.type) {
+            case "text": {
+              parts.push({ text: part.text });
               break;
             }
-            try {
-              const subView = buffer.subarray(0, totalLength);
-              const decoded = codec.decode(subView);
-              buffer = buffer.slice(totalLength);
-              if (((_a = decoded.headers[":message-type"]) == null ? void 0 : _a.value) === "event") {
-                const data = textDecoder.decode(decoded.body);
-                const parsedDataResult = await (0, import_provider_utils.safeParseJSON)({ text: data });
-                if (!parsedDataResult.success) {
-                  controller.enqueue(parsedDataResult);
-                  break;
+            case "file": {
+              const mediaType = part.mediaType === "image/*" ? "image/jpeg" : part.mediaType;
+              parts.push(
+                part.data instanceof URL ? {
+                  fileData: {
+                    mimeType: mediaType,
+                    fileUri: part.data.toString()
+                  }
+                } : {
+                  inlineData: {
+                    mimeType: mediaType,
+                    data: (0, import_provider_utils3.convertToBase64)(part.data)
+                  }
                 }
-                delete parsedDataResult.value.p;
-                let wrappedData = {
-                  [(_b = decoded.headers[":event-type"]) == null ? void 0 : _b.value]: parsedDataResult.value
-                };
-                const validatedWrappedData = await (0, import_provider_utils.safeValidateTypes)({
-                  value: wrappedData,
-                  schema: chunkSchema
-                });
-                if (!validatedWrappedData.success) {
-                  controller.enqueue(validatedWrappedData);
-                } else {
-                  controller.enqueue({
-                    success: true,
-                    value: validatedWrappedData.value,
-                    rawValue: wrappedData
-                  });
-                }
-              }
-            } catch (e) {
+              );
               break;
             }
           }
         }
-      })
-    )
+        contents.push({ role: "user", parts });
+        break;
+      }
+      case "assistant": {
+        systemMessagesAllowed = false;
+        contents.push({
+          role: "model",
+          parts: content.map((part) => {
+            switch (part.type) {
+              case "text": {
+                return part.text.length === 0 ? void 0 : { text: part.text };
+              }
+              case "file": {
+                if (part.mediaType !== "image/png") {
+                  throw new import_provider2.UnsupportedFunctionalityError({
+                    functionality: "Only PNG images are supported in assistant messages"
+                  });
+                }
+                if (part.data instanceof URL) {
+                  throw new import_provider2.UnsupportedFunctionalityError({
+                    functionality: "File data URLs in assistant messages are not supported"
+                  });
+                }
+                return {
+                  inlineData: {
+                    mimeType: part.mediaType,
+                    data: (0, import_provider_utils3.convertToBase64)(part.data)
+                  }
+                };
+              }
+              case "tool-call": {
+                return {
+                  functionCall: {
+                    name: part.toolName,
+                    args: part.input
+                  }
+                };
+              }
+            }
+          }).filter((part) => part !== void 0)
+        });
+        break;
+      }
+      case "tool": {
+        systemMessagesAllowed = false;
+        contents.push({
+          role: "user",
+          parts: content.map((part) => ({
+            functionResponse: {
+              name: part.toolName,
+              response: {
+                name: part.toolName,
+                content: part.output.value
+              }
+            }
+          }))
+        });
+        break;
+      }
+    }
+  }
+  if (isGemmaModel && systemInstructionParts.length > 0 && contents.length > 0 && contents[0].role === "user") {
+    const systemText = systemInstructionParts.map((part) => part.text).join("\n\n");
+    contents[0].parts.unshift({ text: systemText + "\n\n" });
+  }
+  return {
+    systemInstruction: systemInstructionParts.length > 0 && !isGemmaModel ? { parts: systemInstructionParts } : void 0,
+    contents
   };
-};
+}
 
-// src/bedrock-prepare-tools.ts
-var import_provider2 = require("@ai-sdk/provider");
-var import_provider_utils2 = require("@ai-sdk/provider-utils");
-var import_internal = require("@ai-sdk/anthropic/internal");
+// src/get-model-path.ts
+function getModelPath(modelId) {
+  return modelId.includes("/") ? modelId : `models/${modelId}`;
+}
+
+// src/google-generative-ai-options.ts
+var import_v44 = require("zod/v4");
+var googleGenerativeAIProviderOptions = import_v44.z.object({
+  responseModalities: import_v44.z.array(import_v44.z.enum(["TEXT", "IMAGE"])).optional(),
+  thinkingConfig: import_v44.z.object({
+    thinkingBudget: import_v44.z.number().optional(),
+    includeThoughts: import_v44.z.boolean().optional()
+  }).optional(),
+  /**
+  Optional.
+  The name of the cached content used as context to serve the prediction.
+  Format: cachedContents/{cachedContent}
+     */
+  cachedContent: import_v44.z.string().optional(),
+  /**
+   * Optional. Enable structured output. Default is true.
+   *
+   * This is useful when the JSON Schema contains elements that are
+   * not supported by the OpenAPI schema version that
+   * Google Generative AI uses. You can use this to disable
+   * structured outputs if you need to.
+   */
+  structuredOutputs: import_v44.z.boolean().optional(),
+  /**
+  Optional. A list of unique safety settings for blocking unsafe content.
+   */
+  safetySettings: import_v44.z.array(
+    import_v44.z.object({
+      category: import_v44.z.enum([
+        "HARM_CATEGORY_UNSPECIFIED",
+        "HARM_CATEGORY_HATE_SPEECH",
+        "HARM_CATEGORY_DANGEROUS_CONTENT",
+        "HARM_CATEGORY_HARASSMENT",
+        "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+        "HARM_CATEGORY_CIVIC_INTEGRITY"
+      ]),
+      threshold: import_v44.z.enum([
+        "HARM_BLOCK_THRESHOLD_UNSPECIFIED",
+        "BLOCK_LOW_AND_ABOVE",
+        "BLOCK_MEDIUM_AND_ABOVE",
+        "BLOCK_ONLY_HIGH",
+        "BLOCK_NONE",
+        "OFF"
+      ])
+    })
+  ).optional(),
+  threshold: import_v44.z.enum([
+    "HARM_BLOCK_THRESHOLD_UNSPECIFIED",
+    "BLOCK_LOW_AND_ABOVE",
+    "BLOCK_MEDIUM_AND_ABOVE",
+    "BLOCK_ONLY_HIGH",
+    "BLOCK_NONE",
+    "OFF"
+  ]).optional(),
+  /**
+   * Optional. Enables timestamp understanding for audio-only files.
+   *
+   * https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/audio-understanding
+   */
+  audioTimestamp: import_v44.z.boolean().optional()
+});
+
+// src/google-prepare-tools.ts
+var import_provider3 = require("@ai-sdk/provider");
 function prepareTools({
   tools,
   toolChoice,
   modelId
 }) {
-  const toolWarnings = [];
-  const betas = /* @__PURE__ */ new Set();
-  if (tools == null || tools.length === 0) {
-    return {
-      toolConfig: {},
-      additionalTools: void 0,
-      betas,
-      toolWarnings
-    };
-  }
-  const supportedTools = tools.filter((tool) => {
-    if (tool.type === "provider-defined" && tool.id === "anthropic.web_search_20250305") {
-      toolWarnings.push({
-        type: "unsupported-tool",
-        tool,
-        details: "The web_search_20250305 tool is not supported on Amazon Bedrock."
-      });
-      return false;
-    }
-    return true;
-  });
-  if (supportedTools.length === 0) {
-    return {
-      toolConfig: {},
-      additionalTools: void 0,
-      betas,
-      toolWarnings
-    };
-  }
-  const isAnthropicModel = modelId.includes("anthropic.");
-  const providerDefinedTools = supportedTools.filter(
-    (t) => t.type === "provider-defined"
-  );
-  const functionTools = supportedTools.filter((t) => t.type === "function");
-  let additionalTools = void 0;
-  const bedrockTools = [];
-  const usingAnthropicTools = isAnthropicModel && providerDefinedTools.length > 0;
-  if (usingAnthropicTools) {
-    if (functionTools.length > 0) {
-      toolWarnings.push({
-        type: "unsupported-setting",
-        setting: "tools",
-        details: "Mixed Anthropic provider-defined tools and standard function tools are not supported in a single call to Bedrock. Only Anthropic tools will be used."
-      });
-    }
-    const {
-      toolChoice: preparedAnthropicToolChoice,
-      toolWarnings: anthropicToolWarnings,
-      betas: anthropicBetas
-    } = (0, import_internal.prepareTools)({
-      tools: providerDefinedTools,
-      toolChoice
-    });
-    toolWarnings.push(...anthropicToolWarnings);
-    anthropicBetas.forEach((beta) => betas.add(beta));
-    if (preparedAnthropicToolChoice) {
-      additionalTools = {
-        tool_choice: preparedAnthropicToolChoice
-      };
-    }
-    for (const tool of providerDefinedTools) {
-      const toolFactory = Object.values(import_internal.anthropicTools).find((factory) => {
-        const instance = factory({});
-        return instance.id === tool.id;
-      });
-      if (toolFactory != null) {
-        const fullToolDefinition = toolFactory({});
-        bedrockTools.push({
-          toolSpec: {
-            name: tool.name,
-            inputSchema: {
-              json: (0, import_provider_utils2.asSchema)(fullToolDefinition.inputSchema).jsonSchema
-            }
-          }
-        });
-      } else {
-        toolWarnings.push({ type: "unsupported-tool", tool });
-      }
-    }
-  } else {
-    for (const tool of providerDefinedTools) {
-      toolWarnings.push({ type: "unsupported-tool", tool });
-    }
-  }
-  for (const tool of functionTools) {
-    bedrockTools.push({
-      toolSpec: {
-        name: tool.name,
-        description: tool.description,
-        inputSchema: {
-          json: tool.inputSchema
-        }
-      }
-    });
-  }
-  let bedrockToolChoice = void 0;
-  if (!usingAnthropicTools && bedrockTools.length > 0 && toolChoice) {
-    const type = toolChoice.type;
-    switch (type) {
-      case "auto":
-        bedrockToolChoice = { auto: {} };
-        break;
-      case "required":
-        bedrockToolChoice = { any: {} };
-        break;
-      case "none":
-        bedrockTools.length = 0;
-        bedrockToolChoice = void 0;
-        break;
-      case "tool":
-        bedrockToolChoice = { tool: { name: toolChoice.toolName } };
-        break;
-      default: {
-        const _exhaustiveCheck = type;
-        throw new import_provider2.UnsupportedFunctionalityError({
-          functionality: `tool choice type: ${_exhaustiveCheck}`
-        });
-      }
-    }
-  }
-  const toolConfig = bedrockTools.length > 0 ? { tools: bedrockTools, toolChoice: bedrockToolChoice } : {};
-  return {
-    toolConfig,
-    additionalTools,
-    betas,
-    toolWarnings
-  };
-}
-
-// src/convert-to-bedrock-chat-messages.ts
-var import_provider3 = require("@ai-sdk/provider");
-var import_provider_utils3 = require("@ai-sdk/provider-utils");
-function getCachePoint(providerMetadata) {
   var _a;
-  return (_a = providerMetadata == null ? void 0 : providerMetadata.bedrock) == null ? void 0 : _a.cachePoint;
-}
-async function convertToBedrockChatMessages(prompt) {
-  const blocks = groupIntoBlocks(prompt);
-  let system = [];
-  const messages = [];
-  let documentCounter = 0;
-  const generateDocumentName = () => `document-${++documentCounter}`;
-  for (let i = 0; i < blocks.length; i++) {
-    const block = blocks[i];
-    const isLastBlock = i === blocks.length - 1;
-    const type = block.type;
-    switch (type) {
-      case "system": {
-        if (messages.length > 0) {
-          throw new import_provider3.UnsupportedFunctionalityError({
-            functionality: "Multiple system messages that are separated by user/assistant messages"
-          });
-        }
-        for (const message of block.messages) {
-          system.push({ text: message.content });
-          if (getCachePoint(message.providerOptions)) {
-            system.push(BEDROCK_CACHE_POINT);
+  tools = (tools == null ? void 0 : tools.length) ? tools : void 0;
+  const toolWarnings = [];
+  const isGemini2 = modelId.includes("gemini-2");
+  const supportsDynamicRetrieval = modelId.includes("gemini-1.5-flash") && !modelId.includes("-8b");
+  if (tools == null) {
+    return { tools: void 0, toolConfig: void 0, toolWarnings };
+  }
+  const hasFunctionTools = tools.some((tool) => tool.type === "function");
+  const hasProviderDefinedTools = tools.some(
+    (tool) => tool.type === "provider-defined"
+  );
+  if (hasFunctionTools && hasProviderDefinedTools) {
+    toolWarnings.push({
+      type: "unsupported-tool",
+      tool: tools.find((tool) => tool.type === "function"),
+      details: "Cannot mix function tools with provider-defined tools in the same request. Please use either function tools or provider-defined tools, but not both."
+    });
+  }
+  if (hasProviderDefinedTools) {
+    const googleTools2 = {};
+    const providerDefinedTools = tools.filter(
+      (tool) => tool.type === "provider-defined"
+    );
+    providerDefinedTools.forEach((tool) => {
+      switch (tool.id) {
+        case "google.google_search":
+          if (isGemini2) {
+            googleTools2.googleSearch = {};
+          } else if (supportsDynamicRetrieval) {
+            googleTools2.googleSearchRetrieval = {
+              dynamicRetrievalConfig: {
+                mode: tool.args.mode,
+                dynamicThreshold: tool.args.dynamicThreshold
+              }
+            };
+          } else {
+            googleTools2.googleSearchRetrieval = {};
           }
-        }
+          break;
+        case "google.url_context":
+          if (isGemini2) {
+            googleTools2.urlContext = {};
+          } else {
+            toolWarnings.push({
+              type: "unsupported-tool",
+              tool,
+              details: "The URL context tool is not supported with other Gemini models than Gemini 2."
+            });
+          }
+          break;
+        case "google.code_execution":
+          if (isGemini2) {
+            googleTools2.codeExecution = {};
+          } else {
+            toolWarnings.push({
+              type: "unsupported-tool",
+              tool,
+              details: "The code execution tools is not supported with other Gemini models than Gemini 2."
+            });
+          }
+          break;
+        default:
+          toolWarnings.push({ type: "unsupported-tool", tool });
+          break;
+      }
+    });
+    return {
+      tools: Object.keys(googleTools2).length > 0 ? googleTools2 : void 0,
+      toolConfig: void 0,
+      toolWarnings
+    };
+  }
+  const functionDeclarations = [];
+  for (const tool of tools) {
+    switch (tool.type) {
+      case "function":
+        functionDeclarations.push({
+          name: tool.name,
+          description: (_a = tool.description) != null ? _a : "",
+          parameters: convertJSONSchemaToOpenAPISchema(tool.inputSchema)
+        });
         break;
-      }
-      case "user": {
-        const bedrockContent = [];
-        for (const message of block.messages) {
-          const { role, content, providerOptions } = message;
-          switch (role) {
-            case "user": {
-              for (let j = 0; j < content.length; j++) {
-                const part = content[j];
-                switch (part.type) {
-                  case "text": {
-                    bedrockContent.push({
-                      text: part.text
-                    });
-                    break;
-                  }
-                  case "file": {
-                    if (part.data instanceof URL) {
-                      throw new import_provider3.UnsupportedFunctionalityError({
-                        functionality: "File URL data"
-                      });
-                    }
-                    if (part.mediaType.startsWith("image/")) {
-                      bedrockContent.push({
-                        image: {
-                          format: getBedrockImageFormat(part.mediaType),
-                          source: { bytes: (0, import_provider_utils3.convertToBase64)(part.data) }
-                        }
-                      });
-                    } else {
-                      if (!part.mediaType) {
-                        throw new import_provider3.UnsupportedFunctionalityError({
-                          functionality: "file without mime type",
-                          message: "File mime type is required in user message part content"
-                        });
-                      }
-                      bedrockContent.push({
-                        document: {
-                          format: getBedrockDocumentFormat(part.mediaType),
-                          name: generateDocumentName(),
-                          source: { bytes: (0, import_provider_utils3.convertToBase64)(part.data) }
-                        }
-                      });
-                    }
-                    break;
-                  }
-                }
-              }
-              break;
-            }
-            case "tool": {
-              for (const part of content) {
-                let toolResultContent;
-                const output = part.output;
-                switch (output.type) {
-                  case "content": {
-                    toolResultContent = output.value.map((contentPart) => {
-                      switch (contentPart.type) {
-                        case "text":
-                          return { text: contentPart.text };
-                        case "media":
-                          if (!contentPart.mediaType.startsWith("image/")) {
-                            throw new import_provider3.UnsupportedFunctionalityError({
-                              functionality: `media type: ${contentPart.mediaType}`
-                            });
-                          }
-                          const format = getBedrockImageFormat(
-                            contentPart.mediaType
-                          );
-                          return {
-                            image: {
-                              format,
-                              source: { bytes: contentPart.data }
-                            }
-                          };
-                      }
-                    });
-                    break;
-                  }
-                  case "text":
-                  case "error-text":
-                    toolResultContent = [{ text: output.value }];
-                    break;
-                  case "json":
-                  case "error-json":
-                  default:
-                    toolResultContent = [
-                      { text: JSON.stringify(output.value) }
-                    ];
-                    break;
-                }
-                bedrockContent.push({
-                  toolResult: {
-                    toolUseId: part.toolCallId,
-                    content: toolResultContent
-                  }
-                });
-              }
-              break;
-            }
-            default: {
-              const _exhaustiveCheck = role;
-              throw new Error(`Unsupported role: ${_exhaustiveCheck}`);
-            }
-          }
-          if (getCachePoint(providerOptions)) {
-            bedrockContent.push(BEDROCK_CACHE_POINT);
-          }
-        }
-        messages.push({ role: "user", content: bedrockContent });
+      default:
+        toolWarnings.push({ type: "unsupported-tool", tool });
         break;
-      }
-      case "assistant": {
-        const bedrockContent = [];
-        for (let j = 0; j < block.messages.length; j++) {
-          const message = block.messages[j];
-          const isLastMessage = j === block.messages.length - 1;
-          const { content } = message;
-          for (let k = 0; k < content.length; k++) {
-            const part = content[k];
-            const isLastContentPart = k === content.length - 1;
-            switch (part.type) {
-              case "text": {
-                bedrockContent.push({
-                  text: (
-                    // trim the last text part if it's the last message in the block
-                    // because Bedrock does not allow trailing whitespace
-                    // in pre-filled assistant responses
-                    trimIfLast(
-                      isLastBlock,
-                      isLastMessage,
-                      isLastContentPart,
-                      part.text
-                    )
-                  )
-                });
-                break;
-              }
-              case "reasoning": {
-                const reasoningMetadata = await (0, import_provider_utils3.parseProviderOptions)({
-                  provider: "bedrock",
-                  providerOptions: part.providerOptions,
-                  schema: bedrockReasoningMetadataSchema
-                });
-                if (reasoningMetadata != null) {
-                  if (reasoningMetadata.signature != null) {
-                    bedrockContent.push({
-                      reasoningContent: {
-                        reasoningText: {
-                          // trim the last text part if it's the last message in the block
-                          // because Bedrock does not allow trailing whitespace
-                          // in pre-filled assistant responses
-                          text: trimIfLast(
-                            isLastBlock,
-                            isLastMessage,
-                            isLastContentPart,
-                            part.text
-                          ),
-                          signature: reasoningMetadata.signature
-                        }
-                      }
-                    });
-                  } else if (reasoningMetadata.redactedData != null) {
-                    bedrockContent.push({
-                      reasoningContent: {
-                        redactedReasoning: {
-                          data: reasoningMetadata.redactedData
-                        }
-                      }
-                    });
-                  }
-                }
-                break;
-              }
-              case "tool-call": {
-                bedrockContent.push({
-                  toolUse: {
-                    toolUseId: part.toolCallId,
-                    name: part.toolName,
-                    input: part.input
-                  }
-                });
-                break;
-              }
-            }
-          }
-          if (getCachePoint(message.providerOptions)) {
-            bedrockContent.push(BEDROCK_CACHE_POINT);
-          }
-        }
-        messages.push({ role: "assistant", content: bedrockContent });
-        break;
-      }
-      default: {
-        const _exhaustiveCheck = type;
-        throw new Error(`Unsupported type: ${_exhaustiveCheck}`);
-      }
     }
   }
-  return { system, messages };
-}
-function getBedrockImageFormat(mimeType) {
-  if (!mimeType) {
-    throw new import_provider3.UnsupportedFunctionalityError({
-      functionality: "image without mime type",
-      message: "Image mime type is required in user message part content"
-    });
+  if (toolChoice == null) {
+    return {
+      tools: { functionDeclarations },
+      toolConfig: void 0,
+      toolWarnings
+    };
   }
-  const format = BEDROCK_IMAGE_MIME_TYPES[mimeType];
-  if (!format) {
-    throw new import_provider3.UnsupportedFunctionalityError({
-      functionality: `image mime type: ${mimeType}`,
-      message: `Unsupported image mime type: ${mimeType}, expected one of: ${Object.keys(BEDROCK_IMAGE_MIME_TYPES).join(", ")}`
-    });
-  }
-  return format;
-}
-function getBedrockDocumentFormat(mimeType) {
-  const format = BEDROCK_DOCUMENT_MIME_TYPES[mimeType];
-  if (!format) {
-    throw new import_provider3.UnsupportedFunctionalityError({
-      functionality: `file mime type: ${mimeType}`,
-      message: `Unsupported file mime type: ${mimeType}, expected one of: ${Object.keys(BEDROCK_DOCUMENT_MIME_TYPES).join(", ")}`
-    });
-  }
-  return format;
-}
-function trimIfLast(isLastBlock, isLastMessage, isLastContentPart, text) {
-  return isLastBlock && isLastMessage && isLastContentPart ? text.trim() : text;
-}
-function groupIntoBlocks(prompt) {
-  const blocks = [];
-  let currentBlock = void 0;
-  for (const message of prompt) {
-    const { role } = message;
-    switch (role) {
-      case "system": {
-        if ((currentBlock == null ? void 0 : currentBlock.type) !== "system") {
-          currentBlock = { type: "system", messages: [] };
-          blocks.push(currentBlock);
-        }
-        currentBlock.messages.push(message);
-        break;
-      }
-      case "assistant": {
-        if ((currentBlock == null ? void 0 : currentBlock.type) !== "assistant") {
-          currentBlock = { type: "assistant", messages: [] };
-          blocks.push(currentBlock);
-        }
-        currentBlock.messages.push(message);
-        break;
-      }
-      case "user": {
-        if ((currentBlock == null ? void 0 : currentBlock.type) !== "user") {
-          currentBlock = { type: "user", messages: [] };
-          blocks.push(currentBlock);
-        }
-        currentBlock.messages.push(message);
-        break;
-      }
-      case "tool": {
-        if ((currentBlock == null ? void 0 : currentBlock.type) !== "user") {
-          currentBlock = { type: "user", messages: [] };
-          blocks.push(currentBlock);
-        }
-        currentBlock.messages.push(message);
-        break;
-      }
-      default: {
-        const _exhaustiveCheck = role;
-        throw new Error(`Unsupported role: ${_exhaustiveCheck}`);
-      }
+  const type = toolChoice.type;
+  switch (type) {
+    case "auto":
+      return {
+        tools: { functionDeclarations },
+        toolConfig: { functionCallingConfig: { mode: "AUTO" } },
+        toolWarnings
+      };
+    case "none":
+      return {
+        tools: { functionDeclarations },
+        toolConfig: { functionCallingConfig: { mode: "NONE" } },
+        toolWarnings
+      };
+    case "required":
+      return {
+        tools: { functionDeclarations },
+        toolConfig: { functionCallingConfig: { mode: "ANY" } },
+        toolWarnings
+      };
+    case "tool":
+      return {
+        tools: { functionDeclarations },
+        toolConfig: {
+          functionCallingConfig: {
+            mode: "ANY",
+            allowedFunctionNames: [toolChoice.toolName]
+          }
+        },
+        toolWarnings
+      };
+    default: {
+      const _exhaustiveCheck = type;
+      throw new import_provider3.UnsupportedFunctionalityError({
+        functionality: `tool choice type: ${_exhaustiveCheck}`
+      });
     }
   }
-  return blocks;
 }
 
-// src/map-bedrock-finish-reason.ts
-function mapBedrockFinishReason(finishReason) {
+// src/map-google-generative-ai-finish-reason.ts
+function mapGoogleGenerativeAIFinishReason({
+  finishReason,
+  hasToolCalls
+}) {
   switch (finishReason) {
-    case "stop_sequence":
-    case "end_turn":
-      return "stop";
-    case "max_tokens":
+    case "STOP":
+      return hasToolCalls ? "tool-calls" : "stop";
+    case "MAX_TOKENS":
       return "length";
-    case "content_filtered":
-    case "guardrail_intervened":
+    case "IMAGE_SAFETY":
+    case "RECITATION":
+    case "SAFETY":
+    case "BLOCKLIST":
+    case "PROHIBITED_CONTENT":
+    case "SPII":
       return "content-filter";
-    case "tool_use":
-      return "tool-calls";
+    case "FINISH_REASON_UNSPECIFIED":
+    case "OTHER":
+      return "other";
+    case "MALFORMED_FUNCTION_CALL":
+      return "error";
     default:
       return "unknown";
   }
 }
 
-// src/bedrock-chat-language-model.ts
-var BedrockChatLanguageModel = class {
+// src/tool/google-search.ts
+var import_provider_utils4 = require("@ai-sdk/provider-utils");
+var import_v45 = require("zod/v4");
+var groundingChunkSchema = import_v45.z.object({
+  web: import_v45.z.object({ uri: import_v45.z.string(), title: import_v45.z.string() }).nullish(),
+  retrievedContext: import_v45.z.object({ uri: import_v45.z.string(), title: import_v45.z.string() }).nullish()
+});
+var groundingMetadataSchema = import_v45.z.object({
+  webSearchQueries: import_v45.z.array(import_v45.z.string()).nullish(),
+  retrievalQueries: import_v45.z.array(import_v45.z.string()).nullish(),
+  searchEntryPoint: import_v45.z.object({ renderedContent: import_v45.z.string() }).nullish(),
+  groundingChunks: import_v45.z.array(groundingChunkSchema).nullish(),
+  groundingSupports: import_v45.z.array(
+    import_v45.z.object({
+      segment: import_v45.z.object({
+        startIndex: import_v45.z.number().nullish(),
+        endIndex: import_v45.z.number().nullish(),
+        text: import_v45.z.string().nullish()
+      }),
+      segment_text: import_v45.z.string().nullish(),
+      groundingChunkIndices: import_v45.z.array(import_v45.z.number()).nullish(),
+      supportChunkIndices: import_v45.z.array(import_v45.z.number()).nullish(),
+      confidenceScores: import_v45.z.array(import_v45.z.number()).nullish(),
+      confidenceScore: import_v45.z.array(import_v45.z.number()).nullish()
+    })
+  ).nullish(),
+  retrievalMetadata: import_v45.z.union([
+    import_v45.z.object({
+      webDynamicRetrievalScore: import_v45.z.number()
+    }),
+    import_v45.z.object({})
+  ]).nullish()
+});
+var googleSearch = (0, import_provider_utils4.createProviderDefinedToolFactory)({
+  id: "google.google_search",
+  name: "google_search",
+  inputSchema: import_v45.z.object({
+    mode: import_v45.z.enum(["MODE_DYNAMIC", "MODE_UNSPECIFIED"]).default("MODE_UNSPECIFIED"),
+    dynamicThreshold: import_v45.z.number().default(1)
+  })
+});
+
+// src/tool/url-context.ts
+var import_provider_utils5 = require("@ai-sdk/provider-utils");
+var import_v46 = require("zod/v4");
+var urlMetadataSchema = import_v46.z.object({
+  retrievedUrl: import_v46.z.string(),
+  urlRetrievalStatus: import_v46.z.string()
+});
+var urlContextMetadataSchema = import_v46.z.object({
+  urlMetadata: import_v46.z.array(urlMetadataSchema)
+});
+var urlContext = (0, import_provider_utils5.createProviderDefinedToolFactory)({
+  id: "google.url_context",
+  name: "url_context",
+  inputSchema: import_v46.z.object({})
+});
+
+// src/google-generative-ai-language-model.ts
+var GoogleGenerativeAILanguageModel = class {
   constructor(modelId, config) {
+    this.specificationVersion = "v2";
+    var _a;
     this.modelId = modelId;
     this.config = config;
-    this.specificationVersion = "v2";
-    this.provider = "amazon-bedrock";
-    this.supportedUrls = {
-      // no supported urls for bedrock
-    };
+    this.generateId = (_a = config.generateId) != null ? _a : import_provider_utils6.generateId;
+  }
+  get provider() {
+    return this.config.provider;
+  }
+  get supportedUrls() {
+    var _a, _b, _c;
+    return (_c = (_b = (_a = this.config).supportedUrls) == null ? void 0 : _b.call(_a)) != null ? _c : {};
   }
   async getArgs({
     prompt,
@@ -650,283 +725,193 @@ var BedrockChatLanguageModel = class {
     toolChoice,
     providerOptions
   }) {
-    var _a, _b, _c, _d, _e, _f;
-    const bedrockOptions = (_a = await (0, import_provider_utils4.parseProviderOptions)({
-      provider: "bedrock",
-      providerOptions,
-      schema: bedrockProviderOptions
-    })) != null ? _a : {};
+    var _a, _b;
     const warnings = [];
-    if (frequencyPenalty != null) {
+    const googleOptions = await (0, import_provider_utils6.parseProviderOptions)({
+      provider: "google",
+      providerOptions,
+      schema: googleGenerativeAIProviderOptions
+    });
+    if (((_a = googleOptions == null ? void 0 : googleOptions.thinkingConfig) == null ? void 0 : _a.includeThoughts) === true && !this.config.provider.startsWith("google.vertex.")) {
       warnings.push({
-        type: "unsupported-setting",
-        setting: "frequencyPenalty"
+        type: "other",
+        message: `The 'includeThoughts' option is only supported with the Google Vertex provider and might not be supported or could behave unexpectedly with the current Google provider (${this.config.provider}).`
       });
     }
-    if (presencePenalty != null) {
-      warnings.push({
-        type: "unsupported-setting",
-        setting: "presencePenalty"
-      });
-    }
-    if (seed != null) {
-      warnings.push({
-        type: "unsupported-setting",
-        setting: "seed"
-      });
-    }
-    if (topK != null) {
-      warnings.push({
-        type: "unsupported-setting",
-        setting: "topK"
-      });
-    }
-    if (responseFormat != null && responseFormat.type !== "text" && responseFormat.type !== "json") {
-      warnings.push({
-        type: "unsupported-setting",
-        setting: "responseFormat",
-        details: "Only text and json response formats are supported."
-      });
-    }
-    if (tools != null && (responseFormat == null ? void 0 : responseFormat.type) === "json") {
-      if (tools.length > 0) {
-        warnings.push({
-          type: "other",
-          message: "JSON response format does not support tools. The provided tools are ignored."
-        });
-      }
-    }
-    const jsonResponseTool = (responseFormat == null ? void 0 : responseFormat.type) === "json" && responseFormat.schema != null ? {
-      type: "function",
-      name: "json",
-      description: "Respond with a JSON object.",
-      inputSchema: responseFormat.schema
-    } : void 0;
-    const { toolConfig, additionalTools, toolWarnings, betas } = prepareTools({
-      tools: jsonResponseTool ? [jsonResponseTool, ...tools != null ? tools : []] : tools,
-      toolChoice: jsonResponseTool != null ? { type: "tool", toolName: jsonResponseTool.name } : toolChoice,
+    const isGemmaModel = this.modelId.toLowerCase().startsWith("gemma-");
+    const { contents, systemInstruction } = convertToGoogleGenerativeAIMessages(
+      prompt,
+      { isGemmaModel }
+    );
+    const {
+      tools: googleTools2,
+      toolConfig: googleToolConfig,
+      toolWarnings
+    } = prepareTools({
+      tools,
+      toolChoice,
       modelId: this.modelId
     });
-    warnings.push(...toolWarnings);
-    if (additionalTools) {
-      bedrockOptions.additionalModelRequestFields = {
-        ...bedrockOptions.additionalModelRequestFields,
-        ...additionalTools
-      };
-    }
-    const isThinking = ((_b = bedrockOptions.reasoningConfig) == null ? void 0 : _b.type) === "enabled";
-    const thinkingBudget = (_c = bedrockOptions.reasoningConfig) == null ? void 0 : _c.budgetTokens;
-    const inferenceConfig = {
-      ...maxOutputTokens != null && { maxOutputTokens },
-      ...temperature != null && { temperature },
-      ...topP != null && { topP },
-      ...stopSequences != null && { stopSequences }
-    };
-    if (isThinking && thinkingBudget != null) {
-      if (inferenceConfig.maxOutputTokens != null) {
-        inferenceConfig.maxOutputTokens += thinkingBudget;
-      } else {
-        inferenceConfig.maxOutputTokens = thinkingBudget + 4096;
-      }
-      bedrockOptions.additionalModelRequestFields = {
-        ...bedrockOptions.additionalModelRequestFields,
-        thinking: {
-          type: (_d = bedrockOptions.reasoningConfig) == null ? void 0 : _d.type,
-          budget_tokens: thinkingBudget
-        }
-      };
-    }
-    if (isThinking && inferenceConfig.temperature != null) {
-      delete inferenceConfig.temperature;
-      warnings.push({
-        type: "unsupported-setting",
-        setting: "temperature",
-        details: "temperature is not supported when thinking is enabled"
-      });
-    }
-    if (isThinking && inferenceConfig.topP != null) {
-      delete inferenceConfig.topP;
-      warnings.push({
-        type: "unsupported-setting",
-        setting: "topP",
-        details: "topP is not supported when thinking is enabled"
-      });
-    }
-    const hasAnyTools = ((_f = (_e = toolConfig.tools) == null ? void 0 : _e.length) != null ? _f : 0) > 0 || additionalTools;
-    let filteredPrompt = prompt;
-    if (!hasAnyTools) {
-      const hasToolContent = prompt.some(
-        (message) => "content" in message && Array.isArray(message.content) && message.content.some(
-          (part) => part.type === "tool-call" || part.type === "tool-result"
-        )
-      );
-      if (hasToolContent) {
-        filteredPrompt = prompt.map(
-          (message) => message.role === "system" ? message : {
-            ...message,
-            content: message.content.filter(
-              (part) => part.type !== "tool-call" && part.type !== "tool-result"
-            )
-          }
-        ).filter(
-          (message) => message.role === "system" || message.content.length > 0
-        );
-        warnings.push({
-          type: "unsupported-setting",
-          setting: "toolContent",
-          details: "Tool calls and results removed from conversation because Bedrock does not support tool content without active tools."
-        });
-      }
-    }
-    const { system, messages } = await convertToBedrockChatMessages(filteredPrompt);
-    const { reasoningConfig: _, ...filteredBedrockOptions } = (providerOptions == null ? void 0 : providerOptions.bedrock) || {};
     return {
-      command: {
-        system,
-        messages,
-        additionalModelRequestFields: bedrockOptions.additionalModelRequestFields,
-        ...Object.keys(inferenceConfig).length > 0 && {
-          inferenceConfig
+      args: {
+        generationConfig: {
+          // standardized settings:
+          maxOutputTokens,
+          temperature,
+          topK,
+          topP,
+          frequencyPenalty,
+          presencePenalty,
+          stopSequences,
+          seed,
+          // response format:
+          responseMimeType: (responseFormat == null ? void 0 : responseFormat.type) === "json" ? "application/json" : void 0,
+          responseSchema: (responseFormat == null ? void 0 : responseFormat.type) === "json" && responseFormat.schema != null && // Google GenAI does not support all OpenAPI Schema features,
+          // so this is needed as an escape hatch:
+          // TODO convert into provider option
+          ((_b = googleOptions == null ? void 0 : googleOptions.structuredOutputs) != null ? _b : true) ? convertJSONSchemaToOpenAPISchema(responseFormat.schema) : void 0,
+          ...(googleOptions == null ? void 0 : googleOptions.audioTimestamp) && {
+            audioTimestamp: googleOptions.audioTimestamp
+          },
+          // provider options:
+          responseModalities: googleOptions == null ? void 0 : googleOptions.responseModalities,
+          thinkingConfig: googleOptions == null ? void 0 : googleOptions.thinkingConfig
         },
-        ...filteredBedrockOptions,
-        ...toolConfig.tools !== void 0 && toolConfig.tools.length > 0 ? { toolConfig } : {}
+        contents,
+        systemInstruction: isGemmaModel ? void 0 : systemInstruction,
+        safetySettings: googleOptions == null ? void 0 : googleOptions.safetySettings,
+        tools: googleTools2,
+        toolConfig: googleToolConfig,
+        cachedContent: googleOptions == null ? void 0 : googleOptions.cachedContent
       },
-      warnings,
-      usesJsonResponseTool: jsonResponseTool != null,
-      betas
+      warnings: [...warnings, ...toolWarnings]
     };
-  }
-  async getHeaders({
-    betas,
-    headers
-  }) {
-    return (0, import_provider_utils4.combineHeaders)(
-      await (0, import_provider_utils4.resolve)(this.config.headers),
-      betas.size > 0 ? { "anthropic-beta": Array.from(betas).join(",") } : {},
-      headers
-    );
   }
   async doGenerate(options) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
+    const { args, warnings } = await this.getArgs(options);
+    const body = JSON.stringify(args);
+    const mergedHeaders = (0, import_provider_utils6.combineHeaders)(
+      await (0, import_provider_utils6.resolve)(this.config.headers),
+      options.headers
+    );
     const {
-      command: args,
-      warnings,
-      usesJsonResponseTool,
-      betas
-    } = await this.getArgs(options);
-    const url = `${this.getUrl(this.modelId)}/converse`;
-    const { value: response, responseHeaders } = await (0, import_provider_utils4.postJsonToApi)({
-      url,
-      headers: await this.getHeaders({ betas, headers: options.headers }),
+      responseHeaders,
+      value: response,
+      rawValue: rawResponse
+    } = await (0, import_provider_utils6.postJsonToApi)({
+      url: `${this.config.baseURL}/${getModelPath(
+        this.modelId
+      )}:generateContent`,
+      headers: mergedHeaders,
       body: args,
-      failedResponseHandler: (0, import_provider_utils4.createJsonErrorResponseHandler)({
-        errorSchema: BedrockErrorSchema,
-        errorToMessage: (error) => {
-          var _a2;
-          return `${(_a2 = error.message) != null ? _a2 : "Unknown error"}`;
-        }
-      }),
-      successfulResponseHandler: (0, import_provider_utils4.createJsonResponseHandler)(
-        BedrockResponseSchema
-      ),
+      failedResponseHandler: googleFailedResponseHandler,
+      successfulResponseHandler: (0, import_provider_utils6.createJsonResponseHandler)(responseSchema),
       abortSignal: options.abortSignal,
       fetch: this.config.fetch
     });
+    const candidate = response.candidates[0];
     const content = [];
-    for (const part of response.output.message.content) {
-      if (part.text) {
-        if (!usesJsonResponseTool) {
+    const parts = (_b = (_a = candidate.content) == null ? void 0 : _a.parts) != null ? _b : [];
+    const usageMetadata = response.usageMetadata;
+    let lastCodeExecutionToolCallId;
+    for (const part of parts) {
+      if ("executableCode" in part && ((_c = part.executableCode) == null ? void 0 : _c.code)) {
+        const toolCallId = this.config.generateId();
+        lastCodeExecutionToolCallId = toolCallId;
+        content.push({
+          type: "tool-call",
+          toolCallId,
+          toolName: "code_execution",
+          input: JSON.stringify(part.executableCode),
+          providerExecuted: true
+        });
+      } else if ("codeExecutionResult" in part && part.codeExecutionResult) {
+        content.push({
+          type: "tool-result",
+          // Assumes a result directly follows its corresponding call part.
+          toolCallId: lastCodeExecutionToolCallId,
+          toolName: "code_execution",
+          result: {
+            outcome: part.codeExecutionResult.outcome,
+            output: part.codeExecutionResult.output
+          },
+          providerExecuted: true
+        });
+        lastCodeExecutionToolCallId = void 0;
+      } else if ("text" in part && part.text != null && part.text.length > 0) {
+        if (part.thought === true) {
+          content.push({ type: "reasoning", text: part.text });
+        } else {
           content.push({ type: "text", text: part.text });
         }
-      }
-      if (part.reasoningContent) {
-        if ("reasoningText" in part.reasoningContent) {
-          const reasoning = {
-            type: "reasoning",
-            text: part.reasoningContent.reasoningText.text
-          };
-          if (part.reasoningContent.reasoningText.signature) {
-            reasoning.providerMetadata = {
-              bedrock: {
-                signature: part.reasoningContent.reasoningText.signature
-              }
-            };
-          }
-          content.push(reasoning);
-        } else if ("redactedReasoning" in part.reasoningContent) {
-          content.push({
-            type: "reasoning",
-            text: "",
-            providerMetadata: {
-              bedrock: {
-                redactedData: (_a = part.reasoningContent.redactedReasoning.data) != null ? _a : ""
-              }
-            }
-          });
-        }
-      }
-      if (part.toolUse) {
-        content.push(
-          // when a json response tool is used, the tool call becomes the text:
-          usesJsonResponseTool ? {
-            type: "text",
-            text: JSON.stringify(part.toolUse.input)
-          } : {
-            type: "tool-call",
-            toolCallId: (_c = (_b = part.toolUse) == null ? void 0 : _b.toolUseId) != null ? _c : this.config.generateId(),
-            toolName: (_e = (_d = part.toolUse) == null ? void 0 : _d.name) != null ? _e : `tool-${this.config.generateId()}`,
-            input: JSON.stringify((_g = (_f = part.toolUse) == null ? void 0 : _f.input) != null ? _g : "")
-          }
-        );
+      } else if ("functionCall" in part) {
+        content.push({
+          type: "tool-call",
+          toolCallId: this.config.generateId(),
+          toolName: part.functionCall.name,
+          input: JSON.stringify(part.functionCall.args)
+        });
+      } else if ("inlineData" in part) {
+        content.push({
+          type: "file",
+          data: part.inlineData.data,
+          mediaType: part.inlineData.mimeType
+        });
       }
     }
-    const providerMetadata = response.trace || response.usage || usesJsonResponseTool ? {
-      bedrock: {
-        ...response.trace && typeof response.trace === "object" ? { trace: response.trace } : {},
-        ...((_h = response.usage) == null ? void 0 : _h.cacheWriteInputTokens) != null && {
-          usage: {
-            cacheWriteInputTokens: response.usage.cacheWriteInputTokens
-          }
-        },
-        ...usesJsonResponseTool && { isJsonResponseFromTool: true }
-      }
-    } : void 0;
+    const sources = (_d = extractSources({
+      groundingMetadata: candidate.groundingMetadata,
+      generateId: this.config.generateId
+    })) != null ? _d : [];
+    for (const source of sources) {
+      content.push(source);
+    }
     return {
       content,
-      finishReason: mapBedrockFinishReason(
-        response.stopReason
-      ),
+      finishReason: mapGoogleGenerativeAIFinishReason({
+        finishReason: candidate.finishReason,
+        hasToolCalls: content.some((part) => part.type === "tool-call")
+      }),
       usage: {
-        inputTokens: (_i = response.usage) == null ? void 0 : _i.inputTokens,
-        outputTokens: (_j = response.usage) == null ? void 0 : _j.outputTokens,
-        totalTokens: ((_k = response.usage) == null ? void 0 : _k.inputTokens) + ((_l = response.usage) == null ? void 0 : _l.outputTokens),
-        cachedInputTokens: (_n = (_m = response.usage) == null ? void 0 : _m.cacheReadInputTokens) != null ? _n : void 0
-      },
-      response: {
-        // TODO add id, timestamp, etc
-        headers: responseHeaders
+        inputTokens: (_e = usageMetadata == null ? void 0 : usageMetadata.promptTokenCount) != null ? _e : void 0,
+        outputTokens: (_f = usageMetadata == null ? void 0 : usageMetadata.candidatesTokenCount) != null ? _f : void 0,
+        totalTokens: (_g = usageMetadata == null ? void 0 : usageMetadata.totalTokenCount) != null ? _g : void 0,
+        reasoningTokens: (_h = usageMetadata == null ? void 0 : usageMetadata.thoughtsTokenCount) != null ? _h : void 0,
+        cachedInputTokens: (_i = usageMetadata == null ? void 0 : usageMetadata.cachedContentTokenCount) != null ? _i : void 0
       },
       warnings,
-      ...providerMetadata && { providerMetadata }
+      providerMetadata: {
+        google: {
+          groundingMetadata: (_j = candidate.groundingMetadata) != null ? _j : null,
+          urlContextMetadata: (_k = candidate.urlContextMetadata) != null ? _k : null,
+          safetyRatings: (_l = candidate.safetyRatings) != null ? _l : null,
+          usageMetadata: usageMetadata != null ? usageMetadata : null
+        }
+      },
+      request: { body },
+      response: {
+        // TODO timestamp, model id, id
+        headers: responseHeaders,
+        body: rawResponse
+      }
     };
   }
   async doStream(options) {
-    const {
-      command: args,
-      warnings,
-      usesJsonResponseTool,
-      betas
-    } = await this.getArgs(options);
-    const url = `${this.getUrl(this.modelId)}/converse-stream`;
-    const { value: response, responseHeaders } = await (0, import_provider_utils4.postJsonToApi)({
-      url,
-      headers: await this.getHeaders({ betas, headers: options.headers }),
+    const { args, warnings } = await this.getArgs(options);
+    const body = JSON.stringify(args);
+    const headers = (0, import_provider_utils6.combineHeaders)(
+      await (0, import_provider_utils6.resolve)(this.config.headers),
+      options.headers
+    );
+    const { responseHeaders, value: response } = await (0, import_provider_utils6.postJsonToApi)({
+      url: `${this.config.baseURL}/${getModelPath(
+        this.modelId
+      )}:streamGenerateContent?alt=sse`,
+      headers,
       body: args,
-      failedResponseHandler: (0, import_provider_utils4.createJsonErrorResponseHandler)({
-        errorSchema: BedrockErrorSchema,
-        errorToMessage: (error) => `${error.type}: ${error.message}`
-      }),
-      successfulResponseHandler: createBedrockEventStreamResponseHandler(BedrockStreamSchema),
+      failedResponseHandler: googleFailedResponseHandler,
+      successfulResponseHandler: (0, import_provider_utils6.createEventSourceResponseHandler)(chunkSchema),
       abortSignal: options.abortSignal,
       fetch: this.config.fetch
     });
@@ -937,7 +922,13 @@ var BedrockChatLanguageModel = class {
       totalTokens: void 0
     };
     let providerMetadata = void 0;
-    const contentBlocks = {};
+    const generateId3 = this.config.generateId;
+    let hasToolCalls = false;
+    let currentTextBlockId = null;
+    let currentReasoningBlockId = null;
+    let blockCounter = 0;
+    const emittedSourceUrls = /* @__PURE__ */ new Set();
+    let lastCodeExecutionToolCallId;
     return {
       stream: response.pipeThrough(
         new TransformStream({
@@ -945,505 +936,429 @@ var BedrockChatLanguageModel = class {
             controller.enqueue({ type: "stream-start", warnings });
           },
           transform(chunk, controller) {
-            var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
-            function enqueueError(bedrockError) {
-              finishReason = "error";
-              controller.enqueue({ type: "error", error: bedrockError });
-            }
+            var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
             if (options.includeRawChunks) {
               controller.enqueue({ type: "raw", rawValue: chunk.rawValue });
             }
             if (!chunk.success) {
-              enqueueError(chunk.error);
+              controller.enqueue({ type: "error", error: chunk.error });
               return;
             }
             const value = chunk.value;
-            if (value.internalServerException) {
-              enqueueError(value.internalServerException);
+            const usageMetadata = value.usageMetadata;
+            if (usageMetadata != null) {
+              usage.inputTokens = (_a = usageMetadata.promptTokenCount) != null ? _a : void 0;
+              usage.outputTokens = (_b = usageMetadata.candidatesTokenCount) != null ? _b : void 0;
+              usage.totalTokens = (_c = usageMetadata.totalTokenCount) != null ? _c : void 0;
+              usage.reasoningTokens = (_d = usageMetadata.thoughtsTokenCount) != null ? _d : void 0;
+              usage.cachedInputTokens = (_e = usageMetadata.cachedContentTokenCount) != null ? _e : void 0;
+            }
+            const candidate = (_f = value.candidates) == null ? void 0 : _f[0];
+            if (candidate == null) {
               return;
             }
-            if (value.modelStreamErrorException) {
-              enqueueError(value.modelStreamErrorException);
-              return;
-            }
-            if (value.throttlingException) {
-              enqueueError(value.throttlingException);
-              return;
-            }
-            if (value.validationException) {
-              enqueueError(value.validationException);
-              return;
-            }
-            if (value.messageStop) {
-              finishReason = mapBedrockFinishReason(
-                value.messageStop.stopReason
-              );
-            }
-            if (value.metadata) {
-              usage.inputTokens = (_b = (_a = value.metadata.usage) == null ? void 0 : _a.inputTokens) != null ? _b : usage.inputTokens;
-              usage.outputTokens = (_d = (_c = value.metadata.usage) == null ? void 0 : _c.outputTokens) != null ? _d : usage.outputTokens;
-              usage.totalTokens = ((_e = usage.inputTokens) != null ? _e : 0) + ((_f = usage.outputTokens) != null ? _f : 0);
-              usage.cachedInputTokens = (_h = (_g = value.metadata.usage) == null ? void 0 : _g.cacheReadInputTokens) != null ? _h : usage.cachedInputTokens;
-              const cacheUsage = ((_i = value.metadata.usage) == null ? void 0 : _i.cacheWriteInputTokens) != null ? {
-                usage: {
-                  cacheWriteInputTokens: value.metadata.usage.cacheWriteInputTokens
+            const content = candidate.content;
+            const sources = extractSources({
+              groundingMetadata: candidate.groundingMetadata,
+              generateId: generateId3
+            });
+            if (sources != null) {
+              for (const source of sources) {
+                if (source.sourceType === "url" && !emittedSourceUrls.has(source.url)) {
+                  emittedSourceUrls.add(source.url);
+                  controller.enqueue(source);
                 }
-              } : void 0;
-              const trace = value.metadata.trace ? {
-                trace: value.metadata.trace
-              } : void 0;
-              if (cacheUsage || trace || usesJsonResponseTool) {
-                providerMetadata = {
-                  bedrock: {
-                    ...cacheUsage,
-                    ...trace,
-                    ...usesJsonResponseTool && {
-                      isJsonResponseFromTool: true
+              }
+            }
+            if (content != null) {
+              const parts = (_g = content.parts) != null ? _g : [];
+              for (const part of parts) {
+                if ("executableCode" in part && ((_h = part.executableCode) == null ? void 0 : _h.code)) {
+                  const toolCallId = generateId3();
+                  lastCodeExecutionToolCallId = toolCallId;
+                  controller.enqueue({
+                    type: "tool-call",
+                    toolCallId,
+                    toolName: "code_execution",
+                    input: JSON.stringify(part.executableCode),
+                    providerExecuted: true
+                  });
+                  hasToolCalls = true;
+                } else if ("codeExecutionResult" in part && part.codeExecutionResult) {
+                  const toolCallId = lastCodeExecutionToolCallId;
+                  if (toolCallId) {
+                    controller.enqueue({
+                      type: "tool-result",
+                      toolCallId,
+                      toolName: "code_execution",
+                      result: {
+                        outcome: part.codeExecutionResult.outcome,
+                        output: part.codeExecutionResult.output
+                      },
+                      providerExecuted: true
+                    });
+                    lastCodeExecutionToolCallId = void 0;
+                  }
+                } else if ("text" in part && part.text != null && part.text.length > 0) {
+                  if (part.thought === true) {
+                    if (currentTextBlockId !== null) {
+                      controller.enqueue({
+                        type: "text-end",
+                        id: currentTextBlockId
+                      });
+                      currentTextBlockId = null;
                     }
-                  }
-                };
-              }
-            }
-            if (((_j = value.contentBlockStart) == null ? void 0 : _j.contentBlockIndex) != null && !((_l = (_k = value.contentBlockStart) == null ? void 0 : _k.start) == null ? void 0 : _l.toolUse)) {
-              const blockIndex = value.contentBlockStart.contentBlockIndex;
-              contentBlocks[blockIndex] = { type: "text" };
-              controller.enqueue({
-                type: "text-start",
-                id: String(blockIndex)
-              });
-            }
-            if (((_m = value.contentBlockDelta) == null ? void 0 : _m.delta) && "text" in value.contentBlockDelta.delta && value.contentBlockDelta.delta.text) {
-              const blockIndex = value.contentBlockDelta.contentBlockIndex || 0;
-              if (contentBlocks[blockIndex] == null) {
-                contentBlocks[blockIndex] = { type: "text" };
-                if (!usesJsonResponseTool) {
-                  controller.enqueue({
-                    type: "text-start",
-                    id: String(blockIndex)
-                  });
-                }
-              }
-              if (!usesJsonResponseTool) {
-                controller.enqueue({
-                  type: "text-delta",
-                  id: String(blockIndex),
-                  delta: value.contentBlockDelta.delta.text
-                });
-              }
-            }
-            if (((_n = value.contentBlockStop) == null ? void 0 : _n.contentBlockIndex) != null) {
-              const blockIndex = value.contentBlockStop.contentBlockIndex;
-              const contentBlock = contentBlocks[blockIndex];
-              if (contentBlock != null) {
-                if (contentBlock.type === "reasoning") {
-                  controller.enqueue({
-                    type: "reasoning-end",
-                    id: String(blockIndex)
-                  });
-                } else if (contentBlock.type === "text") {
-                  if (!usesJsonResponseTool) {
+                    if (currentReasoningBlockId === null) {
+                      currentReasoningBlockId = String(blockCounter++);
+                      controller.enqueue({
+                        type: "reasoning-start",
+                        id: currentReasoningBlockId
+                      });
+                    }
                     controller.enqueue({
-                      type: "text-end",
-                      id: String(blockIndex)
-                    });
-                  }
-                } else if (contentBlock.type === "tool-call") {
-                  if (usesJsonResponseTool) {
-                    controller.enqueue({
-                      type: "text-start",
-                      id: String(blockIndex)
-                    });
-                    controller.enqueue({
-                      type: "text-delta",
-                      id: String(blockIndex),
-                      delta: contentBlock.jsonText
-                    });
-                    controller.enqueue({
-                      type: "text-end",
-                      id: String(blockIndex)
+                      type: "reasoning-delta",
+                      id: currentReasoningBlockId,
+                      delta: part.text
                     });
                   } else {
+                    if (currentReasoningBlockId !== null) {
+                      controller.enqueue({
+                        type: "reasoning-end",
+                        id: currentReasoningBlockId
+                      });
+                      currentReasoningBlockId = null;
+                    }
+                    if (currentTextBlockId === null) {
+                      currentTextBlockId = String(blockCounter++);
+                      controller.enqueue({
+                        type: "text-start",
+                        id: currentTextBlockId
+                      });
+                    }
                     controller.enqueue({
-                      type: "tool-input-end",
-                      id: contentBlock.toolCallId
-                    });
-                    controller.enqueue({
-                      type: "tool-call",
-                      toolCallId: contentBlock.toolCallId,
-                      toolName: contentBlock.toolName,
-                      input: contentBlock.jsonText
+                      type: "text-delta",
+                      id: currentTextBlockId,
+                      delta: part.text
                     });
                   }
                 }
-                delete contentBlocks[blockIndex];
               }
-            }
-            if (((_o = value.contentBlockDelta) == null ? void 0 : _o.delta) && "reasoningContent" in value.contentBlockDelta.delta && value.contentBlockDelta.delta.reasoningContent) {
-              const blockIndex = value.contentBlockDelta.contentBlockIndex || 0;
-              const reasoningContent = value.contentBlockDelta.delta.reasoningContent;
-              if ("text" in reasoningContent && reasoningContent.text) {
-                if (contentBlocks[blockIndex] == null) {
-                  contentBlocks[blockIndex] = { type: "reasoning" };
+              const inlineDataParts = getInlineDataParts(content.parts);
+              if (inlineDataParts != null) {
+                for (const part of inlineDataParts) {
                   controller.enqueue({
-                    type: "reasoning-start",
-                    id: String(blockIndex)
+                    type: "file",
+                    mediaType: part.inlineData.mimeType,
+                    data: part.inlineData.data
                   });
                 }
-                controller.enqueue({
-                  type: "reasoning-delta",
-                  id: String(blockIndex),
-                  delta: reasoningContent.text
-                });
-              } else if ("signature" in reasoningContent && reasoningContent.signature) {
-                controller.enqueue({
-                  type: "reasoning-delta",
-                  id: String(blockIndex),
-                  delta: "",
-                  providerMetadata: {
-                    bedrock: {
-                      signature: reasoningContent.signature
-                    }
-                  }
-                });
-              } else if ("data" in reasoningContent && reasoningContent.data) {
-                controller.enqueue({
-                  type: "reasoning-delta",
-                  id: String(blockIndex),
-                  delta: "",
-                  providerMetadata: {
-                    bedrock: {
-                      redactedData: reasoningContent.data
-                    }
-                  }
-                });
               }
-            }
-            const contentBlockStart = value.contentBlockStart;
-            if (((_p = contentBlockStart == null ? void 0 : contentBlockStart.start) == null ? void 0 : _p.toolUse) != null) {
-              const toolUse = contentBlockStart.start.toolUse;
-              const blockIndex = contentBlockStart.contentBlockIndex;
-              contentBlocks[blockIndex] = {
-                type: "tool-call",
-                toolCallId: toolUse.toolUseId,
-                toolName: toolUse.name,
-                jsonText: ""
-              };
-              if (!usesJsonResponseTool) {
-                controller.enqueue({
-                  type: "tool-input-start",
-                  id: toolUse.toolUseId,
-                  toolName: toolUse.name
-                });
-              }
-            }
-            const contentBlockDelta = value.contentBlockDelta;
-            if ((contentBlockDelta == null ? void 0 : contentBlockDelta.delta) && "toolUse" in contentBlockDelta.delta && contentBlockDelta.delta.toolUse) {
-              const blockIndex = contentBlockDelta.contentBlockIndex;
-              const contentBlock = contentBlocks[blockIndex];
-              if ((contentBlock == null ? void 0 : contentBlock.type) === "tool-call") {
-                const delta = (_q = contentBlockDelta.delta.toolUse.input) != null ? _q : "";
-                if (!usesJsonResponseTool) {
+              const toolCallDeltas = getToolCallsFromParts({
+                parts: content.parts,
+                generateId: generateId3
+              });
+              if (toolCallDeltas != null) {
+                for (const toolCall of toolCallDeltas) {
+                  controller.enqueue({
+                    type: "tool-input-start",
+                    id: toolCall.toolCallId,
+                    toolName: toolCall.toolName
+                  });
                   controller.enqueue({
                     type: "tool-input-delta",
-                    id: contentBlock.toolCallId,
-                    delta
+                    id: toolCall.toolCallId,
+                    delta: toolCall.args
                   });
+                  controller.enqueue({
+                    type: "tool-input-end",
+                    id: toolCall.toolCallId
+                  });
+                  controller.enqueue({
+                    type: "tool-call",
+                    toolCallId: toolCall.toolCallId,
+                    toolName: toolCall.toolName,
+                    input: toolCall.args
+                  });
+                  hasToolCalls = true;
                 }
-                contentBlock.jsonText += delta;
+              }
+            }
+            if (candidate.finishReason != null) {
+              finishReason = mapGoogleGenerativeAIFinishReason({
+                finishReason: candidate.finishReason,
+                hasToolCalls
+              });
+              providerMetadata = {
+                google: {
+                  groundingMetadata: (_i = candidate.groundingMetadata) != null ? _i : null,
+                  urlContextMetadata: (_j = candidate.urlContextMetadata) != null ? _j : null,
+                  safetyRatings: (_k = candidate.safetyRatings) != null ? _k : null
+                }
+              };
+              if (usageMetadata != null) {
+                providerMetadata.google.usageMetadata = usageMetadata;
               }
             }
           },
           flush(controller) {
+            if (currentTextBlockId !== null) {
+              controller.enqueue({
+                type: "text-end",
+                id: currentTextBlockId
+              });
+            }
+            if (currentReasoningBlockId !== null) {
+              controller.enqueue({
+                type: "reasoning-end",
+                id: currentReasoningBlockId
+              });
+            }
             controller.enqueue({
               type: "finish",
               finishReason,
               usage,
-              ...providerMetadata && { providerMetadata }
+              providerMetadata
             });
           }
         })
       ),
-      // TODO request?
-      response: { headers: responseHeaders }
+      response: { headers: responseHeaders },
+      request: { body }
     };
   }
-  getUrl(modelId) {
-    const encodedModelId = encodeURIComponent(modelId);
-    return `${this.config.baseUrl()}/model/${encodedModelId}`;
-  }
 };
-var BedrockStopReasonSchema = import_v43.z.union([
-  import_v43.z.enum(BEDROCK_STOP_REASONS),
-  import_v43.z.string()
-]);
-var BedrockToolUseSchema = import_v43.z.object({
-  toolUseId: import_v43.z.string(),
-  name: import_v43.z.string(),
-  input: import_v43.z.unknown()
-});
-var BedrockReasoningTextSchema = import_v43.z.object({
-  signature: import_v43.z.string().nullish(),
-  text: import_v43.z.string()
-});
-var BedrockRedactedReasoningSchema = import_v43.z.object({
-  data: import_v43.z.string()
-});
-var BedrockResponseSchema = import_v43.z.object({
-  metrics: import_v43.z.object({
-    latencyMs: import_v43.z.number()
-  }).nullish(),
-  output: import_v43.z.object({
-    message: import_v43.z.object({
-      content: import_v43.z.array(
-        import_v43.z.object({
-          text: import_v43.z.string().nullish(),
-          toolUse: BedrockToolUseSchema.nullish(),
-          reasoningContent: import_v43.z.union([
-            import_v43.z.object({
-              reasoningText: BedrockReasoningTextSchema
-            }),
-            import_v43.z.object({
-              redactedReasoning: BedrockRedactedReasoningSchema
-            })
-          ]).nullish()
+function getToolCallsFromParts({
+  parts,
+  generateId: generateId3
+}) {
+  const functionCallParts = parts == null ? void 0 : parts.filter(
+    (part) => "functionCall" in part
+  );
+  return functionCallParts == null || functionCallParts.length === 0 ? void 0 : functionCallParts.map((part) => ({
+    type: "tool-call",
+    toolCallId: generateId3(),
+    toolName: part.functionCall.name,
+    args: JSON.stringify(part.functionCall.args)
+  }));
+}
+function getInlineDataParts(parts) {
+  return parts == null ? void 0 : parts.filter(
+    (part) => "inlineData" in part
+  );
+}
+function extractSources({
+  groundingMetadata,
+  generateId: generateId3
+}) {
+  var _a;
+  return (_a = groundingMetadata == null ? void 0 : groundingMetadata.groundingChunks) == null ? void 0 : _a.filter(
+    (chunk) => chunk.web != null
+  ).map((chunk) => ({
+    type: "source",
+    sourceType: "url",
+    id: generateId3(),
+    url: chunk.web.uri,
+    title: chunk.web.title
+  }));
+}
+var contentSchema = import_v47.z.object({
+  parts: import_v47.z.array(
+    import_v47.z.union([
+      // note: order matters since text can be fully empty
+      import_v47.z.object({
+        functionCall: import_v47.z.object({
+          name: import_v47.z.string(),
+          args: import_v47.z.unknown()
         })
-      ),
-      role: import_v43.z.string()
+      }),
+      import_v47.z.object({
+        inlineData: import_v47.z.object({
+          mimeType: import_v47.z.string(),
+          data: import_v47.z.string()
+        })
+      }),
+      import_v47.z.object({
+        executableCode: import_v47.z.object({
+          language: import_v47.z.string(),
+          code: import_v47.z.string()
+        }).nullish(),
+        codeExecutionResult: import_v47.z.object({
+          outcome: import_v47.z.string(),
+          output: import_v47.z.string()
+        }).nullish(),
+        text: import_v47.z.string().nullish(),
+        thought: import_v47.z.boolean().nullish()
+      })
+    ])
+  ).nullish()
+});
+var safetyRatingSchema = import_v47.z.object({
+  category: import_v47.z.string().nullish(),
+  probability: import_v47.z.string().nullish(),
+  probabilityScore: import_v47.z.number().nullish(),
+  severity: import_v47.z.string().nullish(),
+  severityScore: import_v47.z.number().nullish(),
+  blocked: import_v47.z.boolean().nullish()
+});
+var usageSchema = import_v47.z.object({
+  cachedContentTokenCount: import_v47.z.number().nullish(),
+  thoughtsTokenCount: import_v47.z.number().nullish(),
+  promptTokenCount: import_v47.z.number().nullish(),
+  candidatesTokenCount: import_v47.z.number().nullish(),
+  totalTokenCount: import_v47.z.number().nullish()
+});
+var responseSchema = import_v47.z.object({
+  candidates: import_v47.z.array(
+    import_v47.z.object({
+      content: contentSchema.nullish().or(import_v47.z.object({}).strict()),
+      finishReason: import_v47.z.string().nullish(),
+      safetyRatings: import_v47.z.array(safetyRatingSchema).nullish(),
+      groundingMetadata: groundingMetadataSchema.nullish(),
+      urlContextMetadata: urlContextMetadataSchema.nullish()
     })
+  ),
+  usageMetadata: usageSchema.nullish()
+});
+var chunkSchema = import_v47.z.object({
+  candidates: import_v47.z.array(
+    import_v47.z.object({
+      content: contentSchema.nullish(),
+      finishReason: import_v47.z.string().nullish(),
+      safetyRatings: import_v47.z.array(safetyRatingSchema).nullish(),
+      groundingMetadata: groundingMetadataSchema.nullish(),
+      urlContextMetadata: urlContextMetadataSchema.nullish()
+    })
+  ).nullish(),
+  usageMetadata: usageSchema.nullish()
+});
+
+// src/tool/code-execution.ts
+var import_provider_utils7 = require("@ai-sdk/provider-utils");
+var import_v48 = require("zod/v4");
+var codeExecution = (0, import_provider_utils7.createProviderDefinedToolFactoryWithOutputSchema)({
+  id: "google.code_execution",
+  name: "code_execution",
+  inputSchema: import_v48.z.object({
+    language: import_v48.z.string().describe("The programming language of the code."),
+    code: import_v48.z.string().describe("The code to be executed.")
   }),
-  stopReason: BedrockStopReasonSchema,
-  trace: import_v43.z.unknown().nullish(),
-  usage: import_v43.z.object({
-    inputTokens: import_v43.z.number(),
-    outputTokens: import_v43.z.number(),
-    totalTokens: import_v43.z.number(),
-    cacheReadInputTokens: import_v43.z.number().nullish(),
-    cacheWriteInputTokens: import_v43.z.number().nullish()
+  outputSchema: import_v48.z.object({
+    outcome: import_v48.z.string().describe('The outcome of the execution (e.g., "OUTCOME_OK").'),
+    output: import_v48.z.string().describe("The output from the code execution.")
   })
 });
-var BedrockStreamSchema = import_v43.z.object({
-  contentBlockDelta: import_v43.z.object({
-    contentBlockIndex: import_v43.z.number(),
-    delta: import_v43.z.union([
-      import_v43.z.object({ text: import_v43.z.string() }),
-      import_v43.z.object({ toolUse: import_v43.z.object({ input: import_v43.z.string() }) }),
-      import_v43.z.object({
-        reasoningContent: import_v43.z.object({ text: import_v43.z.string() })
-      }),
-      import_v43.z.object({
-        reasoningContent: import_v43.z.object({
-          signature: import_v43.z.string()
-        })
-      }),
-      import_v43.z.object({
-        reasoningContent: import_v43.z.object({ data: import_v43.z.string() })
-      })
-    ]).nullish()
-  }).nullish(),
-  contentBlockStart: import_v43.z.object({
-    contentBlockIndex: import_v43.z.number(),
-    start: import_v43.z.object({
-      toolUse: BedrockToolUseSchema.nullish()
-    }).nullish()
-  }).nullish(),
-  contentBlockStop: import_v43.z.object({
-    contentBlockIndex: import_v43.z.number()
-  }).nullish(),
-  internalServerException: import_v43.z.record(import_v43.z.string(), import_v43.z.unknown()).nullish(),
-  messageStop: import_v43.z.object({
-    additionalModelResponseFields: import_v43.z.record(import_v43.z.string(), import_v43.z.unknown()).nullish(),
-    stopReason: BedrockStopReasonSchema
-  }).nullish(),
-  metadata: import_v43.z.object({
-    trace: import_v43.z.unknown().nullish(),
-    usage: import_v43.z.object({
-      cacheReadInputTokens: import_v43.z.number().nullish(),
-      cacheWriteInputTokens: import_v43.z.number().nullish(),
-      inputTokens: import_v43.z.number(),
-      outputTokens: import_v43.z.number()
-    }).nullish()
-  }).nullish(),
-  modelStreamErrorException: import_v43.z.record(import_v43.z.string(), import_v43.z.unknown()).nullish(),
-  throttlingException: import_v43.z.record(import_v43.z.string(), import_v43.z.unknown()).nullish(),
-  validationException: import_v43.z.record(import_v43.z.string(), import_v43.z.unknown()).nullish()
-});
-var bedrockReasoningMetadataSchema = import_v43.z.object({
-  signature: import_v43.z.string().optional(),
-  redactedData: import_v43.z.string().optional()
-});
 
-// src/bedrock-embedding-model.ts
-var import_provider4 = require("@ai-sdk/provider");
-var import_provider_utils5 = require("@ai-sdk/provider-utils");
-
-// src/bedrock-embedding-options.ts
-var import_v44 = require("zod/v4");
-var bedrockEmbeddingProviderOptions = import_v44.z.object({
+// src/google-tools.ts
+var googleTools = {
   /**
-  The number of dimensions the resulting output embeddings should have (defaults to 1024).
-  Only supported in amazon.titan-embed-text-v2:0.
-     */
-  dimensions: import_v44.z.union([import_v44.z.literal(1024), import_v44.z.literal(512), import_v44.z.literal(256)]).optional(),
-  /**
-  Flag indicating whether or not to normalize the output embeddings. Defaults to true
-  Only supported in amazon.titan-embed-text-v2:0.
+   * Creates a Google search tool that gives Google direct access to real-time web content.
+   * Must have name "google_search".
    */
-  normalize: import_v44.z.boolean().optional()
-});
-
-// src/bedrock-embedding-model.ts
-var import_v45 = require("zod/v4");
-var BedrockEmbeddingModel = class {
-  constructor(modelId, config) {
-    this.modelId = modelId;
-    this.config = config;
-    this.specificationVersion = "v2";
-    this.provider = "amazon-bedrock";
-    this.maxEmbeddingsPerCall = 1;
-    this.supportsParallelCalls = true;
-  }
-  getUrl(modelId) {
-    const encodedModelId = encodeURIComponent(modelId);
-    return `${this.config.baseUrl()}/model/${encodedModelId}/invoke`;
-  }
-  async doEmbed({
-    values,
-    headers,
-    abortSignal,
-    providerOptions
-  }) {
-    var _a;
-    if (values.length > this.maxEmbeddingsPerCall) {
-      throw new import_provider4.TooManyEmbeddingValuesForCallError({
-        provider: this.provider,
-        modelId: this.modelId,
-        maxEmbeddingsPerCall: this.maxEmbeddingsPerCall,
-        values
-      });
-    }
-    const bedrockOptions = (_a = await (0, import_provider_utils5.parseProviderOptions)({
-      provider: "bedrock",
-      providerOptions,
-      schema: bedrockEmbeddingProviderOptions
-    })) != null ? _a : {};
-    const args = {
-      inputText: values[0],
-      dimensions: bedrockOptions.dimensions,
-      normalize: bedrockOptions.normalize
-    };
-    const url = this.getUrl(this.modelId);
-    const { value: response } = await (0, import_provider_utils5.postJsonToApi)({
-      url,
-      headers: await (0, import_provider_utils5.resolve)(
-        (0, import_provider_utils5.combineHeaders)(await (0, import_provider_utils5.resolve)(this.config.headers), headers)
-      ),
-      body: args,
-      failedResponseHandler: (0, import_provider_utils5.createJsonErrorResponseHandler)({
-        errorSchema: BedrockErrorSchema,
-        errorToMessage: (error) => `${error.type}: ${error.message}`
-      }),
-      successfulResponseHandler: (0, import_provider_utils5.createJsonResponseHandler)(
-        BedrockEmbeddingResponseSchema
-      ),
-      fetch: this.config.fetch,
-      abortSignal
-    });
-    return {
-      embeddings: [response.embedding],
-      usage: { tokens: response.inputTextTokenCount }
-    };
-  }
-};
-var BedrockEmbeddingResponseSchema = import_v45.z.object({
-  embedding: import_v45.z.array(import_v45.z.number()),
-  inputTextTokenCount: import_v45.z.number()
-});
-
-// src/bedrock-image-model.ts
-var import_provider_utils6 = require("@ai-sdk/provider-utils");
-
-// src/bedrock-image-settings.ts
-var modelMaxImagesPerCall = {
-  "amazon.nova-canvas-v1:0": 5
+  googleSearch,
+  /**
+   * Creates a URL context tool that gives Google direct access to real-time web content.
+   * Must have name "url_context".
+   */
+  urlContext,
+  /**
+   * A tool that enables the model to generate and run Python code.
+   * Must have name "code_execution".
+   *
+   * @note Ensure the selected model supports Code Execution.
+   * Multi-tool usage with the code execution tool is typically compatible with Gemini >=2 models.
+   *
+   * @see https://ai.google.dev/gemini-api/docs/code-execution (Google AI)
+   * @see https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/code-execution-api (Vertex AI)
+   */
+  codeExecution
 };
 
-// src/bedrock-image-model.ts
-var import_v46 = require("zod/v4");
-var BedrockImageModel = class {
-  constructor(modelId, config) {
+// src/google-generative-ai-image-model.ts
+var import_provider_utils8 = require("@ai-sdk/provider-utils");
+var import_v49 = require("zod/v4");
+var GoogleGenerativeAIImageModel = class {
+  constructor(modelId, settings, config) {
     this.modelId = modelId;
+    this.settings = settings;
     this.config = config;
     this.specificationVersion = "v2";
-    this.provider = "amazon-bedrock";
   }
   get maxImagesPerCall() {
     var _a;
-    return (_a = modelMaxImagesPerCall[this.modelId]) != null ? _a : 1;
+    return (_a = this.settings.maxImagesPerCall) != null ? _a : 4;
   }
-  getUrl(modelId) {
-    const encodedModelId = encodeURIComponent(modelId);
-    return `${this.config.baseUrl()}/model/${encodedModelId}/invoke`;
+  get provider() {
+    return this.config.provider;
   }
-  async doGenerate({
-    prompt,
-    n,
-    size,
-    aspectRatio,
-    seed,
-    providerOptions,
-    headers,
-    abortSignal
-  }) {
-    var _a, _b, _c, _d, _e, _f, _g;
+  async doGenerate(options) {
+    var _a, _b, _c;
+    const {
+      prompt,
+      n = 1,
+      size = "1024x1024",
+      aspectRatio = "1:1",
+      seed,
+      providerOptions,
+      headers,
+      abortSignal
+    } = options;
     const warnings = [];
-    const [width, height] = size ? size.split("x").map(Number) : [];
-    const args = {
-      taskType: "TEXT_IMAGE",
-      textToImageParams: {
-        text: prompt,
-        ...((_a = providerOptions == null ? void 0 : providerOptions.bedrock) == null ? void 0 : _a.negativeText) ? {
-          negativeText: providerOptions.bedrock.negativeText
-        } : {},
-        ...((_b = providerOptions == null ? void 0 : providerOptions.bedrock) == null ? void 0 : _b.style) ? {
-          style: providerOptions.bedrock.style
-        } : {}
-      },
-      imageGenerationConfig: {
-        ...width ? { width } : {},
-        ...height ? { height } : {},
-        ...seed ? { seed } : {},
-        ...n ? { numberOfImages: n } : {},
-        ...((_c = providerOptions == null ? void 0 : providerOptions.bedrock) == null ? void 0 : _c.quality) ? { quality: providerOptions.bedrock.quality } : {},
-        ...((_d = providerOptions == null ? void 0 : providerOptions.bedrock) == null ? void 0 : _d.cfgScale) ? { cfgScale: providerOptions.bedrock.cfgScale } : {}
-      }
-    };
-    if (aspectRatio != void 0) {
+    if (size != null) {
       warnings.push({
         type: "unsupported-setting",
-        setting: "aspectRatio",
-        details: "This model does not support aspect ratio. Use `size` instead."
+        setting: "size",
+        details: "This model does not support the `size` option. Use `aspectRatio` instead."
       });
     }
-    const currentDate = (_g = (_f = (_e = this.config._internal) == null ? void 0 : _e.currentDate) == null ? void 0 : _f.call(_e)) != null ? _g : /* @__PURE__ */ new Date();
-    const { value: response, responseHeaders } = await (0, import_provider_utils6.postJsonToApi)({
-      url: this.getUrl(this.modelId),
-      headers: await (0, import_provider_utils6.resolve)(
-        (0, import_provider_utils6.combineHeaders)(await (0, import_provider_utils6.resolve)(this.config.headers), headers)
-      ),
-      body: args,
-      failedResponseHandler: (0, import_provider_utils6.createJsonErrorResponseHandler)({
-        errorSchema: BedrockErrorSchema,
-        errorToMessage: (error) => `${error.type}: ${error.message}`
-      }),
-      successfulResponseHandler: (0, import_provider_utils6.createJsonResponseHandler)(
-        bedrockImageResponseSchema
+    if (seed != null) {
+      warnings.push({
+        type: "unsupported-setting",
+        setting: "seed",
+        details: "This model does not support the `seed` option through this provider."
+      });
+    }
+    const googleOptions = await (0, import_provider_utils8.parseProviderOptions)({
+      provider: "google",
+      providerOptions,
+      schema: googleImageProviderOptionsSchema
+    });
+    const currentDate = (_c = (_b = (_a = this.config._internal) == null ? void 0 : _a.currentDate) == null ? void 0 : _b.call(_a)) != null ? _c : /* @__PURE__ */ new Date();
+    const parameters = {
+      sampleCount: n
+    };
+    if (aspectRatio != null) {
+      parameters.aspectRatio = aspectRatio;
+    }
+    if (googleOptions) {
+      Object.assign(parameters, googleOptions);
+    }
+    const body = {
+      instances: [{ prompt }],
+      parameters
+    };
+    const { responseHeaders, value: response } = await (0, import_provider_utils8.postJsonToApi)({
+      url: `${this.config.baseURL}/models/${this.modelId}:predict`,
+      headers: (0, import_provider_utils8.combineHeaders)(await (0, import_provider_utils8.resolve)(this.config.headers), headers),
+      body,
+      failedResponseHandler: googleFailedResponseHandler,
+      successfulResponseHandler: (0, import_provider_utils8.createJsonResponseHandler)(
+        googleImageResponseSchema
       ),
       abortSignal,
       fetch: this.config.fetch
     });
     return {
-      images: response.images,
-      warnings,
+      images: response.predictions.map(
+        (p) => p.bytesBase64Encoded
+      ),
+      warnings: warnings != null ? warnings : [],
+      providerMetadata: {
+        google: {
+          images: response.predictions.map((prediction) => ({
+            // Add any prediction-specific metadata here
+          }))
+        }
+      },
       response: {
         timestamp: currentDate,
         modelId: this.modelId,
@@ -1452,217 +1367,83 @@ var BedrockImageModel = class {
     };
   }
 };
-var bedrockImageResponseSchema = import_v46.z.object({
-  images: import_v46.z.array(import_v46.z.string())
+var googleImageResponseSchema = import_v49.z.object({
+  predictions: import_v49.z.array(import_v49.z.object({ bytesBase64Encoded: import_v49.z.string() })).default([])
+});
+var googleImageProviderOptionsSchema = import_v49.z.object({
+  personGeneration: import_v49.z.enum(["dont_allow", "allow_adult", "allow_all"]).nullish(),
+  aspectRatio: import_v49.z.enum(["1:1", "3:4", "4:3", "9:16", "16:9"]).nullish()
 });
 
-// src/headers-utils.ts
-function extractHeaders(headers) {
-  let originalHeaders = {};
-  if (headers) {
-    if (headers instanceof Headers) {
-      originalHeaders = convertHeadersToRecord(headers);
-    } else if (Array.isArray(headers)) {
-      for (const [k, v] of headers) {
-        originalHeaders[k.toLowerCase()] = v;
-      }
-    } else {
-      originalHeaders = Object.fromEntries(
-        Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v])
-      );
-    }
-  }
-  return originalHeaders;
-}
-function convertHeadersToRecord(headers) {
-  return Object.fromEntries([...headers]);
-}
-
-// src/bedrock-sigv4-fetch.ts
-var import_provider_utils7 = require("@ai-sdk/provider-utils");
-var import_aws4fetch = require("aws4fetch");
-function createSigV4FetchFunction(getCredentials, fetch = globalThis.fetch) {
-  return async (input, init) => {
-    var _a;
-    if (((_a = init == null ? void 0 : init.method) == null ? void 0 : _a.toUpperCase()) !== "POST" || !(init == null ? void 0 : init.body)) {
-      return fetch(input, init);
-    }
-    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-    const originalHeaders = extractHeaders(init.headers);
-    const body = prepareBodyString(init.body);
-    const credentials = await getCredentials();
-    const signer = new import_aws4fetch.AwsV4Signer({
-      url,
-      method: "POST",
-      headers: Object.entries((0, import_provider_utils7.removeUndefinedEntries)(originalHeaders)),
-      body,
-      region: credentials.region,
-      accessKeyId: credentials.accessKeyId,
-      secretAccessKey: credentials.secretAccessKey,
-      sessionToken: credentials.sessionToken,
-      service: "bedrock"
-    });
-    const signingResult = await signer.sign();
-    const signedHeaders = convertHeadersToRecord(signingResult.headers);
-    return fetch(input, {
-      ...init,
-      body,
-      headers: (0, import_provider_utils7.removeUndefinedEntries)(
-        (0, import_provider_utils7.combineHeaders)(originalHeaders, signedHeaders)
-      )
-    });
-  };
-}
-function prepareBodyString(body) {
-  if (typeof body === "string") {
-    return body;
-  } else if (body instanceof Uint8Array) {
-    return new TextDecoder().decode(body);
-  } else if (body instanceof ArrayBuffer) {
-    return new TextDecoder().decode(new Uint8Array(body));
-  } else {
-    return JSON.stringify(body);
-  }
-}
-function createApiKeyFetchFunction(apiKey, fetch = globalThis.fetch) {
-  return async (input, init) => {
-    const originalHeaders = extractHeaders(init == null ? void 0 : init.headers);
-    return fetch(input, {
-      ...init,
-      headers: (0, import_provider_utils7.removeUndefinedEntries)(
-        (0, import_provider_utils7.combineHeaders)(originalHeaders, {
-          Authorization: `Bearer ${apiKey}`
-        })
-      )
-    });
-  };
-}
-
-// src/bedrock-provider.ts
-function createAmazonBedrock(options = {}) {
-  const rawApiKey = (0, import_provider_utils8.loadOptionalSetting)({
-    settingValue: options.apiKey,
-    environmentVariableName: "AWS_BEARER_TOKEN_BEDROCK"
+// src/google-provider.ts
+function createGoogleGenerativeAI(options = {}) {
+  var _a;
+  const baseURL = (_a = (0, import_provider_utils9.withoutTrailingSlash)(options.baseURL)) != null ? _a : "https://generativelanguage.googleapis.com/v1beta";
+  const getHeaders = () => ({
+    "x-goog-api-key": (0, import_provider_utils9.loadApiKey)({
+      apiKey: options.apiKey,
+      environmentVariableName: "GOOGLE_GENERATIVE_AI_API_KEY",
+      description: "Google Generative AI"
+    }),
+    ...options.headers
   });
-  const apiKey = rawApiKey && rawApiKey.trim().length > 0 ? rawApiKey.trim() : void 0;
-  const fetchFunction = apiKey ? createApiKeyFetchFunction(apiKey, options.fetch) : createSigV4FetchFunction(async () => {
-    const region = (0, import_provider_utils8.loadSetting)({
-      settingValue: options.region,
-      settingName: "region",
-      environmentVariableName: "AWS_REGION",
-      description: "AWS region"
-    });
-    if (options.credentialProvider) {
-      try {
-        return {
-          ...await options.credentialProvider(),
-          region
-        };
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        throw new Error(
-          `AWS credential provider failed: ${errorMessage}. Please ensure your credential provider returns valid AWS credentials with accessKeyId and secretAccessKey properties.`
-        );
-      }
-    }
-    try {
-      return {
-        region,
-        accessKeyId: (0, import_provider_utils8.loadSetting)({
-          settingValue: options.accessKeyId,
-          settingName: "accessKeyId",
-          environmentVariableName: "AWS_ACCESS_KEY_ID",
-          description: "AWS access key ID"
-        }),
-        secretAccessKey: (0, import_provider_utils8.loadSetting)({
-          settingValue: options.secretAccessKey,
-          settingName: "secretAccessKey",
-          environmentVariableName: "AWS_SECRET_ACCESS_KEY",
-          description: "AWS secret access key"
-        }),
-        sessionToken: (0, import_provider_utils8.loadOptionalSetting)({
-          settingValue: options.sessionToken,
-          environmentVariableName: "AWS_SESSION_TOKEN"
-        })
-      };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      if (errorMessage.includes("AWS_ACCESS_KEY_ID") || errorMessage.includes("accessKeyId")) {
-        throw new Error(
-          `AWS SigV4 authentication requires AWS credentials. Please provide either:
-1. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables
-2. Provide accessKeyId and secretAccessKey in options
-3. Use a credentialProvider function
-4. Use API key authentication with AWS_BEARER_TOKEN_BEDROCK or apiKey option
-Original error: ${errorMessage}`
-        );
-      }
-      if (errorMessage.includes("AWS_SECRET_ACCESS_KEY") || errorMessage.includes("secretAccessKey")) {
-        throw new Error(
-          `AWS SigV4 authentication requires both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY. Please ensure both credentials are provided.
-Original error: ${errorMessage}`
-        );
-      }
-      throw error;
-    }
-  }, options.fetch);
-  const getBaseUrl = () => {
-    var _a, _b;
-    return (_b = (0, import_provider_utils8.withoutTrailingSlash)(
-      (_a = options.baseURL) != null ? _a : `https://bedrock-runtime.${(0, import_provider_utils8.loadSetting)({
-        settingValue: options.region,
-        settingName: "region",
-        environmentVariableName: "AWS_REGION",
-        description: "AWS region"
-      })}.amazonaws.com`
-    )) != null ? _b : `https://bedrock-runtime.us-east-1.amazonaws.com`;
-  };
   const createChatModel = (modelId) => {
-    var _a;
-    return new BedrockChatLanguageModel(modelId, {
-      baseUrl: getBaseUrl,
-      headers: (_a = options.headers) != null ? _a : {},
-      fetch: fetchFunction,
-      generateId: import_provider_utils8.generateId
+    var _a2;
+    return new GoogleGenerativeAILanguageModel(modelId, {
+      provider: "google.generative-ai",
+      baseURL,
+      headers: getHeaders,
+      generateId: (_a2 = options.generateId) != null ? _a2 : import_provider_utils9.generateId,
+      supportedUrls: () => ({
+        "*": [
+          // Google Generative Language "files" endpoint
+          // e.g. https://generativelanguage.googleapis.com/v1beta/files/...
+          new RegExp(`^${baseURL}/files/.*$`),
+          // YouTube URLs (public or unlisted videos)
+          new RegExp(
+            `^https://(?:www\\.)?youtube\\.com/watch\\?v=[\\w-]+(?:&[\\w=&.-]*)?$`
+          ),
+          new RegExp(`^https://youtu\\.be/[\\w-]+(?:\\?[\\w=&.-]*)?$`)
+        ]
+      }),
+      fetch: options.fetch
     });
   };
+  const createEmbeddingModel = (modelId) => new GoogleGenerativeAIEmbeddingModel(modelId, {
+    provider: "google.generative-ai",
+    baseURL,
+    headers: getHeaders,
+    fetch: options.fetch
+  });
+  const createImageModel = (modelId, settings = {}) => new GoogleGenerativeAIImageModel(modelId, settings, {
+    provider: "google.generative-ai",
+    baseURL,
+    headers: getHeaders,
+    fetch: options.fetch
+  });
   const provider = function(modelId) {
     if (new.target) {
       throw new Error(
-        "The Amazon Bedrock model function cannot be called with the new keyword."
+        "The Google Generative AI model function cannot be called with the new keyword."
       );
     }
     return createChatModel(modelId);
   };
-  const createEmbeddingModel = (modelId) => {
-    var _a;
-    return new BedrockEmbeddingModel(modelId, {
-      baseUrl: getBaseUrl,
-      headers: (_a = options.headers) != null ? _a : {},
-      fetch: fetchFunction
-    });
-  };
-  const createImageModel = (modelId) => {
-    var _a;
-    return new BedrockImageModel(modelId, {
-      baseUrl: getBaseUrl,
-      headers: (_a = options.headers) != null ? _a : {},
-      fetch: fetchFunction
-    });
-  };
   provider.languageModel = createChatModel;
+  provider.chat = createChatModel;
+  provider.generativeAI = createChatModel;
   provider.embedding = createEmbeddingModel;
   provider.textEmbedding = createEmbeddingModel;
   provider.textEmbeddingModel = createEmbeddingModel;
   provider.image = createImageModel;
   provider.imageModel = createImageModel;
-  provider.tools = import_internal2.anthropicTools;
+  provider.tools = googleTools;
   return provider;
 }
-var bedrock = createAmazonBedrock();
+var google = createGoogleGenerativeAI();
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
-  bedrock,
-  createAmazonBedrock
+  createGoogleGenerativeAI,
+  google
 });
 //# sourceMappingURL=index.js.map
