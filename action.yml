@@ -1,97 +1,90 @@
-name: 'Conventional Pull Request Title'
-description: 'Automatically suggests or updates PR titles to follow Conventional Commits standard using AI'
-author: 'Your Name'
+name: "Conventional Pull Request Title"
+description: "Automatically suggests or updates PR titles to follow Conventional Commits standard using AI"
+author: "Your Name"
 inputs:
   github-token:
-    description: 'GitHub token for API access'
+    description: "GitHub token for API access"
     required: true
     default: ${{ github.token }}
 
   # AI Service Configuration
-  ai-provider:
-    description: 'AI provider to use (openai, anthropic, google, mistral, xai, cohere, azure)'
-    required: false
-    default: 'anthropic'
-  api-key:
-    description: 'API key for the selected AI provider'
-    required: true
   model:
-    description: 'AI model to use (e.g., gpt-4o-mini, claude-3-haiku-20240307, gemini-1.5-flash)'
-    required: false
-    default: 'claude-3-5-sonnet-20241022'
-  temperature:
-    description: 'AI temperature setting (0.0 to 1.0)'
-    required: false
-    default: '0.3'
-  max-tokens:
-    description: 'Maximum tokens for AI response'
-    required: false
-    default: '500'
+    description: "AI model to use (e.g., openai/gpt-4o-mini, anthropic/claude-3-5-sonnet-20241022, google/gemini-1.5-flash) or just provider name (e.g., openai, anthropic)"
+    required: true
+    default: "openai"
 
   # Operation Mode
   mode:
-    description: 'Operation mode: "auto" to automatically update title, "suggest" to add comment with suggestions'
+    description: "Operation mode: 'auto' to automatically update title, 'suggest' to add comment with suggestions"
     required: false
-    default: 'suggest'
+    default: "suggest"
 
   # Validation Rules
   allowed-types:
-    description: 'Comma-separated list of allowed conventional commit types'
+    description: "Comma-separated list of allowed conventional commit types"
     required: false
-    default: 'feat,fix,docs,style,refactor,test,chore,perf,ci,build,revert'
+    default: "feat,fix,docs,style,refactor,test,chore,perf,ci,build,revert"
   require-scope:
-    description: 'Whether to require a scope in the commit message'
+    description: "Whether to require a scope in the commit message"
     required: false
-    default: 'false'
+    default: "false"
   max-length:
-    description: 'Maximum allowed length for PR title'
+    description: "Maximum allowed length for PR title"
     required: false
-    default: '72'
+    default: "72"
   min-description-length:
-    description: 'Minimum length for the description part'
+    description: "Minimum length for the description part"
     required: false
-    default: '3'
+    default: "3"
 
   # Customization
   custom-prompt:
-    description: 'Custom prompt template for AI title generation'
+    description: "Custom prompt template for AI title generation"
     required: false
-    default: ''
+    default: ""
   include-scope:
-    description: 'Whether to prefer including scope in generated titles'
+    description: "Whether to prefer including scope in generated titles"
     required: false
-    default: 'true'
+    default: "true"
 
   # Behavior Control
   skip-if-conventional:
-    description: 'Skip processing if title already follows conventional commits'
+    description: "Skip processing if title already follows conventional commits"
     required: false
-    default: 'true'
+    default: "true"
   comment-template:
-    description: 'Custom template for suggestion comments'
+    description: "Custom template for suggestion comments"
     required: false
-    default: ''
-  base-url:
-    description: 'Custom base URL for AI provider (for proxy/custom endpoints)'
+    default: ""
+  debug:
+    description: "Enable debug logging for troubleshooting"
     required: false
-    default: ''
+    default: "false"
+  match-language:
+    description: "Respond in the same language as the original PR title"
+    required: false
+    default: "true"
+  auto-comment:
+    description: "Add a comment when auto-updating PR title to notify the change"
+    required: false
+    default: "true"
 
 outputs:
   is-conventional:
-    description: 'Whether the PR title follows conventional commits format'
+    description: "Whether the PR title follows conventional commits format"
   suggested-titles:
-    description: 'JSON array of AI-suggested conventional commits titles'
+    description: "JSON array of AI-suggested conventional commits titles"
   original-title:
-    description: 'Original PR title before processing'
+    description: "Original PR title before processing"
   action-taken:
-    description: 'Action taken: "updated", "commented", "skipped", or "error"'
+    description: "Action taken: 'updated', 'commented', 'skipped', or 'error'"
   error-message:
-    description: 'Error message if action failed'
+    description: "Error message if action failed"
 
 runs:
-  using: 'node20'
-  main: 'dist/index.js'
+  using: "node20"
+  main: "dist/index.cjs"
 
 branding:
-  icon: 'git-pull-request'
-  color: 'blue'
+  icon: "git-pull-request"
+  color: "blue"

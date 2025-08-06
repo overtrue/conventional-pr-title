@@ -1,33 +1,54 @@
-name: Auto PR Title with Conventional Commits
+name: Auto PR Title with Conventional Commits (AI-Powered)
 
 on:
   pull_request:
     types: [opened, synchronize, reopened, edited]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to process"
+        required: true
+        type: number
 
 permissions:
   contents: read
   pull-requests: write
+  actions: read
 
 jobs:
   auto-conventional-title:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
       - name: Auto-generate conventional PR title
         uses: ./
         with:
+          # Required: GitHub token for API access
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          ai-provider: 'anthropic'
-          api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-          base-url: ${{ secrets.ANTHROPIC_BASE_URL }}
-          model: 'claude-3-5-sonnet-20241022'
-          mode: 'auto'
-          temperature: '0.3'
-          max-tokens: '200'
-          include-scope: 'true'
-          skip-if-conventional: 'true'
-          allowed-types: 'feat,fix,docs,style,refactor,test,chore,perf,ci,build,revert'
-          max-length: '72'
+
+          # AI Model Configuration (simplified)
+          # Use provider name only (e.g., 'claude-code') or full model path (e.g., 'claude-code/sonnet')
+          # API keys are automatically read from environment variables (e.g., CLAUDE_CODE_API_KEY)
+          model: "claude-code"
+
+          # Operation Mode
+          mode: "auto" # 'auto' to update title, 'suggest' to add comment
+
+          # Validation Rules
+          include-scope: "true"
+          skip-if-conventional: "true"
+          allowed-types: "feat,fix,docs,style,refactor,test,chore,perf,ci,build,revert"
+          max-length: "72"
+
+          # Behavior Control
+          debug: "true"
+          match-language: "true"
+          auto-comment: "true"
