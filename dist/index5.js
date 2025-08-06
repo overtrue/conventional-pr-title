@@ -20,105 +20,136 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
-  azure: () => azure,
-  createAzure: () => createAzure
+  createDeepInfra: () => createDeepInfra,
+  deepinfra: () => deepinfra
 });
 module.exports = __toCommonJS(src_exports);
 
-// src/azure-openai-provider.ts
-var import_internal = require("@ai-sdk/openai/internal");
+// src/deepinfra-provider.ts
+var import_openai_compatible = require("@ai-sdk/openai-compatible");
+var import_provider_utils2 = require("@ai-sdk/provider-utils");
+
+// src/deepinfra-image-model.ts
 var import_provider_utils = require("@ai-sdk/provider-utils");
-function createAzure(options = {}) {
+var import_v4 = require("zod/v4");
+var DeepInfraImageModel = class {
+  constructor(modelId, config) {
+    this.modelId = modelId;
+    this.config = config;
+    this.specificationVersion = "v2";
+    this.maxImagesPerCall = 1;
+  }
+  get provider() {
+    return this.config.provider;
+  }
+  async doGenerate({
+    prompt,
+    n,
+    size,
+    aspectRatio,
+    seed,
+    providerOptions,
+    headers,
+    abortSignal
+  }) {
+    var _a, _b, _c, _d;
+    const warnings = [];
+    const splitSize = size == null ? void 0 : size.split("x");
+    const currentDate = (_c = (_b = (_a = this.config._internal) == null ? void 0 : _a.currentDate) == null ? void 0 : _b.call(_a)) != null ? _c : /* @__PURE__ */ new Date();
+    const { value: response, responseHeaders } = await (0, import_provider_utils.postJsonToApi)({
+      url: `${this.config.baseURL}/${this.modelId}`,
+      headers: (0, import_provider_utils.combineHeaders)(this.config.headers(), headers),
+      body: {
+        prompt,
+        num_images: n,
+        ...aspectRatio && { aspect_ratio: aspectRatio },
+        ...splitSize && { width: splitSize[0], height: splitSize[1] },
+        ...seed != null && { seed },
+        ...(_d = providerOptions.deepinfra) != null ? _d : {}
+      },
+      failedResponseHandler: (0, import_provider_utils.createJsonErrorResponseHandler)({
+        errorSchema: deepInfraErrorSchema,
+        errorToMessage: (error) => error.detail.error
+      }),
+      successfulResponseHandler: (0, import_provider_utils.createJsonResponseHandler)(
+        deepInfraImageResponseSchema
+      ),
+      abortSignal,
+      fetch: this.config.fetch
+    });
+    return {
+      images: response.images.map(
+        (image) => image.replace(/^data:image\/\w+;base64,/, "")
+      ),
+      warnings,
+      response: {
+        timestamp: currentDate,
+        modelId: this.modelId,
+        headers: responseHeaders
+      }
+    };
+  }
+};
+var deepInfraErrorSchema = import_v4.z.object({
+  detail: import_v4.z.object({
+    error: import_v4.z.string()
+  })
+});
+var deepInfraImageResponseSchema = import_v4.z.object({
+  images: import_v4.z.array(import_v4.z.string())
+});
+
+// src/deepinfra-provider.ts
+function createDeepInfra(options = {}) {
   var _a;
+  const baseURL = (0, import_provider_utils2.withoutTrailingSlash)(
+    (_a = options.baseURL) != null ? _a : "https://api.deepinfra.com/v1"
+  );
   const getHeaders = () => ({
-    "api-key": (0, import_provider_utils.loadApiKey)({
+    Authorization: `Bearer ${(0, import_provider_utils2.loadApiKey)({
       apiKey: options.apiKey,
-      environmentVariableName: "AZURE_API_KEY",
-      description: "Azure OpenAI"
-    }),
+      environmentVariableName: "DEEPINFRA_API_KEY",
+      description: "DeepInfra's API key"
+    })}`,
     ...options.headers
   });
-  const getResourceName = () => (0, import_provider_utils.loadSetting)({
-    settingValue: options.resourceName,
-    settingName: "resourceName",
-    environmentVariableName: "AZURE_RESOURCE_NAME",
-    description: "Azure OpenAI resource name"
+  const getCommonModelConfig = (modelType) => ({
+    provider: `deepinfra.${modelType}`,
+    url: ({ path }) => `${baseURL}/openai${path}`,
+    headers: getHeaders,
+    fetch: options.fetch
   });
-  const apiVersion = (_a = options.apiVersion) != null ? _a : "preview";
-  const url = ({ path, modelId }) => {
-    var _a2;
-    const baseUrlPrefix = (_a2 = options.baseURL) != null ? _a2 : `https://${getResourceName()}.openai.azure.com/openai`;
-    const fullUrl = new URL(`${baseUrlPrefix}/v1${path}`);
-    fullUrl.searchParams.set("api-version", apiVersion);
-    return fullUrl.toString();
+  const createChatModel = (modelId) => {
+    return new import_openai_compatible.OpenAICompatibleChatLanguageModel(
+      modelId,
+      getCommonModelConfig("chat")
+    );
   };
-  const createChatModel = (deploymentName) => new import_internal.OpenAIChatLanguageModel(deploymentName, {
-    provider: "azure.chat",
-    url,
-    headers: getHeaders,
-    fetch: options.fetch
+  const createCompletionModel = (modelId) => new import_openai_compatible.OpenAICompatibleCompletionLanguageModel(
+    modelId,
+    getCommonModelConfig("completion")
+  );
+  const createTextEmbeddingModel = (modelId) => new import_openai_compatible.OpenAICompatibleEmbeddingModel(
+    modelId,
+    getCommonModelConfig("embedding")
+  );
+  const createImageModel = (modelId) => new DeepInfraImageModel(modelId, {
+    ...getCommonModelConfig("image"),
+    baseURL: baseURL ? `${baseURL}/inference` : "https://api.deepinfra.com/v1/inference"
   });
-  const createCompletionModel = (modelId) => new import_internal.OpenAICompletionLanguageModel(modelId, {
-    provider: "azure.completion",
-    url,
-    headers: getHeaders,
-    fetch: options.fetch
-  });
-  const createEmbeddingModel = (modelId) => new import_internal.OpenAIEmbeddingModel(modelId, {
-    provider: "azure.embeddings",
-    headers: getHeaders,
-    url,
-    fetch: options.fetch
-  });
-  const createResponsesModel = (modelId) => new import_internal.OpenAIResponsesLanguageModel(modelId, {
-    provider: "azure.responses",
-    url,
-    headers: getHeaders,
-    fetch: options.fetch
-  });
-  const createImageModel = (modelId) => new import_internal.OpenAIImageModel(modelId, {
-    provider: "azure.image",
-    url,
-    headers: getHeaders,
-    fetch: options.fetch
-  });
-  const createTranscriptionModel = (modelId) => new import_internal.OpenAITranscriptionModel(modelId, {
-    provider: "azure.transcription",
-    url,
-    headers: getHeaders,
-    fetch: options.fetch
-  });
-  const createSpeechModel = (modelId) => new import_internal.OpenAISpeechModel(modelId, {
-    provider: "azure.speech",
-    url,
-    headers: getHeaders,
-    fetch: options.fetch
-  });
-  const provider = function(deploymentId) {
-    if (new.target) {
-      throw new Error(
-        "The Azure OpenAI model function cannot be called with the new keyword."
-      );
-    }
-    return createChatModel(deploymentId);
-  };
-  provider.languageModel = createChatModel;
-  provider.chat = createChatModel;
-  provider.completion = createCompletionModel;
-  provider.embedding = createEmbeddingModel;
+  const provider = (modelId) => createChatModel(modelId);
+  provider.completionModel = createCompletionModel;
+  provider.chatModel = createChatModel;
   provider.image = createImageModel;
   provider.imageModel = createImageModel;
-  provider.textEmbedding = createEmbeddingModel;
-  provider.textEmbeddingModel = createEmbeddingModel;
-  provider.responses = createResponsesModel;
-  provider.transcription = createTranscriptionModel;
-  provider.speech = createSpeechModel;
+  provider.languageModel = createChatModel;
+  provider.textEmbeddingModel = createTextEmbeddingModel;
   return provider;
 }
-var azure = createAzure();
+var deepinfra = createDeepInfra();
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
-  azure,
-  createAzure
+  createDeepInfra,
+  deepinfra
 });
 //# sourceMappingURL=index.js.map
