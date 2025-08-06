@@ -4,6 +4,10 @@ import { ConfigManager, ConfigurationError } from './config'
 import { createGitHubService } from './github'
 import { PRProcessor } from './processor'
 
+// Ensure ncc includes these dependencies
+import '@ai-sdk/provider'
+import '@ai-sdk/provider-utils'
+
 /**
  * Validate GitHub context
  */

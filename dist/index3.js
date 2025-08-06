@@ -20,105 +20,63 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
-  azure: () => azure,
-  createAzure: () => createAzure
+  cerebras: () => cerebras,
+  createCerebras: () => createCerebras
 });
 module.exports = __toCommonJS(src_exports);
 
-// src/azure-openai-provider.ts
-var import_internal = require("@ai-sdk/openai/internal");
+// src/cerebras-provider.ts
+var import_openai_compatible = require("@ai-sdk/openai-compatible");
+var import_provider = require("@ai-sdk/provider");
 var import_provider_utils = require("@ai-sdk/provider-utils");
-function createAzure(options = {}) {
+var import_v4 = require("zod/v4");
+var cerebrasErrorSchema = import_v4.z.object({
+  message: import_v4.z.string(),
+  type: import_v4.z.string(),
+  param: import_v4.z.string(),
+  code: import_v4.z.string()
+});
+var cerebrasErrorStructure = {
+  errorSchema: cerebrasErrorSchema,
+  errorToMessage: (data) => data.message
+};
+function createCerebras(options = {}) {
   var _a;
+  const baseURL = (0, import_provider_utils.withoutTrailingSlash)(
+    (_a = options.baseURL) != null ? _a : "https://api.cerebras.ai/v1"
+  );
   const getHeaders = () => ({
-    "api-key": (0, import_provider_utils.loadApiKey)({
+    Authorization: `Bearer ${(0, import_provider_utils.loadApiKey)({
       apiKey: options.apiKey,
-      environmentVariableName: "AZURE_API_KEY",
-      description: "Azure OpenAI"
-    }),
+      environmentVariableName: "CEREBRAS_API_KEY",
+      description: "Cerebras API key"
+    })}`,
     ...options.headers
   });
-  const getResourceName = () => (0, import_provider_utils.loadSetting)({
-    settingValue: options.resourceName,
-    settingName: "resourceName",
-    environmentVariableName: "AZURE_RESOURCE_NAME",
-    description: "Azure OpenAI resource name"
-  });
-  const apiVersion = (_a = options.apiVersion) != null ? _a : "preview";
-  const url = ({ path, modelId }) => {
-    var _a2;
-    const baseUrlPrefix = (_a2 = options.baseURL) != null ? _a2 : `https://${getResourceName()}.openai.azure.com/openai`;
-    const fullUrl = new URL(`${baseUrlPrefix}/v1${path}`);
-    fullUrl.searchParams.set("api-version", apiVersion);
-    return fullUrl.toString();
+  const createLanguageModel = (modelId) => {
+    return new import_openai_compatible.OpenAICompatibleChatLanguageModel(modelId, {
+      provider: `cerebras.chat`,
+      url: ({ path }) => `${baseURL}${path}`,
+      headers: getHeaders,
+      fetch: options.fetch,
+      errorStructure: cerebrasErrorStructure
+    });
   };
-  const createChatModel = (deploymentName) => new import_internal.OpenAIChatLanguageModel(deploymentName, {
-    provider: "azure.chat",
-    url,
-    headers: getHeaders,
-    fetch: options.fetch
-  });
-  const createCompletionModel = (modelId) => new import_internal.OpenAICompletionLanguageModel(modelId, {
-    provider: "azure.completion",
-    url,
-    headers: getHeaders,
-    fetch: options.fetch
-  });
-  const createEmbeddingModel = (modelId) => new import_internal.OpenAIEmbeddingModel(modelId, {
-    provider: "azure.embeddings",
-    headers: getHeaders,
-    url,
-    fetch: options.fetch
-  });
-  const createResponsesModel = (modelId) => new import_internal.OpenAIResponsesLanguageModel(modelId, {
-    provider: "azure.responses",
-    url,
-    headers: getHeaders,
-    fetch: options.fetch
-  });
-  const createImageModel = (modelId) => new import_internal.OpenAIImageModel(modelId, {
-    provider: "azure.image",
-    url,
-    headers: getHeaders,
-    fetch: options.fetch
-  });
-  const createTranscriptionModel = (modelId) => new import_internal.OpenAITranscriptionModel(modelId, {
-    provider: "azure.transcription",
-    url,
-    headers: getHeaders,
-    fetch: options.fetch
-  });
-  const createSpeechModel = (modelId) => new import_internal.OpenAISpeechModel(modelId, {
-    provider: "azure.speech",
-    url,
-    headers: getHeaders,
-    fetch: options.fetch
-  });
-  const provider = function(deploymentId) {
-    if (new.target) {
-      throw new Error(
-        "The Azure OpenAI model function cannot be called with the new keyword."
-      );
-    }
-    return createChatModel(deploymentId);
+  const provider = (modelId) => createLanguageModel(modelId);
+  provider.languageModel = createLanguageModel;
+  provider.chat = createLanguageModel;
+  provider.textEmbeddingModel = (modelId) => {
+    throw new import_provider.NoSuchModelError({ modelId, modelType: "textEmbeddingModel" });
   };
-  provider.languageModel = createChatModel;
-  provider.chat = createChatModel;
-  provider.completion = createCompletionModel;
-  provider.embedding = createEmbeddingModel;
-  provider.image = createImageModel;
-  provider.imageModel = createImageModel;
-  provider.textEmbedding = createEmbeddingModel;
-  provider.textEmbeddingModel = createEmbeddingModel;
-  provider.responses = createResponsesModel;
-  provider.transcription = createTranscriptionModel;
-  provider.speech = createSpeechModel;
+  provider.imageModel = (modelId) => {
+    throw new import_provider.NoSuchModelError({ modelId, modelType: "imageModel" });
+  };
   return provider;
 }
-var azure = createAzure();
+var cerebras = createCerebras();
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
-  azure,
-  createAzure
+  cerebras,
+  createCerebras
 });
 //# sourceMappingURL=index.js.map

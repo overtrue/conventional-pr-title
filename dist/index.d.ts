@@ -1,3 +1,5 @@
+import '@ai-sdk/provider';
+import '@ai-sdk/provider-utils';
 /**
  * Main entry function
  */

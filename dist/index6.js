@@ -20,53 +20,19 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
-  FireworksImageModel: () => FireworksImageModel,
-  createFireworks: () => createFireworks,
-  fireworks: () => fireworks
+  createDeepInfra: () => createDeepInfra,
+  deepinfra: () => deepinfra
 });
 module.exports = __toCommonJS(src_exports);
 
-// src/fireworks-image-model.ts
+// src/deepinfra-provider.ts
+var import_openai_compatible = require("@ai-sdk/openai-compatible");
+var import_provider_utils2 = require("@ai-sdk/provider-utils");
+
+// src/deepinfra-image-model.ts
 var import_provider_utils = require("@ai-sdk/provider-utils");
-var modelToBackendConfig = {
-  "accounts/fireworks/models/flux-1-dev-fp8": {
-    urlFormat: "workflows"
-  },
-  "accounts/fireworks/models/flux-1-schnell-fp8": {
-    urlFormat: "workflows"
-  },
-  "accounts/fireworks/models/playground-v2-5-1024px-aesthetic": {
-    urlFormat: "image_generation",
-    supportsSize: true
-  },
-  "accounts/fireworks/models/japanese-stable-diffusion-xl": {
-    urlFormat: "image_generation",
-    supportsSize: true
-  },
-  "accounts/fireworks/models/playground-v2-1024px-aesthetic": {
-    urlFormat: "image_generation",
-    supportsSize: true
-  },
-  "accounts/fireworks/models/stable-diffusion-xl-1024-v1-0": {
-    urlFormat: "image_generation",
-    supportsSize: true
-  },
-  "accounts/fireworks/models/SSD-1B": {
-    urlFormat: "image_generation",
-    supportsSize: true
-  }
-};
-function getUrlForModel(baseUrl, modelId) {
-  var _a;
-  switch ((_a = modelToBackendConfig[modelId]) == null ? void 0 : _a.urlFormat) {
-    case "image_generation":
-      return `${baseUrl}/image_generation/${modelId}`;
-    case "workflows":
-    default:
-      return `${baseUrl}/workflows/${modelId}/text_to_image`;
-  }
-}
-var FireworksImageModel = class {
+var import_v4 = require("zod/v4");
+var DeepInfraImageModel = class {
   constructor(modelId, config) {
     this.modelId = modelId;
     this.config = config;
@@ -88,41 +54,33 @@ var FireworksImageModel = class {
   }) {
     var _a, _b, _c, _d;
     const warnings = [];
-    const backendConfig = modelToBackendConfig[this.modelId];
-    if (!(backendConfig == null ? void 0 : backendConfig.supportsSize) && size != null) {
-      warnings.push({
-        type: "unsupported-setting",
-        setting: "size",
-        details: "This model does not support the `size` option. Use `aspectRatio` instead."
-      });
-    }
-    if ((backendConfig == null ? void 0 : backendConfig.supportsSize) && aspectRatio != null) {
-      warnings.push({
-        type: "unsupported-setting",
-        setting: "aspectRatio",
-        details: "This model does not support the `aspectRatio` option."
-      });
-    }
     const splitSize = size == null ? void 0 : size.split("x");
     const currentDate = (_c = (_b = (_a = this.config._internal) == null ? void 0 : _a.currentDate) == null ? void 0 : _b.call(_a)) != null ? _c : /* @__PURE__ */ new Date();
     const { value: response, responseHeaders } = await (0, import_provider_utils.postJsonToApi)({
-      url: getUrlForModel(this.config.baseURL, this.modelId),
+      url: `${this.config.baseURL}/${this.modelId}`,
       headers: (0, import_provider_utils.combineHeaders)(this.config.headers(), headers),
       body: {
         prompt,
-        aspect_ratio: aspectRatio,
-        seed,
-        samples: n,
+        num_images: n,
+        ...aspectRatio && { aspect_ratio: aspectRatio },
         ...splitSize && { width: splitSize[0], height: splitSize[1] },
-        ...(_d = providerOptions.fireworks) != null ? _d : {}
+        ...seed != null && { seed },
+        ...(_d = providerOptions.deepinfra) != null ? _d : {}
       },
-      failedResponseHandler: (0, import_provider_utils.createStatusCodeErrorResponseHandler)(),
-      successfulResponseHandler: (0, import_provider_utils.createBinaryResponseHandler)(),
+      failedResponseHandler: (0, import_provider_utils.createJsonErrorResponseHandler)({
+        errorSchema: deepInfraErrorSchema,
+        errorToMessage: (error) => error.detail.error
+      }),
+      successfulResponseHandler: (0, import_provider_utils.createJsonResponseHandler)(
+        deepInfraImageResponseSchema
+      ),
       abortSignal,
       fetch: this.config.fetch
     });
     return {
-      images: [response],
+      images: response.images.map(
+        (image) => image.replace(/^data:image\/\w+;base64,/, "")
+      ),
       warnings,
       response: {
         timestamp: currentDate,
@@ -132,68 +90,66 @@ var FireworksImageModel = class {
     };
   }
 };
-
-// src/fireworks-provider.ts
-var import_openai_compatible = require("@ai-sdk/openai-compatible");
-var import_provider_utils2 = require("@ai-sdk/provider-utils");
-var import_v4 = require("zod/v4");
-var fireworksErrorSchema = import_v4.z.object({
-  error: import_v4.z.string()
+var deepInfraErrorSchema = import_v4.z.object({
+  detail: import_v4.z.object({
+    error: import_v4.z.string()
+  })
 });
-var fireworksErrorStructure = {
-  errorSchema: fireworksErrorSchema,
-  errorToMessage: (data) => data.error
-};
-var defaultBaseURL = "https://api.fireworks.ai/inference/v1";
-function createFireworks(options = {}) {
+var deepInfraImageResponseSchema = import_v4.z.object({
+  images: import_v4.z.array(import_v4.z.string())
+});
+
+// src/deepinfra-provider.ts
+function createDeepInfra(options = {}) {
   var _a;
-  const baseURL = (0, import_provider_utils2.withoutTrailingSlash)((_a = options.baseURL) != null ? _a : defaultBaseURL);
+  const baseURL = (0, import_provider_utils2.withoutTrailingSlash)(
+    (_a = options.baseURL) != null ? _a : "https://api.deepinfra.com/v1"
+  );
   const getHeaders = () => ({
     Authorization: `Bearer ${(0, import_provider_utils2.loadApiKey)({
       apiKey: options.apiKey,
-      environmentVariableName: "FIREWORKS_API_KEY",
-      description: "Fireworks API key"
+      environmentVariableName: "DEEPINFRA_API_KEY",
+      description: "DeepInfra's API key"
     })}`,
     ...options.headers
   });
   const getCommonModelConfig = (modelType) => ({
-    provider: `fireworks.${modelType}`,
-    url: ({ path }) => `${baseURL}${path}`,
+    provider: `deepinfra.${modelType}`,
+    url: ({ path }) => `${baseURL}/openai${path}`,
     headers: getHeaders,
     fetch: options.fetch
   });
   const createChatModel = (modelId) => {
-    return new import_openai_compatible.OpenAICompatibleChatLanguageModel(modelId, {
-      ...getCommonModelConfig("chat"),
-      errorStructure: fireworksErrorStructure
-    });
+    return new import_openai_compatible.OpenAICompatibleChatLanguageModel(
+      modelId,
+      getCommonModelConfig("chat")
+    );
   };
-  const createCompletionModel = (modelId) => new import_openai_compatible.OpenAICompatibleCompletionLanguageModel(modelId, {
-    ...getCommonModelConfig("completion"),
-    errorStructure: fireworksErrorStructure
-  });
-  const createTextEmbeddingModel = (modelId) => new import_openai_compatible.OpenAICompatibleEmbeddingModel(modelId, {
-    ...getCommonModelConfig("embedding"),
-    errorStructure: fireworksErrorStructure
-  });
-  const createImageModel = (modelId) => new FireworksImageModel(modelId, {
+  const createCompletionModel = (modelId) => new import_openai_compatible.OpenAICompatibleCompletionLanguageModel(
+    modelId,
+    getCommonModelConfig("completion")
+  );
+  const createTextEmbeddingModel = (modelId) => new import_openai_compatible.OpenAICompatibleEmbeddingModel(
+    modelId,
+    getCommonModelConfig("embedding")
+  );
+  const createImageModel = (modelId) => new DeepInfraImageModel(modelId, {
     ...getCommonModelConfig("image"),
-    baseURL: baseURL != null ? baseURL : defaultBaseURL
+    baseURL: baseURL ? `${baseURL}/inference` : "https://api.deepinfra.com/v1/inference"
   });
   const provider = (modelId) => createChatModel(modelId);
   provider.completionModel = createCompletionModel;
   provider.chatModel = createChatModel;
-  provider.languageModel = createChatModel;
-  provider.textEmbeddingModel = createTextEmbeddingModel;
   provider.image = createImageModel;
   provider.imageModel = createImageModel;
+  provider.languageModel = createChatModel;
+  provider.textEmbeddingModel = createTextEmbeddingModel;
   return provider;
 }
-var fireworks = createFireworks();
+var deepinfra = createDeepInfra();
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
-  FireworksImageModel,
-  createFireworks,
-  fireworks
+  createDeepInfra,
+  deepinfra
 });
 //# sourceMappingURL=index.js.map
