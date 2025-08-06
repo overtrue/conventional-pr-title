@@ -4,7 +4,7 @@
   "description": "A GitHub Action that automatically suggests or updates PR titles to follow Conventional Commits standard using AI",
   "main": "dist/index.js",
   "scripts": {
-    "build": "ncc build src/index.ts -o dist --source-map --license licenses.txt --target es2020 --external none",
+    "build": "ncc build src/index.ts -o dist --source-map --license licenses.txt --target es2015",
     "package": "npm run build",
     "clean": "rm -rf dist lib",
     "test": "jest",
