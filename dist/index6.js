@@ -20,180 +20,63 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
-  FireworksImageModel: () => FireworksImageModel,
-  createFireworks: () => createFireworks,
-  fireworks: () => fireworks
+  cerebras: () => cerebras,
+  createCerebras: () => createCerebras
 });
 module.exports = __toCommonJS(src_exports);
 
-// src/fireworks-image-model.ts
-var import_provider_utils = require("@ai-sdk/provider-utils");
-var modelToBackendConfig = {
-  "accounts/fireworks/models/flux-1-dev-fp8": {
-    urlFormat: "workflows"
-  },
-  "accounts/fireworks/models/flux-1-schnell-fp8": {
-    urlFormat: "workflows"
-  },
-  "accounts/fireworks/models/playground-v2-5-1024px-aesthetic": {
-    urlFormat: "image_generation",
-    supportsSize: true
-  },
-  "accounts/fireworks/models/japanese-stable-diffusion-xl": {
-    urlFormat: "image_generation",
-    supportsSize: true
-  },
-  "accounts/fireworks/models/playground-v2-1024px-aesthetic": {
-    urlFormat: "image_generation",
-    supportsSize: true
-  },
-  "accounts/fireworks/models/stable-diffusion-xl-1024-v1-0": {
-    urlFormat: "image_generation",
-    supportsSize: true
-  },
-  "accounts/fireworks/models/SSD-1B": {
-    urlFormat: "image_generation",
-    supportsSize: true
-  }
-};
-function getUrlForModel(baseUrl, modelId) {
-  var _a;
-  switch ((_a = modelToBackendConfig[modelId]) == null ? void 0 : _a.urlFormat) {
-    case "image_generation":
-      return `${baseUrl}/image_generation/${modelId}`;
-    case "workflows":
-    default:
-      return `${baseUrl}/workflows/${modelId}/text_to_image`;
-  }
-}
-var FireworksImageModel = class {
-  constructor(modelId, config) {
-    this.modelId = modelId;
-    this.config = config;
-    this.specificationVersion = "v2";
-    this.maxImagesPerCall = 1;
-  }
-  get provider() {
-    return this.config.provider;
-  }
-  async doGenerate({
-    prompt,
-    n,
-    size,
-    aspectRatio,
-    seed,
-    providerOptions,
-    headers,
-    abortSignal
-  }) {
-    var _a, _b, _c, _d;
-    const warnings = [];
-    const backendConfig = modelToBackendConfig[this.modelId];
-    if (!(backendConfig == null ? void 0 : backendConfig.supportsSize) && size != null) {
-      warnings.push({
-        type: "unsupported-setting",
-        setting: "size",
-        details: "This model does not support the `size` option. Use `aspectRatio` instead."
-      });
-    }
-    if ((backendConfig == null ? void 0 : backendConfig.supportsSize) && aspectRatio != null) {
-      warnings.push({
-        type: "unsupported-setting",
-        setting: "aspectRatio",
-        details: "This model does not support the `aspectRatio` option."
-      });
-    }
-    const splitSize = size == null ? void 0 : size.split("x");
-    const currentDate = (_c = (_b = (_a = this.config._internal) == null ? void 0 : _a.currentDate) == null ? void 0 : _b.call(_a)) != null ? _c : /* @__PURE__ */ new Date();
-    const { value: response, responseHeaders } = await (0, import_provider_utils.postJsonToApi)({
-      url: getUrlForModel(this.config.baseURL, this.modelId),
-      headers: (0, import_provider_utils.combineHeaders)(this.config.headers(), headers),
-      body: {
-        prompt,
-        aspect_ratio: aspectRatio,
-        seed,
-        samples: n,
-        ...splitSize && { width: splitSize[0], height: splitSize[1] },
-        ...(_d = providerOptions.fireworks) != null ? _d : {}
-      },
-      failedResponseHandler: (0, import_provider_utils.createStatusCodeErrorResponseHandler)(),
-      successfulResponseHandler: (0, import_provider_utils.createBinaryResponseHandler)(),
-      abortSignal,
-      fetch: this.config.fetch
-    });
-    return {
-      images: [response],
-      warnings,
-      response: {
-        timestamp: currentDate,
-        modelId: this.modelId,
-        headers: responseHeaders
-      }
-    };
-  }
-};
-
-// src/fireworks-provider.ts
+// src/cerebras-provider.ts
 var import_openai_compatible = require("@ai-sdk/openai-compatible");
-var import_provider_utils2 = require("@ai-sdk/provider-utils");
+var import_provider = require("@ai-sdk/provider");
+var import_provider_utils = require("@ai-sdk/provider-utils");
 var import_v4 = require("zod/v4");
-var fireworksErrorSchema = import_v4.z.object({
-  error: import_v4.z.string()
+var cerebrasErrorSchema = import_v4.z.object({
+  message: import_v4.z.string(),
+  type: import_v4.z.string(),
+  param: import_v4.z.string(),
+  code: import_v4.z.string()
 });
-var fireworksErrorStructure = {
-  errorSchema: fireworksErrorSchema,
-  errorToMessage: (data) => data.error
+var cerebrasErrorStructure = {
+  errorSchema: cerebrasErrorSchema,
+  errorToMessage: (data) => data.message
 };
-var defaultBaseURL = "https://api.fireworks.ai/inference/v1";
-function createFireworks(options = {}) {
+function createCerebras(options = {}) {
   var _a;
-  const baseURL = (0, import_provider_utils2.withoutTrailingSlash)((_a = options.baseURL) != null ? _a : defaultBaseURL);
+  const baseURL = (0, import_provider_utils.withoutTrailingSlash)(
+    (_a = options.baseURL) != null ? _a : "https://api.cerebras.ai/v1"
+  );
   const getHeaders = () => ({
-    Authorization: `Bearer ${(0, import_provider_utils2.loadApiKey)({
+    Authorization: `Bearer ${(0, import_provider_utils.loadApiKey)({
       apiKey: options.apiKey,
-      environmentVariableName: "FIREWORKS_API_KEY",
-      description: "Fireworks API key"
+      environmentVariableName: "CEREBRAS_API_KEY",
+      description: "Cerebras API key"
     })}`,
     ...options.headers
   });
-  const getCommonModelConfig = (modelType) => ({
-    provider: `fireworks.${modelType}`,
-    url: ({ path }) => `${baseURL}${path}`,
-    headers: getHeaders,
-    fetch: options.fetch
-  });
-  const createChatModel = (modelId) => {
+  const createLanguageModel = (modelId) => {
     return new import_openai_compatible.OpenAICompatibleChatLanguageModel(modelId, {
-      ...getCommonModelConfig("chat"),
-      errorStructure: fireworksErrorStructure
+      provider: `cerebras.chat`,
+      url: ({ path }) => `${baseURL}${path}`,
+      headers: getHeaders,
+      fetch: options.fetch,
+      errorStructure: cerebrasErrorStructure
     });
   };
-  const createCompletionModel = (modelId) => new import_openai_compatible.OpenAICompatibleCompletionLanguageModel(modelId, {
-    ...getCommonModelConfig("completion"),
-    errorStructure: fireworksErrorStructure
-  });
-  const createTextEmbeddingModel = (modelId) => new import_openai_compatible.OpenAICompatibleEmbeddingModel(modelId, {
-    ...getCommonModelConfig("embedding"),
-    errorStructure: fireworksErrorStructure
-  });
-  const createImageModel = (modelId) => new FireworksImageModel(modelId, {
-    ...getCommonModelConfig("image"),
-    baseURL: baseURL != null ? baseURL : defaultBaseURL
-  });
-  const provider = (modelId) => createChatModel(modelId);
-  provider.completionModel = createCompletionModel;
-  provider.chatModel = createChatModel;
-  provider.languageModel = createChatModel;
-  provider.textEmbeddingModel = createTextEmbeddingModel;
-  provider.image = createImageModel;
-  provider.imageModel = createImageModel;
+  const provider = (modelId) => createLanguageModel(modelId);
+  provider.languageModel = createLanguageModel;
+  provider.chat = createLanguageModel;
+  provider.textEmbeddingModel = (modelId) => {
+    throw new import_provider.NoSuchModelError({ modelId, modelType: "textEmbeddingModel" });
+  };
+  provider.imageModel = (modelId) => {
+    throw new import_provider.NoSuchModelError({ modelId, modelType: "imageModel" });
+  };
   return provider;
 }
-var fireworks = createFireworks();
+var cerebras = createCerebras();
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
-  FireworksImageModel,
-  createFireworks,
-  fireworks
+  cerebras,
+  createCerebras
 });
 //# sourceMappingURL=index.js.map

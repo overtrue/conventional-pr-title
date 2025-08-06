@@ -20,452 +20,148 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
-  createPerplexity: () => createPerplexity,
-  perplexity: () => perplexity
+  createTogetherAI: () => createTogetherAI,
+  togetherai: () => togetherai
 });
 module.exports = __toCommonJS(src_exports);
 
-// src/perplexity-provider.ts
-var import_provider2 = require("@ai-sdk/provider");
-var import_provider_utils3 = require("@ai-sdk/provider-utils");
-
-// src/perplexity-language-model.ts
+// src/togetherai-provider.ts
+var import_openai_compatible = require("@ai-sdk/openai-compatible");
 var import_provider_utils2 = require("@ai-sdk/provider-utils");
-var import_v4 = require("zod/v4");
 
-// src/convert-to-perplexity-messages.ts
-var import_provider = require("@ai-sdk/provider");
+// src/togetherai-image-model.ts
 var import_provider_utils = require("@ai-sdk/provider-utils");
-function convertToPerplexityMessages(prompt) {
-  const messages = [];
-  for (const { role, content } of prompt) {
-    switch (role) {
-      case "system": {
-        messages.push({ role: "system", content });
-        break;
-      }
-      case "user":
-      case "assistant": {
-        const hasImage = content.some(
-          (part) => part.type === "file" && part.mediaType.startsWith("image/")
-        );
-        const messageContent = content.map((part) => {
-          var _a;
-          switch (part.type) {
-            case "text": {
-              return {
-                type: "text",
-                text: part.text
-              };
-            }
-            case "file": {
-              return part.data instanceof URL ? {
-                type: "image_url",
-                image_url: {
-                  url: part.data.toString()
-                }
-              } : {
-                type: "image_url",
-                image_url: {
-                  url: `data:${(_a = part.mediaType) != null ? _a : "image/jpeg"};base64,${typeof part.data === "string" ? part.data : (0, import_provider_utils.convertUint8ArrayToBase64)(part.data)}`
-                }
-              };
-            }
-          }
-        }).filter(Boolean);
-        messages.push({
-          role,
-          content: hasImage ? messageContent : messageContent.filter((part) => part.type === "text").map((part) => part.text).join("")
-        });
-        break;
-      }
-      case "tool": {
-        throw new import_provider.UnsupportedFunctionalityError({
-          functionality: "Tool messages"
-        });
-      }
-      default: {
-        const _exhaustiveCheck = role;
-        throw new Error(`Unsupported role: ${_exhaustiveCheck}`);
-      }
-    }
-  }
-  return messages;
-}
-
-// src/map-perplexity-finish-reason.ts
-function mapPerplexityFinishReason(finishReason) {
-  switch (finishReason) {
-    case "stop":
-    case "length":
-      return finishReason;
-    default:
-      return "unknown";
-  }
-}
-
-// src/perplexity-language-model.ts
-var PerplexityLanguageModel = class {
+var import_v4 = require("zod/v4");
+var TogetherAIImageModel = class {
   constructor(modelId, config) {
-    this.specificationVersion = "v2";
-    this.provider = "perplexity";
-    this.supportedUrls = {
-      // No URLs are supported.
-    };
     this.modelId = modelId;
     this.config = config;
+    this.specificationVersion = "v2";
+    this.maxImagesPerCall = 1;
   }
-  getArgs({
+  get provider() {
+    return this.config.provider;
+  }
+  async doGenerate({
     prompt,
-    maxOutputTokens,
-    temperature,
-    topP,
-    topK,
-    frequencyPenalty,
-    presencePenalty,
-    stopSequences,
-    responseFormat,
+    n,
+    size,
     seed,
-    providerOptions
+    providerOptions,
+    headers,
+    abortSignal
   }) {
-    var _a;
+    var _a, _b, _c, _d;
     const warnings = [];
-    if (topK != null) {
+    if (size != null) {
       warnings.push({
         type: "unsupported-setting",
-        setting: "topK"
+        setting: "aspectRatio",
+        details: "This model does not support the `aspectRatio` option. Use `size` instead."
       });
     }
-    if (stopSequences != null) {
-      warnings.push({
-        type: "unsupported-setting",
-        setting: "stopSequences"
-      });
-    }
-    if (seed != null) {
-      warnings.push({
-        type: "unsupported-setting",
-        setting: "seed"
-      });
-    }
-    return {
-      args: {
-        // model id:
+    const currentDate = (_c = (_b = (_a = this.config._internal) == null ? void 0 : _a.currentDate) == null ? void 0 : _b.call(_a)) != null ? _c : /* @__PURE__ */ new Date();
+    const splitSize = size == null ? void 0 : size.split("x");
+    const { value: response, responseHeaders } = await (0, import_provider_utils.postJsonToApi)({
+      url: `${this.config.baseURL}/images/generations`,
+      headers: (0, import_provider_utils.combineHeaders)(this.config.headers(), headers),
+      body: {
         model: this.modelId,
-        // standardized settings:
-        frequency_penalty: frequencyPenalty,
-        max_tokens: maxOutputTokens,
-        presence_penalty: presencePenalty,
-        temperature,
-        top_k: topK,
-        top_p: topP,
-        // response format:
-        response_format: (responseFormat == null ? void 0 : responseFormat.type) === "json" ? {
-          type: "json_schema",
-          json_schema: { schema: responseFormat.schema }
-        } : void 0,
-        // provider extensions
-        ...(_a = providerOptions == null ? void 0 : providerOptions.perplexity) != null ? _a : {},
-        // messages:
-        messages: convertToPerplexityMessages(prompt)
-      },
-      warnings
-    };
-  }
-  async doGenerate(options) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
-    const { args: body, warnings } = this.getArgs(options);
-    const {
-      responseHeaders,
-      value: response,
-      rawValue: rawResponse
-    } = await (0, import_provider_utils2.postJsonToApi)({
-      url: `${this.config.baseURL}/chat/completions`,
-      headers: (0, import_provider_utils2.combineHeaders)(this.config.headers(), options.headers),
-      body,
-      failedResponseHandler: (0, import_provider_utils2.createJsonErrorResponseHandler)({
-        errorSchema: perplexityErrorSchema,
-        errorToMessage
-      }),
-      successfulResponseHandler: (0, import_provider_utils2.createJsonResponseHandler)(
-        perplexityResponseSchema
-      ),
-      abortSignal: options.abortSignal,
-      fetch: this.config.fetch
-    });
-    const choice = response.choices[0];
-    const content = [];
-    const text = choice.message.content;
-    if (text.length > 0) {
-      content.push({ type: "text", text });
-    }
-    if (response.citations != null) {
-      for (const url of response.citations) {
-        content.push({
-          type: "source",
-          sourceType: "url",
-          id: this.config.generateId(),
-          url
-        });
-      }
-    }
-    return {
-      content,
-      finishReason: mapPerplexityFinishReason(choice.finish_reason),
-      usage: {
-        inputTokens: (_a = response.usage) == null ? void 0 : _a.prompt_tokens,
-        outputTokens: (_b = response.usage) == null ? void 0 : _b.completion_tokens,
-        totalTokens: (_d = (_c = response.usage) == null ? void 0 : _c.total_tokens) != null ? _d : void 0
-      },
-      request: { body },
-      response: {
-        ...getResponseMetadata(response),
-        headers: responseHeaders,
-        body: rawResponse
-      },
-      warnings,
-      providerMetadata: {
-        perplexity: {
-          images: (_f = (_e = response.images) == null ? void 0 : _e.map((image) => ({
-            imageUrl: image.image_url,
-            originUrl: image.origin_url,
-            height: image.height,
-            width: image.width
-          }))) != null ? _f : null,
-          usage: {
-            citationTokens: (_h = (_g = response.usage) == null ? void 0 : _g.citation_tokens) != null ? _h : null,
-            numSearchQueries: (_j = (_i = response.usage) == null ? void 0 : _i.num_search_queries) != null ? _j : null
-          }
-        }
-      }
-    };
-  }
-  async doStream(options) {
-    const { args, warnings } = this.getArgs(options);
-    const body = { ...args, stream: true };
-    const { responseHeaders, value: response } = await (0, import_provider_utils2.postJsonToApi)({
-      url: `${this.config.baseURL}/chat/completions`,
-      headers: (0, import_provider_utils2.combineHeaders)(this.config.headers(), options.headers),
-      body,
-      failedResponseHandler: (0, import_provider_utils2.createJsonErrorResponseHandler)({
-        errorSchema: perplexityErrorSchema,
-        errorToMessage
-      }),
-      successfulResponseHandler: (0, import_provider_utils2.createEventSourceResponseHandler)(
-        perplexityChunkSchema
-      ),
-      abortSignal: options.abortSignal,
-      fetch: this.config.fetch
-    });
-    let finishReason = "unknown";
-    const usage = {
-      inputTokens: void 0,
-      outputTokens: void 0,
-      totalTokens: void 0
-    };
-    const providerMetadata = {
-      perplexity: {
-        usage: {
-          citationTokens: null,
-          numSearchQueries: null
+        prompt,
+        seed,
+        n,
+        ...splitSize && {
+          width: parseInt(splitSize[0]),
+          height: parseInt(splitSize[1])
         },
-        images: null
-      }
-    };
-    let isFirstChunk = true;
-    let isActive = false;
-    const self = this;
-    return {
-      stream: response.pipeThrough(
-        new TransformStream({
-          start(controller) {
-            controller.enqueue({ type: "stream-start", warnings });
-          },
-          transform(chunk, controller) {
-            var _a, _b, _c;
-            if (options.includeRawChunks) {
-              controller.enqueue({ type: "raw", rawValue: chunk.rawValue });
-            }
-            if (!chunk.success) {
-              controller.enqueue({ type: "error", error: chunk.error });
-              return;
-            }
-            const value = chunk.value;
-            if (isFirstChunk) {
-              controller.enqueue({
-                type: "response-metadata",
-                ...getResponseMetadata(value)
-              });
-              (_a = value.citations) == null ? void 0 : _a.forEach((url) => {
-                controller.enqueue({
-                  type: "source",
-                  sourceType: "url",
-                  id: self.config.generateId(),
-                  url
-                });
-              });
-              isFirstChunk = false;
-            }
-            if (value.usage != null) {
-              usage.inputTokens = value.usage.prompt_tokens;
-              usage.outputTokens = value.usage.completion_tokens;
-              providerMetadata.perplexity.usage = {
-                citationTokens: (_b = value.usage.citation_tokens) != null ? _b : null,
-                numSearchQueries: (_c = value.usage.num_search_queries) != null ? _c : null
-              };
-            }
-            if (value.images != null) {
-              providerMetadata.perplexity.images = value.images.map((image) => ({
-                imageUrl: image.image_url,
-                originUrl: image.origin_url,
-                height: image.height,
-                width: image.width
-              }));
-            }
-            const choice = value.choices[0];
-            if ((choice == null ? void 0 : choice.finish_reason) != null) {
-              finishReason = mapPerplexityFinishReason(choice.finish_reason);
-            }
-            if ((choice == null ? void 0 : choice.delta) == null) {
-              return;
-            }
-            const delta = choice.delta;
-            const textContent = delta.content;
-            if (textContent != null) {
-              if (!isActive) {
-                controller.enqueue({ type: "text-start", id: "0" });
-                isActive = true;
-              }
-              controller.enqueue({
-                type: "text-delta",
-                id: "0",
-                delta: textContent
-              });
-            }
-          },
-          flush(controller) {
-            if (isActive) {
-              controller.enqueue({ type: "text-end", id: "0" });
-            }
-            controller.enqueue({
-              type: "finish",
-              finishReason,
-              usage,
-              providerMetadata
-            });
-          }
-        })
+        response_format: "base64",
+        ...(_d = providerOptions.togetherai) != null ? _d : {}
+      },
+      failedResponseHandler: (0, import_provider_utils.createJsonErrorResponseHandler)({
+        errorSchema: togetheraiErrorSchema,
+        errorToMessage: (data) => data.error.message
+      }),
+      successfulResponseHandler: (0, import_provider_utils.createJsonResponseHandler)(
+        togetheraiImageResponseSchema
       ),
-      request: { body },
-      response: { headers: responseHeaders }
+      abortSignal,
+      fetch: this.config.fetch
+    });
+    return {
+      images: response.data.map((item) => item.b64_json),
+      warnings,
+      response: {
+        timestamp: currentDate,
+        modelId: this.modelId,
+        headers: responseHeaders
+      }
     };
   }
 };
-function getResponseMetadata({
-  id,
-  model,
-  created
-}) {
-  return {
-    id,
-    modelId: model,
-    timestamp: new Date(created * 1e3)
-  };
-}
-var perplexityUsageSchema = import_v4.z.object({
-  prompt_tokens: import_v4.z.number(),
-  completion_tokens: import_v4.z.number(),
-  total_tokens: import_v4.z.number().nullish(),
-  citation_tokens: import_v4.z.number().nullish(),
-  num_search_queries: import_v4.z.number().nullish()
-});
-var perplexityImageSchema = import_v4.z.object({
-  image_url: import_v4.z.string(),
-  origin_url: import_v4.z.string(),
-  height: import_v4.z.number(),
-  width: import_v4.z.number()
-});
-var perplexityResponseSchema = import_v4.z.object({
-  id: import_v4.z.string(),
-  created: import_v4.z.number(),
-  model: import_v4.z.string(),
-  choices: import_v4.z.array(
+var togetheraiImageResponseSchema = import_v4.z.object({
+  data: import_v4.z.array(
     import_v4.z.object({
-      message: import_v4.z.object({
-        role: import_v4.z.literal("assistant"),
-        content: import_v4.z.string()
-      }),
-      finish_reason: import_v4.z.string().nullish()
+      b64_json: import_v4.z.string()
     })
-  ),
-  citations: import_v4.z.array(import_v4.z.string()).nullish(),
-  images: import_v4.z.array(perplexityImageSchema).nullish(),
-  usage: perplexityUsageSchema.nullish()
+  )
 });
-var perplexityChunkSchema = import_v4.z.object({
-  id: import_v4.z.string(),
-  created: import_v4.z.number(),
-  model: import_v4.z.string(),
-  choices: import_v4.z.array(
-    import_v4.z.object({
-      delta: import_v4.z.object({
-        role: import_v4.z.literal("assistant"),
-        content: import_v4.z.string()
-      }),
-      finish_reason: import_v4.z.string().nullish()
-    })
-  ),
-  citations: import_v4.z.array(import_v4.z.string()).nullish(),
-  images: import_v4.z.array(perplexityImageSchema).nullish(),
-  usage: perplexityUsageSchema.nullish()
-});
-var perplexityErrorSchema = import_v4.z.object({
+var togetheraiErrorSchema = import_v4.z.object({
   error: import_v4.z.object({
-    code: import_v4.z.number(),
-    message: import_v4.z.string().nullish(),
-    type: import_v4.z.string().nullish()
+    message: import_v4.z.string()
   })
 });
-var errorToMessage = (data) => {
-  var _a, _b;
-  return (_b = (_a = data.error.message) != null ? _a : data.error.type) != null ? _b : "unknown error";
-};
 
-// src/perplexity-provider.ts
-function createPerplexity(options = {}) {
+// src/togetherai-provider.ts
+function createTogetherAI(options = {}) {
+  var _a;
+  const baseURL = (0, import_provider_utils2.withoutTrailingSlash)(
+    (_a = options.baseURL) != null ? _a : "https://api.together.xyz/v1/"
+  );
   const getHeaders = () => ({
-    Authorization: `Bearer ${(0, import_provider_utils3.loadApiKey)({
+    Authorization: `Bearer ${(0, import_provider_utils2.loadApiKey)({
       apiKey: options.apiKey,
-      environmentVariableName: "PERPLEXITY_API_KEY",
-      description: "Perplexity"
+      environmentVariableName: "TOGETHER_AI_API_KEY",
+      description: "TogetherAI"
     })}`,
     ...options.headers
   });
-  const createLanguageModel = (modelId) => {
-    var _a;
-    return new PerplexityLanguageModel(modelId, {
-      baseURL: (0, import_provider_utils3.withoutTrailingSlash)(
-        (_a = options.baseURL) != null ? _a : "https://api.perplexity.ai"
-      ),
-      headers: getHeaders,
-      generateId: import_provider_utils3.generateId,
-      fetch: options.fetch
-    });
+  const getCommonModelConfig = (modelType) => ({
+    provider: `togetherai.${modelType}`,
+    url: ({ path }) => `${baseURL}${path}`,
+    headers: getHeaders,
+    fetch: options.fetch
+  });
+  const createChatModel = (modelId) => {
+    return new import_openai_compatible.OpenAICompatibleChatLanguageModel(
+      modelId,
+      getCommonModelConfig("chat")
+    );
   };
-  const provider = (modelId) => createLanguageModel(modelId);
-  provider.languageModel = createLanguageModel;
-  provider.textEmbeddingModel = (modelId) => {
-    throw new import_provider2.NoSuchModelError({ modelId, modelType: "textEmbeddingModel" });
-  };
-  provider.imageModel = (modelId) => {
-    throw new import_provider2.NoSuchModelError({ modelId, modelType: "imageModel" });
-  };
+  const createCompletionModel = (modelId) => new import_openai_compatible.OpenAICompatibleCompletionLanguageModel(
+    modelId,
+    getCommonModelConfig("completion")
+  );
+  const createTextEmbeddingModel = (modelId) => new import_openai_compatible.OpenAICompatibleEmbeddingModel(
+    modelId,
+    getCommonModelConfig("embedding")
+  );
+  const createImageModel = (modelId) => new TogetherAIImageModel(modelId, {
+    ...getCommonModelConfig("image"),
+    baseURL: baseURL != null ? baseURL : "https://api.together.xyz/v1/"
+  });
+  const provider = (modelId) => createChatModel(modelId);
+  provider.completionModel = createCompletionModel;
+  provider.languageModel = createChatModel;
+  provider.chatModel = createChatModel;
+  provider.textEmbeddingModel = createTextEmbeddingModel;
+  provider.image = createImageModel;
+  provider.imageModel = createImageModel;
   return provider;
 }
-var perplexity = createPerplexity();
+var togetherai = createTogetherAI();
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
-  createPerplexity,
-  perplexity
+  createTogetherAI,
+  togetherai
 });
 //# sourceMappingURL=index.js.map

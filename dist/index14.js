@@ -20,32 +20,37 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
-  createMistral: () => createMistral,
-  mistral: () => mistral
+  createXai: () => createXai,
+  xai: () => xai
 });
 module.exports = __toCommonJS(src_exports);
 
-// src/mistral-provider.ts
-var import_provider4 = require("@ai-sdk/provider");
+// src/xai-provider.ts
+var import_openai_compatible = require("@ai-sdk/openai-compatible");
+var import_provider3 = require("@ai-sdk/provider");
 var import_provider_utils4 = require("@ai-sdk/provider-utils");
 
-// src/mistral-chat-language-model.ts
-var import_provider_utils2 = require("@ai-sdk/provider-utils");
+// src/xai-chat-language-model.ts
+var import_provider_utils3 = require("@ai-sdk/provider-utils");
 var import_v43 = require("zod/v4");
 
-// src/convert-to-mistral-chat-messages.ts
+// src/convert-to-xai-chat-messages.ts
 var import_provider = require("@ai-sdk/provider");
-function convertToMistralChatMessages(prompt) {
+var import_provider_utils = require("@ai-sdk/provider-utils");
+function convertToXaiChatMessages(prompt) {
   const messages = [];
-  for (let i = 0; i < prompt.length; i++) {
-    const { role, content } = prompt[i];
-    const isLastMessage = i === prompt.length - 1;
+  const warnings = [];
+  for (const { role, content } of prompt) {
     switch (role) {
       case "system": {
         messages.push({ role: "system", content });
         break;
       }
       case "user": {
+        if (content.length === 1 && content[0].type === "text") {
+          messages.push({ role: "user", content: content[0].text });
+          break;
+        }
         messages.push({
           role: "user",
           content: content.map((part) => {
@@ -58,16 +63,13 @@ function convertToMistralChatMessages(prompt) {
                   const mediaType = part.mediaType === "image/*" ? "image/jpeg" : part.mediaType;
                   return {
                     type: "image_url",
-                    image_url: part.data instanceof URL ? part.data.toString() : `data:${mediaType};base64,${part.data}`
-                  };
-                } else if (part.mediaType === "application/pdf") {
-                  return {
-                    type: "document_url",
-                    document_url: part.data.toString()
+                    image_url: {
+                      url: part.data instanceof URL ? part.data.toString() : `data:${mediaType};base64,${(0, import_provider_utils.convertToBase64)(part.data)}`
+                    }
                   };
                 } else {
                   throw new import_provider.UnsupportedFunctionalityError({
-                    functionality: "Only images and PDF file parts are supported"
+                    functionality: `file part media type ${part.mediaType}`
                   });
                 }
               }
@@ -101,7 +103,6 @@ function convertToMistralChatMessages(prompt) {
         messages.push({
           role: "assistant",
           content: text,
-          prefix: isLastMessage ? true : void 0,
           tool_calls: toolCalls.length > 0 ? toolCalls : void 0
         });
         break;
@@ -123,7 +124,6 @@ function convertToMistralChatMessages(prompt) {
           }
           messages.push({
             role: "tool",
-            name: toolResponse.toolName,
             tool_call_id: toolResponse.toolCallId,
             content: contentValue
           });
@@ -136,7 +136,7 @@ function convertToMistralChatMessages(prompt) {
       }
     }
   }
-  return messages;
+  return { messages, warnings };
 }
 
 // src/get-response-metadata.ts
@@ -152,50 +152,110 @@ function getResponseMetadata({
   };
 }
 
-// src/map-mistral-finish-reason.ts
-function mapMistralFinishReason(finishReason) {
+// src/map-xai-finish-reason.ts
+function mapXaiFinishReason(finishReason) {
   switch (finishReason) {
     case "stop":
       return "stop";
     case "length":
-    case "model_length":
       return "length";
     case "tool_calls":
+    case "function_call":
       return "tool-calls";
+    case "content_filter":
+      return "content-filter";
     default:
       return "unknown";
   }
 }
 
-// src/mistral-chat-options.ts
+// src/xai-chat-options.ts
 var import_v4 = require("zod/v4");
-var mistralProviderOptions = import_v4.z.object({
+var webSourceSchema = import_v4.z.object({
+  type: import_v4.z.literal("web"),
+  country: import_v4.z.string().length(2).optional(),
+  excludedWebsites: import_v4.z.array(import_v4.z.string()).max(5).optional(),
+  allowedWebsites: import_v4.z.array(import_v4.z.string()).max(5).optional(),
+  safeSearch: import_v4.z.boolean().optional()
+});
+var xSourceSchema = import_v4.z.object({
+  type: import_v4.z.literal("x"),
+  xHandles: import_v4.z.array(import_v4.z.string()).optional()
+});
+var newsSourceSchema = import_v4.z.object({
+  type: import_v4.z.literal("news"),
+  country: import_v4.z.string().length(2).optional(),
+  excludedWebsites: import_v4.z.array(import_v4.z.string()).max(5).optional(),
+  safeSearch: import_v4.z.boolean().optional()
+});
+var rssSourceSchema = import_v4.z.object({
+  type: import_v4.z.literal("rss"),
+  links: import_v4.z.array(import_v4.z.string().url()).max(1)
+  // currently only supports one RSS link
+});
+var searchSourceSchema = import_v4.z.discriminatedUnion("type", [
+  webSourceSchema,
+  xSourceSchema,
+  newsSourceSchema,
+  rssSourceSchema
+]);
+var xaiProviderOptions = import_v4.z.object({
   /**
-  Whether to inject a safety prompt before all conversations.
-  
-  Defaults to `false`.
+   * reasoning effort for reasoning models
+   * only supported by grok-3-mini and grok-3-mini-fast models
+   */
+  reasoningEffort: import_v4.z.enum(["low", "high"]).optional(),
+  searchParameters: import_v4.z.object({
+    /**
+     * search mode preference
+     * - "off": disables search completely
+     * - "auto": model decides whether to search (default)
+     * - "on": always enables search
      */
-  safePrompt: import_v4.z.boolean().optional(),
-  documentImageLimit: import_v4.z.number().optional(),
-  documentPageLimit: import_v4.z.number().optional()
+    mode: import_v4.z.enum(["off", "auto", "on"]),
+    /**
+     * whether to return citations in the response
+     * defaults to true
+     */
+    returnCitations: import_v4.z.boolean().optional(),
+    /**
+     * start date for search data (ISO8601 format: YYYY-MM-DD)
+     */
+    fromDate: import_v4.z.string().optional(),
+    /**
+     * end date for search data (ISO8601 format: YYYY-MM-DD)
+     */
+    toDate: import_v4.z.string().optional(),
+    /**
+     * maximum number of search results to consider
+     * defaults to 20
+     */
+    maxSearchResults: import_v4.z.number().min(1).max(50).optional(),
+    /**
+     * data sources to search from
+     * defaults to ["web", "x"] if not specified
+     */
+    sources: import_v4.z.array(searchSourceSchema).optional()
+  }).optional()
 });
 
-// src/mistral-error.ts
-var import_provider_utils = require("@ai-sdk/provider-utils");
+// src/xai-error.ts
+var import_provider_utils2 = require("@ai-sdk/provider-utils");
 var import_v42 = require("zod/v4");
-var mistralErrorDataSchema = import_v42.z.object({
-  object: import_v42.z.literal("error"),
-  message: import_v42.z.string(),
-  type: import_v42.z.string(),
-  param: import_v42.z.string().nullable(),
-  code: import_v42.z.string().nullable()
+var xaiErrorDataSchema = import_v42.z.object({
+  error: import_v42.z.object({
+    message: import_v42.z.string(),
+    type: import_v42.z.string().nullish(),
+    param: import_v42.z.any().nullish(),
+    code: import_v42.z.union([import_v42.z.string(), import_v42.z.number()]).nullish()
+  })
 });
-var mistralFailedResponseHandler = (0, import_provider_utils.createJsonErrorResponseHandler)({
-  errorSchema: mistralErrorDataSchema,
-  errorToMessage: (data) => data.message
+var xaiFailedResponseHandler = (0, import_provider_utils2.createJsonErrorResponseHandler)({
+  errorSchema: xaiErrorDataSchema,
+  errorToMessage: (data) => data.error.message
 });
 
-// src/mistral-prepare-tools.ts
+// src/xai-prepare-tools.ts
 var import_provider2 = require("@ai-sdk/provider");
 function prepareTools({
   tools,
@@ -206,12 +266,12 @@ function prepareTools({
   if (tools == null) {
     return { tools: void 0, toolChoice: void 0, toolWarnings };
   }
-  const mistralTools = [];
+  const xaiTools = [];
   for (const tool of tools) {
     if (tool.type === "provider-defined") {
       toolWarnings.push({ type: "unsupported-tool", tool });
     } else {
-      mistralTools.push({
+      xaiTools.push({
         type: "function",
         function: {
           name: tool.name,
@@ -222,21 +282,22 @@ function prepareTools({
     }
   }
   if (toolChoice == null) {
-    return { tools: mistralTools, toolChoice: void 0, toolWarnings };
+    return { tools: xaiTools, toolChoice: void 0, toolWarnings };
   }
   const type = toolChoice.type;
   switch (type) {
     case "auto":
     case "none":
-      return { tools: mistralTools, toolChoice: type, toolWarnings };
+      return { tools: xaiTools, toolChoice: type, toolWarnings };
     case "required":
-      return { tools: mistralTools, toolChoice: "any", toolWarnings };
+      return { tools: xaiTools, toolChoice: "required", toolWarnings };
     case "tool":
       return {
-        tools: mistralTools.filter(
-          (tool) => tool.function.name === toolChoice.toolName
-        ),
-        toolChoice: "any",
+        tools: xaiTools,
+        toolChoice: {
+          type: "function",
+          function: { name: toolChoice.toolName }
+        },
         toolWarnings
       };
     default: {
@@ -248,12 +309,12 @@ function prepareTools({
   }
 }
 
-// src/mistral-chat-language-model.ts
-var MistralChatLanguageModel = class {
+// src/xai-chat-language-model.ts
+var XaiChatLanguageModel = class {
   constructor(modelId, config) {
     this.specificationVersion = "v2";
     this.supportedUrls = {
-      "application/pdf": [/^https:\/\/.*$/]
+      "image/*": [/^https?:\/\/.*$/]
     };
     this.modelId = modelId;
     this.config = config;
@@ -270,18 +331,18 @@ var MistralChatLanguageModel = class {
     frequencyPenalty,
     presencePenalty,
     stopSequences,
-    responseFormat,
     seed,
+    responseFormat,
     providerOptions,
     tools,
     toolChoice
   }) {
-    var _a;
+    var _a, _b, _c;
     const warnings = [];
-    const options = (_a = await (0, import_provider_utils2.parseProviderOptions)({
-      provider: "mistral",
+    const options = (_a = await (0, import_provider_utils3.parseProviderOptions)({
+      provider: "xai",
       providerOptions,
-      schema: mistralProviderOptions
+      schema: xaiProviderOptions
     })) != null ? _a : {};
     if (topK != null) {
       warnings.push({
@@ -314,67 +375,109 @@ var MistralChatLanguageModel = class {
         details: "JSON response format schema is not supported"
       });
     }
-    const baseArgs = {
-      // model id:
-      model: this.modelId,
-      // model specific settings:
-      safe_prompt: options.safePrompt,
-      // standardized settings:
-      max_tokens: maxOutputTokens,
-      temperature,
-      top_p: topP,
-      random_seed: seed,
-      // response format:
-      response_format: (responseFormat == null ? void 0 : responseFormat.type) === "json" ? { type: "json_object" } : void 0,
-      // mistral-specific provider options:
-      document_image_limit: options.documentImageLimit,
-      document_page_limit: options.documentPageLimit,
-      // messages:
-      messages: convertToMistralChatMessages(prompt)
-    };
+    const { messages, warnings: messageWarnings } = convertToXaiChatMessages(prompt);
+    warnings.push(...messageWarnings);
     const {
-      tools: mistralTools,
-      toolChoice: mistralToolChoice,
+      tools: xaiTools,
+      toolChoice: xaiToolChoice,
       toolWarnings
     } = prepareTools({
       tools,
       toolChoice
     });
+    warnings.push(...toolWarnings);
+    const baseArgs = {
+      // model id
+      model: this.modelId,
+      // standard generation settings
+      max_tokens: maxOutputTokens,
+      temperature,
+      top_p: topP,
+      seed,
+      reasoning_effort: options.reasoningEffort,
+      // response format
+      response_format: (responseFormat == null ? void 0 : responseFormat.type) === "json" ? responseFormat.schema != null ? {
+        type: "json_schema",
+        json_schema: {
+          name: (_b = responseFormat.name) != null ? _b : "response",
+          schema: responseFormat.schema,
+          strict: true
+        }
+      } : { type: "json_object" } : void 0,
+      // search parameters
+      search_parameters: options.searchParameters ? {
+        mode: options.searchParameters.mode,
+        return_citations: options.searchParameters.returnCitations,
+        from_date: options.searchParameters.fromDate,
+        to_date: options.searchParameters.toDate,
+        max_search_results: options.searchParameters.maxSearchResults,
+        sources: (_c = options.searchParameters.sources) == null ? void 0 : _c.map((source) => ({
+          type: source.type,
+          ...source.type === "web" && {
+            country: source.country,
+            excluded_websites: source.excludedWebsites,
+            allowed_websites: source.allowedWebsites,
+            safe_search: source.safeSearch
+          },
+          ...source.type === "x" && {
+            x_handles: source.xHandles
+          },
+          ...source.type === "news" && {
+            country: source.country,
+            excluded_websites: source.excludedWebsites,
+            safe_search: source.safeSearch
+          },
+          ...source.type === "rss" && {
+            links: source.links
+          }
+        }))
+      } : void 0,
+      // messages in xai format
+      messages,
+      // tools in xai format
+      tools: xaiTools,
+      tool_choice: xaiToolChoice
+    };
     return {
-      args: {
-        ...baseArgs,
-        tools: mistralTools,
-        tool_choice: mistralToolChoice
-      },
-      warnings: [...warnings, ...toolWarnings]
+      args: baseArgs,
+      warnings
     };
   }
   async doGenerate(options) {
+    var _a, _b, _c;
     const { args: body, warnings } = await this.getArgs(options);
     const {
       responseHeaders,
       value: response,
       rawValue: rawResponse
-    } = await (0, import_provider_utils2.postJsonToApi)({
-      url: `${this.config.baseURL}/chat/completions`,
-      headers: (0, import_provider_utils2.combineHeaders)(this.config.headers(), options.headers),
+    } = await (0, import_provider_utils3.postJsonToApi)({
+      url: `${(_a = this.config.baseURL) != null ? _a : "https://api.x.ai/v1"}/chat/completions`,
+      headers: (0, import_provider_utils3.combineHeaders)(this.config.headers(), options.headers),
       body,
-      failedResponseHandler: mistralFailedResponseHandler,
-      successfulResponseHandler: (0, import_provider_utils2.createJsonResponseHandler)(
-        mistralChatResponseSchema
+      failedResponseHandler: xaiFailedResponseHandler,
+      successfulResponseHandler: (0, import_provider_utils3.createJsonResponseHandler)(
+        xaiChatResponseSchema
       ),
       abortSignal: options.abortSignal,
       fetch: this.config.fetch
     });
     const choice = response.choices[0];
     const content = [];
-    let text = extractTextContent(choice.message.content);
-    const lastMessage = body.messages[body.messages.length - 1];
-    if (lastMessage.role === "assistant" && (text == null ? void 0 : text.startsWith(lastMessage.content))) {
-      text = text.slice(lastMessage.content.length);
+    if (choice.message.content != null && choice.message.content.length > 0) {
+      let text = choice.message.content;
+      const lastMessage = body.messages[body.messages.length - 1];
+      if ((lastMessage == null ? void 0 : lastMessage.role) === "assistant" && text === lastMessage.content) {
+        text = "";
+      }
+      if (text.length > 0) {
+        content.push({ type: "text", text });
+      }
     }
-    if (text != null && text.length > 0) {
-      content.push({ type: "text", text });
+    if (choice.message.reasoning_content != null && choice.message.reasoning_content.length > 0) {
+      content.push({
+        type: "reasoning",
+        text: choice.message.reasoning_content
+      });
     }
     if (choice.message.tool_calls != null) {
       for (const toolCall of choice.message.tool_calls) {
@@ -386,13 +489,24 @@ var MistralChatLanguageModel = class {
         });
       }
     }
+    if (response.citations != null) {
+      for (const url of response.citations) {
+        content.push({
+          type: "source",
+          sourceType: "url",
+          id: this.config.generateId(),
+          url
+        });
+      }
+    }
     return {
       content,
-      finishReason: mapMistralFinishReason(choice.finish_reason),
+      finishReason: mapXaiFinishReason(choice.finish_reason),
       usage: {
         inputTokens: response.usage.prompt_tokens,
         outputTokens: response.usage.completion_tokens,
-        totalTokens: response.usage.total_tokens
+        totalTokens: response.usage.total_tokens,
+        reasoningTokens: (_c = (_b = response.usage.completion_tokens_details) == null ? void 0 : _b.reasoning_tokens) != null ? _c : void 0
       },
       request: { body },
       response: {
@@ -404,16 +518,21 @@ var MistralChatLanguageModel = class {
     };
   }
   async doStream(options) {
+    var _a;
     const { args, warnings } = await this.getArgs(options);
-    const body = { ...args, stream: true };
-    const { responseHeaders, value: response } = await (0, import_provider_utils2.postJsonToApi)({
-      url: `${this.config.baseURL}/chat/completions`,
-      headers: (0, import_provider_utils2.combineHeaders)(this.config.headers(), options.headers),
+    const body = {
+      ...args,
+      stream: true,
+      stream_options: {
+        include_usage: true
+      }
+    };
+    const { responseHeaders, value: response } = await (0, import_provider_utils3.postJsonToApi)({
+      url: `${(_a = this.config.baseURL) != null ? _a : "https://api.x.ai/v1"}/chat/completions`,
+      headers: (0, import_provider_utils3.combineHeaders)(this.config.headers(), options.headers),
       body,
-      failedResponseHandler: mistralFailedResponseHandler,
-      successfulResponseHandler: (0, import_provider_utils2.createEventSourceResponseHandler)(
-        mistralChatChunkSchema
-      ),
+      failedResponseHandler: xaiFailedResponseHandler,
+      successfulResponseHandler: (0, import_provider_utils3.createEventSourceResponseHandler)(xaiChatChunkSchema),
       abortSignal: options.abortSignal,
       fetch: this.config.fetch
     });
@@ -424,7 +543,9 @@ var MistralChatLanguageModel = class {
       totalTokens: void 0
     };
     let isFirstChunk = true;
-    let activeText = false;
+    const contentBlocks = {};
+    const lastReasoningDeltas = {};
+    const self = this;
     return {
       stream: response.pipeThrough(
         new TransformStream({
@@ -432,6 +553,7 @@ var MistralChatLanguageModel = class {
             controller.enqueue({ type: "stream-start", warnings });
           },
           transform(chunk, controller) {
+            var _a2, _b;
             if (options.includeRawChunks) {
               controller.enqueue({ type: "raw", rawValue: chunk.rawValue });
             }
@@ -441,45 +563,88 @@ var MistralChatLanguageModel = class {
             }
             const value = chunk.value;
             if (isFirstChunk) {
-              isFirstChunk = false;
               controller.enqueue({
                 type: "response-metadata",
                 ...getResponseMetadata(value)
               });
+              isFirstChunk = false;
+            }
+            if (value.citations != null) {
+              for (const url of value.citations) {
+                controller.enqueue({
+                  type: "source",
+                  sourceType: "url",
+                  id: self.config.generateId(),
+                  url
+                });
+              }
             }
             if (value.usage != null) {
               usage.inputTokens = value.usage.prompt_tokens;
               usage.outputTokens = value.usage.completion_tokens;
               usage.totalTokens = value.usage.total_tokens;
+              usage.reasoningTokens = (_b = (_a2 = value.usage.completion_tokens_details) == null ? void 0 : _a2.reasoning_tokens) != null ? _b : void 0;
             }
             const choice = value.choices[0];
+            if ((choice == null ? void 0 : choice.finish_reason) != null) {
+              finishReason = mapXaiFinishReason(choice.finish_reason);
+            }
+            if ((choice == null ? void 0 : choice.delta) == null) {
+              return;
+            }
             const delta = choice.delta;
-            const textContent = extractTextContent(delta.content);
-            if (textContent != null && textContent.length > 0) {
-              if (!activeText) {
-                controller.enqueue({ type: "text-start", id: "0" });
-                activeText = true;
+            const choiceIndex = choice.index;
+            if (delta.content != null && delta.content.length > 0) {
+              const textContent = delta.content;
+              const lastMessage = body.messages[body.messages.length - 1];
+              if ((lastMessage == null ? void 0 : lastMessage.role) === "assistant" && textContent === lastMessage.content) {
+                return;
+              }
+              const blockId = `text-${value.id || choiceIndex}`;
+              if (contentBlocks[blockId] == null) {
+                contentBlocks[blockId] = { type: "text" };
+                controller.enqueue({
+                  type: "text-start",
+                  id: blockId
+                });
               }
               controller.enqueue({
                 type: "text-delta",
-                id: "0",
+                id: blockId,
                 delta: textContent
               });
             }
-            if ((delta == null ? void 0 : delta.tool_calls) != null) {
+            if (delta.reasoning_content != null && delta.reasoning_content.length > 0) {
+              const blockId = `reasoning-${value.id || choiceIndex}`;
+              if (lastReasoningDeltas[blockId] === delta.reasoning_content) {
+                return;
+              }
+              lastReasoningDeltas[blockId] = delta.reasoning_content;
+              if (contentBlocks[blockId] == null) {
+                contentBlocks[blockId] = { type: "reasoning" };
+                controller.enqueue({
+                  type: "reasoning-start",
+                  id: blockId
+                });
+              }
+              controller.enqueue({
+                type: "reasoning-delta",
+                id: blockId,
+                delta: delta.reasoning_content
+              });
+            }
+            if (delta.tool_calls != null) {
               for (const toolCall of delta.tool_calls) {
                 const toolCallId = toolCall.id;
-                const toolName = toolCall.function.name;
-                const input = toolCall.function.arguments;
                 controller.enqueue({
                   type: "tool-input-start",
                   id: toolCallId,
-                  toolName
+                  toolName: toolCall.function.name
                 });
                 controller.enqueue({
                   type: "tool-input-delta",
                   id: toolCallId,
-                  delta: input
+                  delta: toolCall.function.arguments
                 });
                 controller.enqueue({
                   type: "tool-input-end",
@@ -488,24 +653,20 @@ var MistralChatLanguageModel = class {
                 controller.enqueue({
                   type: "tool-call",
                   toolCallId,
-                  toolName,
-                  input
+                  toolName: toolCall.function.name,
+                  input: toolCall.function.arguments
                 });
               }
             }
-            if (choice.finish_reason != null) {
-              finishReason = mapMistralFinishReason(choice.finish_reason);
-            }
           },
           flush(controller) {
-            if (activeText) {
-              controller.enqueue({ type: "text-end", id: "0" });
+            for (const [blockId, block] of Object.entries(contentBlocks)) {
+              controller.enqueue({
+                type: block.type === "text" ? "text-end" : "reasoning-end",
+                id: blockId
+              });
             }
-            controller.enqueue({
-              type: "finish",
-              finishReason,
-              usage
-            });
+            controller.enqueue({ type: "finish", finishReason, usage });
           }
         })
       ),
@@ -514,62 +675,15 @@ var MistralChatLanguageModel = class {
     };
   }
 };
-function extractTextContent(content) {
-  if (typeof content === "string") {
-    return content;
-  }
-  if (content == null) {
-    return void 0;
-  }
-  const textContent = [];
-  for (const chunk of content) {
-    const { type } = chunk;
-    switch (type) {
-      case "text":
-        textContent.push(chunk.text);
-        break;
-      case "image_url":
-      case "reference":
-        break;
-      default: {
-        const _exhaustiveCheck = type;
-        throw new Error(`Unsupported type: ${_exhaustiveCheck}`);
-      }
-    }
-  }
-  return textContent.length ? textContent.join("") : void 0;
-}
-var mistralContentSchema = import_v43.z.union([
-  import_v43.z.string(),
-  import_v43.z.array(
-    import_v43.z.discriminatedUnion("type", [
-      import_v43.z.object({
-        type: import_v43.z.literal("text"),
-        text: import_v43.z.string()
-      }),
-      import_v43.z.object({
-        type: import_v43.z.literal("image_url"),
-        image_url: import_v43.z.union([
-          import_v43.z.string(),
-          import_v43.z.object({
-            url: import_v43.z.string(),
-            detail: import_v43.z.string().nullable()
-          })
-        ])
-      }),
-      import_v43.z.object({
-        type: import_v43.z.literal("reference"),
-        reference_ids: import_v43.z.array(import_v43.z.number())
-      })
-    ])
-  )
-]).nullish();
-var mistralUsageSchema = import_v43.z.object({
+var xaiUsageSchema = import_v43.z.object({
   prompt_tokens: import_v43.z.number(),
   completion_tokens: import_v43.z.number(),
-  total_tokens: import_v43.z.number()
+  total_tokens: import_v43.z.number(),
+  completion_tokens_details: import_v43.z.object({
+    reasoning_tokens: import_v43.z.number().nullish()
+  }).nullish()
 });
-var mistralChatResponseSchema = import_v43.z.object({
+var xaiChatResponseSchema = import_v43.z.object({
   id: import_v43.z.string().nullish(),
   created: import_v43.z.number().nullish(),
   model: import_v43.z.string().nullish(),
@@ -577,11 +691,16 @@ var mistralChatResponseSchema = import_v43.z.object({
     import_v43.z.object({
       message: import_v43.z.object({
         role: import_v43.z.literal("assistant"),
-        content: mistralContentSchema,
+        content: import_v43.z.string().nullish(),
+        reasoning_content: import_v43.z.string().nullish(),
         tool_calls: import_v43.z.array(
           import_v43.z.object({
             id: import_v43.z.string(),
-            function: import_v43.z.object({ name: import_v43.z.string(), arguments: import_v43.z.string() })
+            type: import_v43.z.literal("function"),
+            function: import_v43.z.object({
+              name: import_v43.z.string(),
+              arguments: import_v43.z.string()
+            })
           })
         ).nullish()
       }),
@@ -590,9 +709,10 @@ var mistralChatResponseSchema = import_v43.z.object({
     })
   ),
   object: import_v43.z.literal("chat.completion"),
-  usage: mistralUsageSchema
+  usage: xaiUsageSchema,
+  citations: import_v43.z.array(import_v43.z.string().url()).nullish()
 });
-var mistralChatChunkSchema = import_v43.z.object({
+var xaiChatChunkSchema = import_v43.z.object({
   id: import_v43.z.string().nullish(),
   created: import_v43.z.number().nullish(),
   model: import_v43.z.string().nullish(),
@@ -600,11 +720,16 @@ var mistralChatChunkSchema = import_v43.z.object({
     import_v43.z.object({
       delta: import_v43.z.object({
         role: import_v43.z.enum(["assistant"]).optional(),
-        content: mistralContentSchema,
+        content: import_v43.z.string().nullish(),
+        reasoning_content: import_v43.z.string().nullish(),
         tool_calls: import_v43.z.array(
           import_v43.z.object({
             id: import_v43.z.string(),
-            function: import_v43.z.object({ name: import_v43.z.string(), arguments: import_v43.z.string() })
+            type: import_v43.z.literal("function"),
+            function: import_v43.z.object({
+              name: import_v43.z.string(),
+              arguments: import_v43.z.string()
+            })
           })
         ).nullish()
       }),
@@ -612,114 +737,60 @@ var mistralChatChunkSchema = import_v43.z.object({
       index: import_v43.z.number()
     })
   ),
-  usage: mistralUsageSchema.nullish()
+  usage: xaiUsageSchema.nullish(),
+  citations: import_v43.z.array(import_v43.z.string().url()).nullish()
 });
 
-// src/mistral-embedding-model.ts
-var import_provider3 = require("@ai-sdk/provider");
-var import_provider_utils3 = require("@ai-sdk/provider-utils");
-var import_v44 = require("zod/v4");
-var MistralEmbeddingModel = class {
-  constructor(modelId, config) {
-    this.specificationVersion = "v2";
-    this.maxEmbeddingsPerCall = 32;
-    this.supportsParallelCalls = false;
-    this.modelId = modelId;
-    this.config = config;
-  }
-  get provider() {
-    return this.config.provider;
-  }
-  async doEmbed({
-    values,
-    abortSignal,
-    headers
-  }) {
-    if (values.length > this.maxEmbeddingsPerCall) {
-      throw new import_provider3.TooManyEmbeddingValuesForCallError({
-        provider: this.provider,
-        modelId: this.modelId,
-        maxEmbeddingsPerCall: this.maxEmbeddingsPerCall,
-        values
-      });
-    }
-    const {
-      responseHeaders,
-      value: response,
-      rawValue
-    } = await (0, import_provider_utils3.postJsonToApi)({
-      url: `${this.config.baseURL}/embeddings`,
-      headers: (0, import_provider_utils3.combineHeaders)(this.config.headers(), headers),
-      body: {
-        model: this.modelId,
-        input: values,
-        encoding_format: "float"
-      },
-      failedResponseHandler: mistralFailedResponseHandler,
-      successfulResponseHandler: (0, import_provider_utils3.createJsonResponseHandler)(
-        MistralTextEmbeddingResponseSchema
-      ),
-      abortSignal,
-      fetch: this.config.fetch
-    });
-    return {
-      embeddings: response.data.map((item) => item.embedding),
-      usage: response.usage ? { tokens: response.usage.prompt_tokens } : void 0,
-      response: { headers: responseHeaders, body: rawValue }
-    };
-  }
+// src/xai-provider.ts
+var xaiErrorStructure = {
+  errorSchema: xaiErrorDataSchema,
+  errorToMessage: (data) => data.error.message
 };
-var MistralTextEmbeddingResponseSchema = import_v44.z.object({
-  data: import_v44.z.array(import_v44.z.object({ embedding: import_v44.z.array(import_v44.z.number()) })),
-  usage: import_v44.z.object({ prompt_tokens: import_v44.z.number() }).nullish()
-});
-
-// src/mistral-provider.ts
-function createMistral(options = {}) {
+function createXai(options = {}) {
   var _a;
-  const baseURL = (_a = (0, import_provider_utils4.withoutTrailingSlash)(options.baseURL)) != null ? _a : "https://api.mistral.ai/v1";
+  const baseURL = (0, import_provider_utils4.withoutTrailingSlash)(
+    (_a = options.baseURL) != null ? _a : "https://api.x.ai/v1"
+  );
   const getHeaders = () => ({
     Authorization: `Bearer ${(0, import_provider_utils4.loadApiKey)({
       apiKey: options.apiKey,
-      environmentVariableName: "MISTRAL_API_KEY",
-      description: "Mistral"
+      environmentVariableName: "XAI_API_KEY",
+      description: "xAI API key"
     })}`,
     ...options.headers
   });
-  const createChatModel = (modelId) => new MistralChatLanguageModel(modelId, {
-    provider: "mistral.chat",
-    baseURL,
-    headers: getHeaders,
-    fetch: options.fetch
-  });
-  const createEmbeddingModel = (modelId) => new MistralEmbeddingModel(modelId, {
-    provider: "mistral.embedding",
-    baseURL,
-    headers: getHeaders,
-    fetch: options.fetch
-  });
-  const provider = function(modelId) {
-    if (new.target) {
-      throw new Error(
-        "The Mistral model function cannot be called with the new keyword."
-      );
-    }
-    return createChatModel(modelId);
+  const createLanguageModel = (modelId) => {
+    return new XaiChatLanguageModel(modelId, {
+      provider: "xai.chat",
+      baseURL,
+      headers: getHeaders,
+      generateId: import_provider_utils4.generateId,
+      fetch: options.fetch
+    });
   };
-  provider.languageModel = createChatModel;
-  provider.chat = createChatModel;
-  provider.embedding = createEmbeddingModel;
-  provider.textEmbedding = createEmbeddingModel;
-  provider.textEmbeddingModel = createEmbeddingModel;
-  provider.imageModel = (modelId) => {
-    throw new import_provider4.NoSuchModelError({ modelId, modelType: "imageModel" });
+  const createImageModel = (modelId) => {
+    return new import_openai_compatible.OpenAICompatibleImageModel(modelId, {
+      provider: "xai.image",
+      url: ({ path }) => `${baseURL}${path}`,
+      headers: getHeaders,
+      fetch: options.fetch,
+      errorStructure: xaiErrorStructure
+    });
   };
+  const provider = (modelId) => createLanguageModel(modelId);
+  provider.languageModel = createLanguageModel;
+  provider.chat = createLanguageModel;
+  provider.textEmbeddingModel = (modelId) => {
+    throw new import_provider3.NoSuchModelError({ modelId, modelType: "textEmbeddingModel" });
+  };
+  provider.imageModel = createImageModel;
+  provider.image = createImageModel;
   return provider;
 }
-var mistral = createMistral();
+var xai = createXai();
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
-  createMistral,
-  mistral
+  createXai,
+  xai
 });
 //# sourceMappingURL=index.js.map
