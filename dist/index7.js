@@ -20,136 +20,107 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
-  createDeepInfra: () => createDeepInfra,
-  deepinfra: () => deepinfra
+  createDeepSeek: () => createDeepSeek,
+  deepseek: () => deepseek
 });
 module.exports = __toCommonJS(src_exports);
 
-// src/deepinfra-provider.ts
+// src/deepseek-provider.ts
 var import_openai_compatible = require("@ai-sdk/openai-compatible");
+var import_provider = require("@ai-sdk/provider");
 var import_provider_utils2 = require("@ai-sdk/provider-utils");
 
-// src/deepinfra-image-model.ts
+// src/deepseek-metadata-extractor.ts
 var import_provider_utils = require("@ai-sdk/provider-utils");
 var import_v4 = require("zod/v4");
-var DeepInfraImageModel = class {
-  constructor(modelId, config) {
-    this.modelId = modelId;
-    this.config = config;
-    this.specificationVersion = "v2";
-    this.maxImagesPerCall = 1;
-  }
-  get provider() {
-    return this.config.provider;
-  }
-  async doGenerate({
-    prompt,
-    n,
-    size,
-    aspectRatio,
-    seed,
-    providerOptions,
-    headers,
-    abortSignal
-  }) {
-    var _a, _b, _c, _d;
-    const warnings = [];
-    const splitSize = size == null ? void 0 : size.split("x");
-    const currentDate = (_c = (_b = (_a = this.config._internal) == null ? void 0 : _a.currentDate) == null ? void 0 : _b.call(_a)) != null ? _c : /* @__PURE__ */ new Date();
-    const { value: response, responseHeaders } = await (0, import_provider_utils.postJsonToApi)({
-      url: `${this.config.baseURL}/${this.modelId}`,
-      headers: (0, import_provider_utils.combineHeaders)(this.config.headers(), headers),
-      body: {
-        prompt,
-        num_images: n,
-        ...aspectRatio && { aspect_ratio: aspectRatio },
-        ...splitSize && { width: splitSize[0], height: splitSize[1] },
-        ...seed != null && { seed },
-        ...(_d = providerOptions.deepinfra) != null ? _d : {}
-      },
-      failedResponseHandler: (0, import_provider_utils.createJsonErrorResponseHandler)({
-        errorSchema: deepInfraErrorSchema,
-        errorToMessage: (error) => error.detail.error
-      }),
-      successfulResponseHandler: (0, import_provider_utils.createJsonResponseHandler)(
-        deepInfraImageResponseSchema
-      ),
-      abortSignal,
-      fetch: this.config.fetch
+var buildDeepseekMetadata = (usage) => {
+  var _a, _b;
+  return usage == null ? void 0 : {
+    deepseek: {
+      promptCacheHitTokens: (_a = usage.prompt_cache_hit_tokens) != null ? _a : NaN,
+      promptCacheMissTokens: (_b = usage.prompt_cache_miss_tokens) != null ? _b : NaN
+    }
+  };
+};
+var deepSeekMetadataExtractor = {
+  extractMetadata: async ({ parsedBody }) => {
+    const parsed = await (0, import_provider_utils.safeValidateTypes)({
+      value: parsedBody,
+      schema: deepSeekResponseSchema
     });
+    return !parsed.success || parsed.value.usage == null ? void 0 : buildDeepseekMetadata(parsed.value.usage);
+  },
+  createStreamExtractor: () => {
+    let usage;
     return {
-      images: response.images.map(
-        (image) => image.replace(/^data:image\/\w+;base64,/, "")
-      ),
-      warnings,
-      response: {
-        timestamp: currentDate,
-        modelId: this.modelId,
-        headers: responseHeaders
-      }
+      processChunk: async (chunk) => {
+        var _a, _b;
+        const parsed = await (0, import_provider_utils.safeValidateTypes)({
+          value: chunk,
+          schema: deepSeekStreamChunkSchema
+        });
+        if (parsed.success && ((_b = (_a = parsed.value.choices) == null ? void 0 : _a[0]) == null ? void 0 : _b.finish_reason) === "stop" && parsed.value.usage) {
+          usage = parsed.value.usage;
+        }
+      },
+      buildMetadata: () => buildDeepseekMetadata(usage)
     };
   }
 };
-var deepInfraErrorSchema = import_v4.z.object({
-  detail: import_v4.z.object({
-    error: import_v4.z.string()
-  })
+var deepSeekUsageSchema = import_v4.z.object({
+  prompt_cache_hit_tokens: import_v4.z.number().nullish(),
+  prompt_cache_miss_tokens: import_v4.z.number().nullish()
 });
-var deepInfraImageResponseSchema = import_v4.z.object({
-  images: import_v4.z.array(import_v4.z.string())
+var deepSeekResponseSchema = import_v4.z.object({
+  usage: deepSeekUsageSchema.nullish()
+});
+var deepSeekStreamChunkSchema = import_v4.z.object({
+  choices: import_v4.z.array(
+    import_v4.z.object({
+      finish_reason: import_v4.z.string().nullish()
+    })
+  ).nullish(),
+  usage: deepSeekUsageSchema.nullish()
 });
 
-// src/deepinfra-provider.ts
-function createDeepInfra(options = {}) {
+// src/deepseek-provider.ts
+function createDeepSeek(options = {}) {
   var _a;
   const baseURL = (0, import_provider_utils2.withoutTrailingSlash)(
-    (_a = options.baseURL) != null ? _a : "https://api.deepinfra.com/v1"
+    (_a = options.baseURL) != null ? _a : "https://api.deepseek.com/v1"
   );
   const getHeaders = () => ({
     Authorization: `Bearer ${(0, import_provider_utils2.loadApiKey)({
       apiKey: options.apiKey,
-      environmentVariableName: "DEEPINFRA_API_KEY",
-      description: "DeepInfra's API key"
+      environmentVariableName: "DEEPSEEK_API_KEY",
+      description: "DeepSeek API key"
     })}`,
     ...options.headers
   });
-  const getCommonModelConfig = (modelType) => ({
-    provider: `deepinfra.${modelType}`,
-    url: ({ path }) => `${baseURL}/openai${path}`,
-    headers: getHeaders,
-    fetch: options.fetch
-  });
-  const createChatModel = (modelId) => {
-    return new import_openai_compatible.OpenAICompatibleChatLanguageModel(
-      modelId,
-      getCommonModelConfig("chat")
-    );
+  const createLanguageModel = (modelId) => {
+    return new import_openai_compatible.OpenAICompatibleChatLanguageModel(modelId, {
+      provider: `deepseek.chat`,
+      url: ({ path }) => `${baseURL}${path}`,
+      headers: getHeaders,
+      fetch: options.fetch,
+      metadataExtractor: deepSeekMetadataExtractor
+    });
   };
-  const createCompletionModel = (modelId) => new import_openai_compatible.OpenAICompatibleCompletionLanguageModel(
-    modelId,
-    getCommonModelConfig("completion")
-  );
-  const createTextEmbeddingModel = (modelId) => new import_openai_compatible.OpenAICompatibleEmbeddingModel(
-    modelId,
-    getCommonModelConfig("embedding")
-  );
-  const createImageModel = (modelId) => new DeepInfraImageModel(modelId, {
-    ...getCommonModelConfig("image"),
-    baseURL: baseURL ? `${baseURL}/inference` : "https://api.deepinfra.com/v1/inference"
-  });
-  const provider = (modelId) => createChatModel(modelId);
-  provider.completionModel = createCompletionModel;
-  provider.chatModel = createChatModel;
-  provider.image = createImageModel;
-  provider.imageModel = createImageModel;
-  provider.languageModel = createChatModel;
-  provider.textEmbeddingModel = createTextEmbeddingModel;
+  const provider = (modelId) => createLanguageModel(modelId);
+  provider.languageModel = createLanguageModel;
+  provider.chat = createLanguageModel;
+  provider.textEmbeddingModel = (modelId) => {
+    throw new import_provider.NoSuchModelError({ modelId, modelType: "textEmbeddingModel" });
+  };
+  provider.imageModel = (modelId) => {
+    throw new import_provider.NoSuchModelError({ modelId, modelType: "imageModel" });
+  };
   return provider;
 }
-var deepinfra = createDeepInfra();
+var deepseek = createDeepSeek();
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
-  createDeepInfra,
-  deepinfra
+  createDeepSeek,
+  deepseek
 });
 //# sourceMappingURL=index.js.map
