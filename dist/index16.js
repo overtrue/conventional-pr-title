@@ -20,307 +20,695 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
-  createXai: () => createXai,
-  xai: () => xai
+  createGoogleGenerativeAI: () => createGoogleGenerativeAI,
+  google: () => google
 });
 module.exports = __toCommonJS(src_exports);
 
-// src/xai-provider.ts
-var import_openai_compatible = require("@ai-sdk/openai-compatible");
-var import_provider3 = require("@ai-sdk/provider");
-var import_provider_utils4 = require("@ai-sdk/provider-utils");
+// src/google-provider.ts
+var import_provider_utils9 = require("@ai-sdk/provider-utils");
 
-// src/xai-chat-language-model.ts
-var import_provider_utils3 = require("@ai-sdk/provider-utils");
+// src/google-generative-ai-embedding-model.ts
+var import_provider = require("@ai-sdk/provider");
+var import_provider_utils2 = require("@ai-sdk/provider-utils");
 var import_v43 = require("zod/v4");
 
-// src/convert-to-xai-chat-messages.ts
-var import_provider = require("@ai-sdk/provider");
+// src/google-error.ts
 var import_provider_utils = require("@ai-sdk/provider-utils");
-function convertToXaiChatMessages(prompt) {
-  const messages = [];
-  const warnings = [];
+var import_v4 = require("zod/v4");
+var googleErrorDataSchema = import_v4.z.object({
+  error: import_v4.z.object({
+    code: import_v4.z.number().nullable(),
+    message: import_v4.z.string(),
+    status: import_v4.z.string()
+  })
+});
+var googleFailedResponseHandler = (0, import_provider_utils.createJsonErrorResponseHandler)({
+  errorSchema: googleErrorDataSchema,
+  errorToMessage: (data) => data.error.message
+});
+
+// src/google-generative-ai-embedding-options.ts
+var import_v42 = require("zod/v4");
+var googleGenerativeAIEmbeddingProviderOptions = import_v42.z.object({
+  /**
+   * Optional. Optional reduced dimension for the output embedding.
+   * If set, excessive values in the output embedding are truncated from the end.
+   */
+  outputDimensionality: import_v42.z.number().optional(),
+  /**
+   * Optional. Specifies the task type for generating embeddings.
+   * Supported task types:
+   * - SEMANTIC_SIMILARITY: Optimized for text similarity.
+   * - CLASSIFICATION: Optimized for text classification.
+   * - CLUSTERING: Optimized for clustering texts based on similarity.
+   * - RETRIEVAL_DOCUMENT: Optimized for document retrieval.
+   * - RETRIEVAL_QUERY: Optimized for query-based retrieval.
+   * - QUESTION_ANSWERING: Optimized for answering questions.
+   * - FACT_VERIFICATION: Optimized for verifying factual information.
+   * - CODE_RETRIEVAL_QUERY: Optimized for retrieving code blocks based on natural language queries.
+   */
+  taskType: import_v42.z.enum([
+    "SEMANTIC_SIMILARITY",
+    "CLASSIFICATION",
+    "CLUSTERING",
+    "RETRIEVAL_DOCUMENT",
+    "RETRIEVAL_QUERY",
+    "QUESTION_ANSWERING",
+    "FACT_VERIFICATION",
+    "CODE_RETRIEVAL_QUERY"
+  ]).optional()
+});
+
+// src/google-generative-ai-embedding-model.ts
+var GoogleGenerativeAIEmbeddingModel = class {
+  constructor(modelId, config) {
+    this.specificationVersion = "v2";
+    this.maxEmbeddingsPerCall = 2048;
+    this.supportsParallelCalls = true;
+    this.modelId = modelId;
+    this.config = config;
+  }
+  get provider() {
+    return this.config.provider;
+  }
+  async doEmbed({
+    values,
+    headers,
+    abortSignal,
+    providerOptions
+  }) {
+    const googleOptions = await (0, import_provider_utils2.parseProviderOptions)({
+      provider: "google",
+      providerOptions,
+      schema: googleGenerativeAIEmbeddingProviderOptions
+    });
+    if (values.length > this.maxEmbeddingsPerCall) {
+      throw new import_provider.TooManyEmbeddingValuesForCallError({
+        provider: this.provider,
+        modelId: this.modelId,
+        maxEmbeddingsPerCall: this.maxEmbeddingsPerCall,
+        values
+      });
+    }
+    const mergedHeaders = (0, import_provider_utils2.combineHeaders)(
+      await (0, import_provider_utils2.resolve)(this.config.headers),
+      headers
+    );
+    if (values.length === 1) {
+      const {
+        responseHeaders: responseHeaders2,
+        value: response2,
+        rawValue: rawValue2
+      } = await (0, import_provider_utils2.postJsonToApi)({
+        url: `${this.config.baseURL}/models/${this.modelId}:embedContent`,
+        headers: mergedHeaders,
+        body: {
+          model: `models/${this.modelId}`,
+          content: {
+            parts: [{ text: values[0] }]
+          },
+          outputDimensionality: googleOptions == null ? void 0 : googleOptions.outputDimensionality,
+          taskType: googleOptions == null ? void 0 : googleOptions.taskType
+        },
+        failedResponseHandler: googleFailedResponseHandler,
+        successfulResponseHandler: (0, import_provider_utils2.createJsonResponseHandler)(
+          googleGenerativeAISingleEmbeddingResponseSchema
+        ),
+        abortSignal,
+        fetch: this.config.fetch
+      });
+      return {
+        embeddings: [response2.embedding.values],
+        usage: void 0,
+        response: { headers: responseHeaders2, body: rawValue2 }
+      };
+    }
+    const {
+      responseHeaders,
+      value: response,
+      rawValue
+    } = await (0, import_provider_utils2.postJsonToApi)({
+      url: `${this.config.baseURL}/models/${this.modelId}:batchEmbedContents`,
+      headers: mergedHeaders,
+      body: {
+        requests: values.map((value) => ({
+          model: `models/${this.modelId}`,
+          content: { role: "user", parts: [{ text: value }] },
+          outputDimensionality: googleOptions == null ? void 0 : googleOptions.outputDimensionality,
+          taskType: googleOptions == null ? void 0 : googleOptions.taskType
+        }))
+      },
+      failedResponseHandler: googleFailedResponseHandler,
+      successfulResponseHandler: (0, import_provider_utils2.createJsonResponseHandler)(
+        googleGenerativeAITextEmbeddingResponseSchema
+      ),
+      abortSignal,
+      fetch: this.config.fetch
+    });
+    return {
+      embeddings: response.embeddings.map((item) => item.values),
+      usage: void 0,
+      response: { headers: responseHeaders, body: rawValue }
+    };
+  }
+};
+var googleGenerativeAITextEmbeddingResponseSchema = import_v43.z.object({
+  embeddings: import_v43.z.array(import_v43.z.object({ values: import_v43.z.array(import_v43.z.number()) }))
+});
+var googleGenerativeAISingleEmbeddingResponseSchema = import_v43.z.object({
+  embedding: import_v43.z.object({ values: import_v43.z.array(import_v43.z.number()) })
+});
+
+// src/google-generative-ai-language-model.ts
+var import_provider_utils6 = require("@ai-sdk/provider-utils");
+var import_v47 = require("zod/v4");
+
+// src/convert-json-schema-to-openapi-schema.ts
+function convertJSONSchemaToOpenAPISchema(jsonSchema) {
+  if (jsonSchema == null || isEmptyObjectSchema(jsonSchema)) {
+    return void 0;
+  }
+  if (typeof jsonSchema === "boolean") {
+    return { type: "boolean", properties: {} };
+  }
+  const {
+    type,
+    description,
+    required,
+    properties,
+    items,
+    allOf,
+    anyOf,
+    oneOf,
+    format,
+    const: constValue,
+    minLength,
+    enum: enumValues
+  } = jsonSchema;
+  const result = {};
+  if (description)
+    result.description = description;
+  if (required)
+    result.required = required;
+  if (format)
+    result.format = format;
+  if (constValue !== void 0) {
+    result.enum = [constValue];
+  }
+  if (type) {
+    if (Array.isArray(type)) {
+      if (type.includes("null")) {
+        result.type = type.filter((t) => t !== "null")[0];
+        result.nullable = true;
+      } else {
+        result.type = type;
+      }
+    } else if (type === "null") {
+      result.type = "null";
+    } else {
+      result.type = type;
+    }
+  }
+  if (enumValues !== void 0) {
+    result.enum = enumValues;
+  }
+  if (properties != null) {
+    result.properties = Object.entries(properties).reduce(
+      (acc, [key, value]) => {
+        acc[key] = convertJSONSchemaToOpenAPISchema(value);
+        return acc;
+      },
+      {}
+    );
+  }
+  if (items) {
+    result.items = Array.isArray(items) ? items.map(convertJSONSchemaToOpenAPISchema) : convertJSONSchemaToOpenAPISchema(items);
+  }
+  if (allOf) {
+    result.allOf = allOf.map(convertJSONSchemaToOpenAPISchema);
+  }
+  if (anyOf) {
+    if (anyOf.some(
+      (schema) => typeof schema === "object" && (schema == null ? void 0 : schema.type) === "null"
+    )) {
+      const nonNullSchemas = anyOf.filter(
+        (schema) => !(typeof schema === "object" && (schema == null ? void 0 : schema.type) === "null")
+      );
+      if (nonNullSchemas.length === 1) {
+        const converted = convertJSONSchemaToOpenAPISchema(nonNullSchemas[0]);
+        if (typeof converted === "object") {
+          result.nullable = true;
+          Object.assign(result, converted);
+        }
+      } else {
+        result.anyOf = nonNullSchemas.map(convertJSONSchemaToOpenAPISchema);
+        result.nullable = true;
+      }
+    } else {
+      result.anyOf = anyOf.map(convertJSONSchemaToOpenAPISchema);
+    }
+  }
+  if (oneOf) {
+    result.oneOf = oneOf.map(convertJSONSchemaToOpenAPISchema);
+  }
+  if (minLength !== void 0) {
+    result.minLength = minLength;
+  }
+  return result;
+}
+function isEmptyObjectSchema(jsonSchema) {
+  return jsonSchema != null && typeof jsonSchema === "object" && jsonSchema.type === "object" && (jsonSchema.properties == null || Object.keys(jsonSchema.properties).length === 0) && !jsonSchema.additionalProperties;
+}
+
+// src/convert-to-google-generative-ai-messages.ts
+var import_provider2 = require("@ai-sdk/provider");
+var import_provider_utils3 = require("@ai-sdk/provider-utils");
+function convertToGoogleGenerativeAIMessages(prompt, options) {
+  var _a;
+  const systemInstructionParts = [];
+  const contents = [];
+  let systemMessagesAllowed = true;
+  const isGemmaModel = (_a = options == null ? void 0 : options.isGemmaModel) != null ? _a : false;
   for (const { role, content } of prompt) {
     switch (role) {
       case "system": {
-        messages.push({ role: "system", content });
+        if (!systemMessagesAllowed) {
+          throw new import_provider2.UnsupportedFunctionalityError({
+            functionality: "system messages are only supported at the beginning of the conversation"
+          });
+        }
+        systemInstructionParts.push({ text: content });
         break;
       }
       case "user": {
-        if (content.length === 1 && content[0].type === "text") {
-          messages.push({ role: "user", content: content[0].text });
-          break;
-        }
-        messages.push({
-          role: "user",
-          content: content.map((part) => {
-            switch (part.type) {
-              case "text": {
-                return { type: "text", text: part.text };
-              }
-              case "file": {
-                if (part.mediaType.startsWith("image/")) {
-                  const mediaType = part.mediaType === "image/*" ? "image/jpeg" : part.mediaType;
-                  return {
-                    type: "image_url",
-                    image_url: {
-                      url: part.data instanceof URL ? part.data.toString() : `data:${mediaType};base64,${(0, import_provider_utils.convertToBase64)(part.data)}`
-                    }
-                  };
-                } else {
-                  throw new import_provider.UnsupportedFunctionalityError({
-                    functionality: `file part media type ${part.mediaType}`
-                  });
-                }
-              }
-            }
-          })
-        });
-        break;
-      }
-      case "assistant": {
-        let text = "";
-        const toolCalls = [];
+        systemMessagesAllowed = false;
+        const parts = [];
         for (const part of content) {
           switch (part.type) {
             case "text": {
-              text += part.text;
+              parts.push({ text: part.text });
               break;
             }
-            case "tool-call": {
-              toolCalls.push({
-                id: part.toolCallId,
-                type: "function",
-                function: {
-                  name: part.toolName,
-                  arguments: JSON.stringify(part.input)
+            case "file": {
+              const mediaType = part.mediaType === "image/*" ? "image/jpeg" : part.mediaType;
+              parts.push(
+                part.data instanceof URL ? {
+                  fileData: {
+                    mimeType: mediaType,
+                    fileUri: part.data.toString()
+                  }
+                } : {
+                  inlineData: {
+                    mimeType: mediaType,
+                    data: (0, import_provider_utils3.convertToBase64)(part.data)
+                  }
                 }
-              });
+              );
               break;
             }
           }
         }
-        messages.push({
-          role: "assistant",
-          content: text,
-          tool_calls: toolCalls.length > 0 ? toolCalls : void 0
+        contents.push({ role: "user", parts });
+        break;
+      }
+      case "assistant": {
+        systemMessagesAllowed = false;
+        contents.push({
+          role: "model",
+          parts: content.map((part) => {
+            switch (part.type) {
+              case "text": {
+                return part.text.length === 0 ? void 0 : { text: part.text };
+              }
+              case "file": {
+                if (part.mediaType !== "image/png") {
+                  throw new import_provider2.UnsupportedFunctionalityError({
+                    functionality: "Only PNG images are supported in assistant messages"
+                  });
+                }
+                if (part.data instanceof URL) {
+                  throw new import_provider2.UnsupportedFunctionalityError({
+                    functionality: "File data URLs in assistant messages are not supported"
+                  });
+                }
+                return {
+                  inlineData: {
+                    mimeType: part.mediaType,
+                    data: (0, import_provider_utils3.convertToBase64)(part.data)
+                  }
+                };
+              }
+              case "tool-call": {
+                return {
+                  functionCall: {
+                    name: part.toolName,
+                    args: part.input
+                  }
+                };
+              }
+            }
+          }).filter((part) => part !== void 0)
         });
         break;
       }
       case "tool": {
-        for (const toolResponse of content) {
-          const output = toolResponse.output;
-          let contentValue;
-          switch (output.type) {
-            case "text":
-            case "error-text":
-              contentValue = output.value;
-              break;
-            case "content":
-            case "json":
-            case "error-json":
-              contentValue = JSON.stringify(output.value);
-              break;
-          }
-          messages.push({
-            role: "tool",
-            tool_call_id: toolResponse.toolCallId,
-            content: contentValue
-          });
-        }
+        systemMessagesAllowed = false;
+        contents.push({
+          role: "user",
+          parts: content.map((part) => ({
+            functionResponse: {
+              name: part.toolName,
+              response: {
+                name: part.toolName,
+                content: part.output.value
+              }
+            }
+          }))
+        });
         break;
-      }
-      default: {
-        const _exhaustiveCheck = role;
-        throw new Error(`Unsupported role: ${_exhaustiveCheck}`);
       }
     }
   }
-  return { messages, warnings };
-}
-
-// src/get-response-metadata.ts
-function getResponseMetadata({
-  id,
-  model,
-  created
-}) {
+  if (isGemmaModel && systemInstructionParts.length > 0 && contents.length > 0 && contents[0].role === "user") {
+    const systemText = systemInstructionParts.map((part) => part.text).join("\n\n");
+    contents[0].parts.unshift({ text: systemText + "\n\n" });
+  }
   return {
-    id: id != null ? id : void 0,
-    modelId: model != null ? model : void 0,
-    timestamp: created != null ? new Date(created * 1e3) : void 0
+    systemInstruction: systemInstructionParts.length > 0 && !isGemmaModel ? { parts: systemInstructionParts } : void 0,
+    contents
   };
 }
 
-// src/map-xai-finish-reason.ts
-function mapXaiFinishReason(finishReason) {
-  switch (finishReason) {
-    case "stop":
-      return "stop";
-    case "length":
-      return "length";
-    case "tool_calls":
-    case "function_call":
-      return "tool-calls";
-    case "content_filter":
-      return "content-filter";
-    default:
-      return "unknown";
-  }
+// src/get-model-path.ts
+function getModelPath(modelId) {
+  return modelId.includes("/") ? modelId : `models/${modelId}`;
 }
 
-// src/xai-chat-options.ts
-var import_v4 = require("zod/v4");
-var webSourceSchema = import_v4.z.object({
-  type: import_v4.z.literal("web"),
-  country: import_v4.z.string().length(2).optional(),
-  excludedWebsites: import_v4.z.array(import_v4.z.string()).max(5).optional(),
-  allowedWebsites: import_v4.z.array(import_v4.z.string()).max(5).optional(),
-  safeSearch: import_v4.z.boolean().optional()
-});
-var xSourceSchema = import_v4.z.object({
-  type: import_v4.z.literal("x"),
-  xHandles: import_v4.z.array(import_v4.z.string()).optional()
-});
-var newsSourceSchema = import_v4.z.object({
-  type: import_v4.z.literal("news"),
-  country: import_v4.z.string().length(2).optional(),
-  excludedWebsites: import_v4.z.array(import_v4.z.string()).max(5).optional(),
-  safeSearch: import_v4.z.boolean().optional()
-});
-var rssSourceSchema = import_v4.z.object({
-  type: import_v4.z.literal("rss"),
-  links: import_v4.z.array(import_v4.z.string().url()).max(1)
-  // currently only supports one RSS link
-});
-var searchSourceSchema = import_v4.z.discriminatedUnion("type", [
-  webSourceSchema,
-  xSourceSchema,
-  newsSourceSchema,
-  rssSourceSchema
-]);
-var xaiProviderOptions = import_v4.z.object({
+// src/google-generative-ai-options.ts
+var import_v44 = require("zod/v4");
+var googleGenerativeAIProviderOptions = import_v44.z.object({
+  responseModalities: import_v44.z.array(import_v44.z.enum(["TEXT", "IMAGE"])).optional(),
+  thinkingConfig: import_v44.z.object({
+    thinkingBudget: import_v44.z.number().optional(),
+    includeThoughts: import_v44.z.boolean().optional()
+  }).optional(),
   /**
-   * reasoning effort for reasoning models
-   * only supported by grok-3-mini and grok-3-mini-fast models
+  Optional.
+  The name of the cached content used as context to serve the prediction.
+  Format: cachedContents/{cachedContent}
+     */
+  cachedContent: import_v44.z.string().optional(),
+  /**
+   * Optional. Enable structured output. Default is true.
+   *
+   * This is useful when the JSON Schema contains elements that are
+   * not supported by the OpenAPI schema version that
+   * Google Generative AI uses. You can use this to disable
+   * structured outputs if you need to.
    */
-  reasoningEffort: import_v4.z.enum(["low", "high"]).optional(),
-  searchParameters: import_v4.z.object({
-    /**
-     * search mode preference
-     * - "off": disables search completely
-     * - "auto": model decides whether to search (default)
-     * - "on": always enables search
-     */
-    mode: import_v4.z.enum(["off", "auto", "on"]),
-    /**
-     * whether to return citations in the response
-     * defaults to true
-     */
-    returnCitations: import_v4.z.boolean().optional(),
-    /**
-     * start date for search data (ISO8601 format: YYYY-MM-DD)
-     */
-    fromDate: import_v4.z.string().optional(),
-    /**
-     * end date for search data (ISO8601 format: YYYY-MM-DD)
-     */
-    toDate: import_v4.z.string().optional(),
-    /**
-     * maximum number of search results to consider
-     * defaults to 20
-     */
-    maxSearchResults: import_v4.z.number().min(1).max(50).optional(),
-    /**
-     * data sources to search from
-     * defaults to ["web", "x"] if not specified
-     */
-    sources: import_v4.z.array(searchSourceSchema).optional()
-  }).optional()
+  structuredOutputs: import_v44.z.boolean().optional(),
+  /**
+  Optional. A list of unique safety settings for blocking unsafe content.
+   */
+  safetySettings: import_v44.z.array(
+    import_v44.z.object({
+      category: import_v44.z.enum([
+        "HARM_CATEGORY_UNSPECIFIED",
+        "HARM_CATEGORY_HATE_SPEECH",
+        "HARM_CATEGORY_DANGEROUS_CONTENT",
+        "HARM_CATEGORY_HARASSMENT",
+        "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+        "HARM_CATEGORY_CIVIC_INTEGRITY"
+      ]),
+      threshold: import_v44.z.enum([
+        "HARM_BLOCK_THRESHOLD_UNSPECIFIED",
+        "BLOCK_LOW_AND_ABOVE",
+        "BLOCK_MEDIUM_AND_ABOVE",
+        "BLOCK_ONLY_HIGH",
+        "BLOCK_NONE",
+        "OFF"
+      ])
+    })
+  ).optional(),
+  threshold: import_v44.z.enum([
+    "HARM_BLOCK_THRESHOLD_UNSPECIFIED",
+    "BLOCK_LOW_AND_ABOVE",
+    "BLOCK_MEDIUM_AND_ABOVE",
+    "BLOCK_ONLY_HIGH",
+    "BLOCK_NONE",
+    "OFF"
+  ]).optional(),
+  /**
+   * Optional. Enables timestamp understanding for audio-only files.
+   *
+   * https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/audio-understanding
+   */
+  audioTimestamp: import_v44.z.boolean().optional()
 });
 
-// src/xai-error.ts
-var import_provider_utils2 = require("@ai-sdk/provider-utils");
-var import_v42 = require("zod/v4");
-var xaiErrorDataSchema = import_v42.z.object({
-  error: import_v42.z.object({
-    message: import_v42.z.string(),
-    type: import_v42.z.string().nullish(),
-    param: import_v42.z.any().nullish(),
-    code: import_v42.z.union([import_v42.z.string(), import_v42.z.number()]).nullish()
-  })
-});
-var xaiFailedResponseHandler = (0, import_provider_utils2.createJsonErrorResponseHandler)({
-  errorSchema: xaiErrorDataSchema,
-  errorToMessage: (data) => data.error.message
-});
-
-// src/xai-prepare-tools.ts
-var import_provider2 = require("@ai-sdk/provider");
+// src/google-prepare-tools.ts
+var import_provider3 = require("@ai-sdk/provider");
 function prepareTools({
   tools,
-  toolChoice
+  toolChoice,
+  modelId
 }) {
+  var _a;
   tools = (tools == null ? void 0 : tools.length) ? tools : void 0;
   const toolWarnings = [];
+  const isGemini2 = modelId.includes("gemini-2");
+  const supportsDynamicRetrieval = modelId.includes("gemini-1.5-flash") && !modelId.includes("-8b");
   if (tools == null) {
-    return { tools: void 0, toolChoice: void 0, toolWarnings };
+    return { tools: void 0, toolConfig: void 0, toolWarnings };
   }
-  const xaiTools = [];
+  const hasFunctionTools = tools.some((tool) => tool.type === "function");
+  const hasProviderDefinedTools = tools.some(
+    (tool) => tool.type === "provider-defined"
+  );
+  if (hasFunctionTools && hasProviderDefinedTools) {
+    toolWarnings.push({
+      type: "unsupported-tool",
+      tool: tools.find((tool) => tool.type === "function"),
+      details: "Cannot mix function tools with provider-defined tools in the same request. Please use either function tools or provider-defined tools, but not both."
+    });
+  }
+  if (hasProviderDefinedTools) {
+    const googleTools2 = {};
+    const providerDefinedTools = tools.filter(
+      (tool) => tool.type === "provider-defined"
+    );
+    providerDefinedTools.forEach((tool) => {
+      switch (tool.id) {
+        case "google.google_search":
+          if (isGemini2) {
+            googleTools2.googleSearch = {};
+          } else if (supportsDynamicRetrieval) {
+            googleTools2.googleSearchRetrieval = {
+              dynamicRetrievalConfig: {
+                mode: tool.args.mode,
+                dynamicThreshold: tool.args.dynamicThreshold
+              }
+            };
+          } else {
+            googleTools2.googleSearchRetrieval = {};
+          }
+          break;
+        case "google.url_context":
+          if (isGemini2) {
+            googleTools2.urlContext = {};
+          } else {
+            toolWarnings.push({
+              type: "unsupported-tool",
+              tool,
+              details: "The URL context tool is not supported with other Gemini models than Gemini 2."
+            });
+          }
+          break;
+        case "google.code_execution":
+          if (isGemini2) {
+            googleTools2.codeExecution = {};
+          } else {
+            toolWarnings.push({
+              type: "unsupported-tool",
+              tool,
+              details: "The code execution tools is not supported with other Gemini models than Gemini 2."
+            });
+          }
+          break;
+        default:
+          toolWarnings.push({ type: "unsupported-tool", tool });
+          break;
+      }
+    });
+    return {
+      tools: Object.keys(googleTools2).length > 0 ? googleTools2 : void 0,
+      toolConfig: void 0,
+      toolWarnings
+    };
+  }
+  const functionDeclarations = [];
   for (const tool of tools) {
-    if (tool.type === "provider-defined") {
-      toolWarnings.push({ type: "unsupported-tool", tool });
-    } else {
-      xaiTools.push({
-        type: "function",
-        function: {
+    switch (tool.type) {
+      case "function":
+        functionDeclarations.push({
           name: tool.name,
-          description: tool.description,
-          parameters: tool.inputSchema
-        }
-      });
+          description: (_a = tool.description) != null ? _a : "",
+          parameters: convertJSONSchemaToOpenAPISchema(tool.inputSchema)
+        });
+        break;
+      default:
+        toolWarnings.push({ type: "unsupported-tool", tool });
+        break;
     }
   }
   if (toolChoice == null) {
-    return { tools: xaiTools, toolChoice: void 0, toolWarnings };
+    return {
+      tools: { functionDeclarations },
+      toolConfig: void 0,
+      toolWarnings
+    };
   }
   const type = toolChoice.type;
   switch (type) {
     case "auto":
+      return {
+        tools: { functionDeclarations },
+        toolConfig: { functionCallingConfig: { mode: "AUTO" } },
+        toolWarnings
+      };
     case "none":
-      return { tools: xaiTools, toolChoice: type, toolWarnings };
+      return {
+        tools: { functionDeclarations },
+        toolConfig: { functionCallingConfig: { mode: "NONE" } },
+        toolWarnings
+      };
     case "required":
-      return { tools: xaiTools, toolChoice: "required", toolWarnings };
+      return {
+        tools: { functionDeclarations },
+        toolConfig: { functionCallingConfig: { mode: "ANY" } },
+        toolWarnings
+      };
     case "tool":
       return {
-        tools: xaiTools,
-        toolChoice: {
-          type: "function",
-          function: { name: toolChoice.toolName }
+        tools: { functionDeclarations },
+        toolConfig: {
+          functionCallingConfig: {
+            mode: "ANY",
+            allowedFunctionNames: [toolChoice.toolName]
+          }
         },
         toolWarnings
       };
     default: {
       const _exhaustiveCheck = type;
-      throw new import_provider2.UnsupportedFunctionalityError({
+      throw new import_provider3.UnsupportedFunctionalityError({
         functionality: `tool choice type: ${_exhaustiveCheck}`
       });
     }
   }
 }
 
-// src/xai-chat-language-model.ts
-var XaiChatLanguageModel = class {
+// src/map-google-generative-ai-finish-reason.ts
+function mapGoogleGenerativeAIFinishReason({
+  finishReason,
+  hasToolCalls
+}) {
+  switch (finishReason) {
+    case "STOP":
+      return hasToolCalls ? "tool-calls" : "stop";
+    case "MAX_TOKENS":
+      return "length";
+    case "IMAGE_SAFETY":
+    case "RECITATION":
+    case "SAFETY":
+    case "BLOCKLIST":
+    case "PROHIBITED_CONTENT":
+    case "SPII":
+      return "content-filter";
+    case "FINISH_REASON_UNSPECIFIED":
+    case "OTHER":
+      return "other";
+    case "MALFORMED_FUNCTION_CALL":
+      return "error";
+    default:
+      return "unknown";
+  }
+}
+
+// src/tool/google-search.ts
+var import_provider_utils4 = require("@ai-sdk/provider-utils");
+var import_v45 = require("zod/v4");
+var groundingChunkSchema = import_v45.z.object({
+  web: import_v45.z.object({ uri: import_v45.z.string(), title: import_v45.z.string() }).nullish(),
+  retrievedContext: import_v45.z.object({ uri: import_v45.z.string(), title: import_v45.z.string() }).nullish()
+});
+var groundingMetadataSchema = import_v45.z.object({
+  webSearchQueries: import_v45.z.array(import_v45.z.string()).nullish(),
+  retrievalQueries: import_v45.z.array(import_v45.z.string()).nullish(),
+  searchEntryPoint: import_v45.z.object({ renderedContent: import_v45.z.string() }).nullish(),
+  groundingChunks: import_v45.z.array(groundingChunkSchema).nullish(),
+  groundingSupports: import_v45.z.array(
+    import_v45.z.object({
+      segment: import_v45.z.object({
+        startIndex: import_v45.z.number().nullish(),
+        endIndex: import_v45.z.number().nullish(),
+        text: import_v45.z.string().nullish()
+      }),
+      segment_text: import_v45.z.string().nullish(),
+      groundingChunkIndices: import_v45.z.array(import_v45.z.number()).nullish(),
+      supportChunkIndices: import_v45.z.array(import_v45.z.number()).nullish(),
+      confidenceScores: import_v45.z.array(import_v45.z.number()).nullish(),
+      confidenceScore: import_v45.z.array(import_v45.z.number()).nullish()
+    })
+  ).nullish(),
+  retrievalMetadata: import_v45.z.union([
+    import_v45.z.object({
+      webDynamicRetrievalScore: import_v45.z.number()
+    }),
+    import_v45.z.object({})
+  ]).nullish()
+});
+var googleSearch = (0, import_provider_utils4.createProviderDefinedToolFactory)({
+  id: "google.google_search",
+  name: "google_search",
+  inputSchema: import_v45.z.object({
+    mode: import_v45.z.enum(["MODE_DYNAMIC", "MODE_UNSPECIFIED"]).default("MODE_UNSPECIFIED"),
+    dynamicThreshold: import_v45.z.number().default(1)
+  })
+});
+
+// src/tool/url-context.ts
+var import_provider_utils5 = require("@ai-sdk/provider-utils");
+var import_v46 = require("zod/v4");
+var urlMetadataSchema = import_v46.z.object({
+  retrievedUrl: import_v46.z.string(),
+  urlRetrievalStatus: import_v46.z.string()
+});
+var urlContextMetadataSchema = import_v46.z.object({
+  urlMetadata: import_v46.z.array(urlMetadataSchema)
+});
+var urlContext = (0, import_provider_utils5.createProviderDefinedToolFactory)({
+  id: "google.url_context",
+  name: "url_context",
+  inputSchema: import_v46.z.object({})
+});
+
+// src/google-generative-ai-language-model.ts
+var GoogleGenerativeAILanguageModel = class {
   constructor(modelId, config) {
     this.specificationVersion = "v2";
-    this.supportedUrls = {
-      "image/*": [/^https?:\/\/.*$/]
-    };
+    var _a;
     this.modelId = modelId;
     this.config = config;
+    this.generateId = (_a = config.generateId) != null ? _a : import_provider_utils6.generateId;
   }
   get provider() {
     return this.config.provider;
+  }
+  get supportedUrls() {
+    var _a, _b, _c;
+    return (_c = (_b = (_a = this.config).supportedUrls) == null ? void 0 : _b.call(_a)) != null ? _c : {};
   }
   async getArgs({
     prompt,
@@ -331,208 +719,199 @@ var XaiChatLanguageModel = class {
     frequencyPenalty,
     presencePenalty,
     stopSequences,
-    seed,
     responseFormat,
-    providerOptions,
+    seed,
     tools,
-    toolChoice
+    toolChoice,
+    providerOptions
   }) {
-    var _a, _b, _c;
+    var _a, _b;
     const warnings = [];
-    const options = (_a = await (0, import_provider_utils3.parseProviderOptions)({
-      provider: "xai",
+    const googleOptions = await (0, import_provider_utils6.parseProviderOptions)({
+      provider: "google",
       providerOptions,
-      schema: xaiProviderOptions
-    })) != null ? _a : {};
-    if (topK != null) {
+      schema: googleGenerativeAIProviderOptions
+    });
+    if (((_a = googleOptions == null ? void 0 : googleOptions.thinkingConfig) == null ? void 0 : _a.includeThoughts) === true && !this.config.provider.startsWith("google.vertex.")) {
       warnings.push({
-        type: "unsupported-setting",
-        setting: "topK"
+        type: "other",
+        message: `The 'includeThoughts' option is only supported with the Google Vertex provider and might not be supported or could behave unexpectedly with the current Google provider (${this.config.provider}).`
       });
     }
-    if (frequencyPenalty != null) {
-      warnings.push({
-        type: "unsupported-setting",
-        setting: "frequencyPenalty"
-      });
-    }
-    if (presencePenalty != null) {
-      warnings.push({
-        type: "unsupported-setting",
-        setting: "presencePenalty"
-      });
-    }
-    if (stopSequences != null) {
-      warnings.push({
-        type: "unsupported-setting",
-        setting: "stopSequences"
-      });
-    }
-    if (responseFormat != null && responseFormat.type === "json" && responseFormat.schema != null) {
-      warnings.push({
-        type: "unsupported-setting",
-        setting: "responseFormat",
-        details: "JSON response format schema is not supported"
-      });
-    }
-    const { messages, warnings: messageWarnings } = convertToXaiChatMessages(prompt);
-    warnings.push(...messageWarnings);
+    const isGemmaModel = this.modelId.toLowerCase().startsWith("gemma-");
+    const { contents, systemInstruction } = convertToGoogleGenerativeAIMessages(
+      prompt,
+      { isGemmaModel }
+    );
     const {
-      tools: xaiTools,
-      toolChoice: xaiToolChoice,
+      tools: googleTools2,
+      toolConfig: googleToolConfig,
       toolWarnings
     } = prepareTools({
       tools,
-      toolChoice
+      toolChoice,
+      modelId: this.modelId
     });
-    warnings.push(...toolWarnings);
-    const baseArgs = {
-      // model id
-      model: this.modelId,
-      // standard generation settings
-      max_tokens: maxOutputTokens,
-      temperature,
-      top_p: topP,
-      seed,
-      reasoning_effort: options.reasoningEffort,
-      // response format
-      response_format: (responseFormat == null ? void 0 : responseFormat.type) === "json" ? responseFormat.schema != null ? {
-        type: "json_schema",
-        json_schema: {
-          name: (_b = responseFormat.name) != null ? _b : "response",
-          schema: responseFormat.schema,
-          strict: true
-        }
-      } : { type: "json_object" } : void 0,
-      // search parameters
-      search_parameters: options.searchParameters ? {
-        mode: options.searchParameters.mode,
-        return_citations: options.searchParameters.returnCitations,
-        from_date: options.searchParameters.fromDate,
-        to_date: options.searchParameters.toDate,
-        max_search_results: options.searchParameters.maxSearchResults,
-        sources: (_c = options.searchParameters.sources) == null ? void 0 : _c.map((source) => ({
-          type: source.type,
-          ...source.type === "web" && {
-            country: source.country,
-            excluded_websites: source.excludedWebsites,
-            allowed_websites: source.allowedWebsites,
-            safe_search: source.safeSearch
-          },
-          ...source.type === "x" && {
-            x_handles: source.xHandles
-          },
-          ...source.type === "news" && {
-            country: source.country,
-            excluded_websites: source.excludedWebsites,
-            safe_search: source.safeSearch
-          },
-          ...source.type === "rss" && {
-            links: source.links
-          }
-        }))
-      } : void 0,
-      // messages in xai format
-      messages,
-      // tools in xai format
-      tools: xaiTools,
-      tool_choice: xaiToolChoice
-    };
     return {
-      args: baseArgs,
-      warnings
+      args: {
+        generationConfig: {
+          // standardized settings:
+          maxOutputTokens,
+          temperature,
+          topK,
+          topP,
+          frequencyPenalty,
+          presencePenalty,
+          stopSequences,
+          seed,
+          // response format:
+          responseMimeType: (responseFormat == null ? void 0 : responseFormat.type) === "json" ? "application/json" : void 0,
+          responseSchema: (responseFormat == null ? void 0 : responseFormat.type) === "json" && responseFormat.schema != null && // Google GenAI does not support all OpenAPI Schema features,
+          // so this is needed as an escape hatch:
+          // TODO convert into provider option
+          ((_b = googleOptions == null ? void 0 : googleOptions.structuredOutputs) != null ? _b : true) ? convertJSONSchemaToOpenAPISchema(responseFormat.schema) : void 0,
+          ...(googleOptions == null ? void 0 : googleOptions.audioTimestamp) && {
+            audioTimestamp: googleOptions.audioTimestamp
+          },
+          // provider options:
+          responseModalities: googleOptions == null ? void 0 : googleOptions.responseModalities,
+          thinkingConfig: googleOptions == null ? void 0 : googleOptions.thinkingConfig
+        },
+        contents,
+        systemInstruction: isGemmaModel ? void 0 : systemInstruction,
+        safetySettings: googleOptions == null ? void 0 : googleOptions.safetySettings,
+        tools: googleTools2,
+        toolConfig: googleToolConfig,
+        cachedContent: googleOptions == null ? void 0 : googleOptions.cachedContent
+      },
+      warnings: [...warnings, ...toolWarnings]
     };
   }
   async doGenerate(options) {
-    var _a, _b, _c;
-    const { args: body, warnings } = await this.getArgs(options);
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
+    const { args, warnings } = await this.getArgs(options);
+    const body = JSON.stringify(args);
+    const mergedHeaders = (0, import_provider_utils6.combineHeaders)(
+      await (0, import_provider_utils6.resolve)(this.config.headers),
+      options.headers
+    );
     const {
       responseHeaders,
       value: response,
       rawValue: rawResponse
-    } = await (0, import_provider_utils3.postJsonToApi)({
-      url: `${(_a = this.config.baseURL) != null ? _a : "https://api.x.ai/v1"}/chat/completions`,
-      headers: (0, import_provider_utils3.combineHeaders)(this.config.headers(), options.headers),
-      body,
-      failedResponseHandler: xaiFailedResponseHandler,
-      successfulResponseHandler: (0, import_provider_utils3.createJsonResponseHandler)(
-        xaiChatResponseSchema
-      ),
+    } = await (0, import_provider_utils6.postJsonToApi)({
+      url: `${this.config.baseURL}/${getModelPath(
+        this.modelId
+      )}:generateContent`,
+      headers: mergedHeaders,
+      body: args,
+      failedResponseHandler: googleFailedResponseHandler,
+      successfulResponseHandler: (0, import_provider_utils6.createJsonResponseHandler)(responseSchema),
       abortSignal: options.abortSignal,
       fetch: this.config.fetch
     });
-    const choice = response.choices[0];
+    const candidate = response.candidates[0];
     const content = [];
-    if (choice.message.content != null && choice.message.content.length > 0) {
-      let text = choice.message.content;
-      const lastMessage = body.messages[body.messages.length - 1];
-      if ((lastMessage == null ? void 0 : lastMessage.role) === "assistant" && text === lastMessage.content) {
-        text = "";
-      }
-      if (text.length > 0) {
-        content.push({ type: "text", text });
-      }
-    }
-    if (choice.message.reasoning_content != null && choice.message.reasoning_content.length > 0) {
-      content.push({
-        type: "reasoning",
-        text: choice.message.reasoning_content
-      });
-    }
-    if (choice.message.tool_calls != null) {
-      for (const toolCall of choice.message.tool_calls) {
+    const parts = (_b = (_a = candidate.content) == null ? void 0 : _a.parts) != null ? _b : [];
+    const usageMetadata = response.usageMetadata;
+    let lastCodeExecutionToolCallId;
+    for (const part of parts) {
+      if ("executableCode" in part && ((_c = part.executableCode) == null ? void 0 : _c.code)) {
+        const toolCallId = this.config.generateId();
+        lastCodeExecutionToolCallId = toolCallId;
         content.push({
           type: "tool-call",
-          toolCallId: toolCall.id,
-          toolName: toolCall.function.name,
-          input: toolCall.function.arguments
+          toolCallId,
+          toolName: "code_execution",
+          input: JSON.stringify(part.executableCode),
+          providerExecuted: true
+        });
+      } else if ("codeExecutionResult" in part && part.codeExecutionResult) {
+        content.push({
+          type: "tool-result",
+          // Assumes a result directly follows its corresponding call part.
+          toolCallId: lastCodeExecutionToolCallId,
+          toolName: "code_execution",
+          result: {
+            outcome: part.codeExecutionResult.outcome,
+            output: part.codeExecutionResult.output
+          },
+          providerExecuted: true
+        });
+        lastCodeExecutionToolCallId = void 0;
+      } else if ("text" in part && part.text != null && part.text.length > 0) {
+        if (part.thought === true) {
+          content.push({ type: "reasoning", text: part.text });
+        } else {
+          content.push({ type: "text", text: part.text });
+        }
+      } else if ("functionCall" in part) {
+        content.push({
+          type: "tool-call",
+          toolCallId: this.config.generateId(),
+          toolName: part.functionCall.name,
+          input: JSON.stringify(part.functionCall.args)
+        });
+      } else if ("inlineData" in part) {
+        content.push({
+          type: "file",
+          data: part.inlineData.data,
+          mediaType: part.inlineData.mimeType
         });
       }
     }
-    if (response.citations != null) {
-      for (const url of response.citations) {
-        content.push({
-          type: "source",
-          sourceType: "url",
-          id: this.config.generateId(),
-          url
-        });
-      }
+    const sources = (_d = extractSources({
+      groundingMetadata: candidate.groundingMetadata,
+      generateId: this.config.generateId
+    })) != null ? _d : [];
+    for (const source of sources) {
+      content.push(source);
     }
     return {
       content,
-      finishReason: mapXaiFinishReason(choice.finish_reason),
+      finishReason: mapGoogleGenerativeAIFinishReason({
+        finishReason: candidate.finishReason,
+        hasToolCalls: content.some((part) => part.type === "tool-call")
+      }),
       usage: {
-        inputTokens: response.usage.prompt_tokens,
-        outputTokens: response.usage.completion_tokens,
-        totalTokens: response.usage.total_tokens,
-        reasoningTokens: (_c = (_b = response.usage.completion_tokens_details) == null ? void 0 : _b.reasoning_tokens) != null ? _c : void 0
+        inputTokens: (_e = usageMetadata == null ? void 0 : usageMetadata.promptTokenCount) != null ? _e : void 0,
+        outputTokens: (_f = usageMetadata == null ? void 0 : usageMetadata.candidatesTokenCount) != null ? _f : void 0,
+        totalTokens: (_g = usageMetadata == null ? void 0 : usageMetadata.totalTokenCount) != null ? _g : void 0,
+        reasoningTokens: (_h = usageMetadata == null ? void 0 : usageMetadata.thoughtsTokenCount) != null ? _h : void 0,
+        cachedInputTokens: (_i = usageMetadata == null ? void 0 : usageMetadata.cachedContentTokenCount) != null ? _i : void 0
+      },
+      warnings,
+      providerMetadata: {
+        google: {
+          groundingMetadata: (_j = candidate.groundingMetadata) != null ? _j : null,
+          urlContextMetadata: (_k = candidate.urlContextMetadata) != null ? _k : null,
+          safetyRatings: (_l = candidate.safetyRatings) != null ? _l : null,
+          usageMetadata: usageMetadata != null ? usageMetadata : null
+        }
       },
       request: { body },
       response: {
-        ...getResponseMetadata(response),
+        // TODO timestamp, model id, id
         headers: responseHeaders,
         body: rawResponse
-      },
-      warnings
+      }
     };
   }
   async doStream(options) {
-    var _a;
     const { args, warnings } = await this.getArgs(options);
-    const body = {
-      ...args,
-      stream: true,
-      stream_options: {
-        include_usage: true
-      }
-    };
-    const { responseHeaders, value: response } = await (0, import_provider_utils3.postJsonToApi)({
-      url: `${(_a = this.config.baseURL) != null ? _a : "https://api.x.ai/v1"}/chat/completions`,
-      headers: (0, import_provider_utils3.combineHeaders)(this.config.headers(), options.headers),
-      body,
-      failedResponseHandler: xaiFailedResponseHandler,
-      successfulResponseHandler: (0, import_provider_utils3.createEventSourceResponseHandler)(xaiChatChunkSchema),
+    const body = JSON.stringify(args);
+    const headers = (0, import_provider_utils6.combineHeaders)(
+      await (0, import_provider_utils6.resolve)(this.config.headers),
+      options.headers
+    );
+    const { responseHeaders, value: response } = await (0, import_provider_utils6.postJsonToApi)({
+      url: `${this.config.baseURL}/${getModelPath(
+        this.modelId
+      )}:streamGenerateContent?alt=sse`,
+      headers,
+      body: args,
+      failedResponseHandler: googleFailedResponseHandler,
+      successfulResponseHandler: (0, import_provider_utils6.createEventSourceResponseHandler)(chunkSchema),
       abortSignal: options.abortSignal,
       fetch: this.config.fetch
     });
@@ -542,10 +921,14 @@ var XaiChatLanguageModel = class {
       outputTokens: void 0,
       totalTokens: void 0
     };
-    let isFirstChunk = true;
-    const contentBlocks = {};
-    const lastReasoningDeltas = {};
-    const self = this;
+    let providerMetadata = void 0;
+    const generateId3 = this.config.generateId;
+    let hasToolCalls = false;
+    let currentTextBlockId = null;
+    let currentReasoningBlockId = null;
+    let blockCounter = 0;
+    const emittedSourceUrls = /* @__PURE__ */ new Set();
+    let lastCodeExecutionToolCallId;
     return {
       stream: response.pipeThrough(
         new TransformStream({
@@ -553,7 +936,7 @@ var XaiChatLanguageModel = class {
             controller.enqueue({ type: "stream-start", warnings });
           },
           transform(chunk, controller) {
-            var _a2, _b;
+            var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
             if (options.includeRawChunks) {
               controller.enqueue({ type: "raw", rawValue: chunk.rawValue });
             }
@@ -562,235 +945,505 @@ var XaiChatLanguageModel = class {
               return;
             }
             const value = chunk.value;
-            if (isFirstChunk) {
-              controller.enqueue({
-                type: "response-metadata",
-                ...getResponseMetadata(value)
-              });
-              isFirstChunk = false;
+            const usageMetadata = value.usageMetadata;
+            if (usageMetadata != null) {
+              usage.inputTokens = (_a = usageMetadata.promptTokenCount) != null ? _a : void 0;
+              usage.outputTokens = (_b = usageMetadata.candidatesTokenCount) != null ? _b : void 0;
+              usage.totalTokens = (_c = usageMetadata.totalTokenCount) != null ? _c : void 0;
+              usage.reasoningTokens = (_d = usageMetadata.thoughtsTokenCount) != null ? _d : void 0;
+              usage.cachedInputTokens = (_e = usageMetadata.cachedContentTokenCount) != null ? _e : void 0;
             }
-            if (value.citations != null) {
-              for (const url of value.citations) {
-                controller.enqueue({
-                  type: "source",
-                  sourceType: "url",
-                  id: self.config.generateId(),
-                  url
-                });
-              }
-            }
-            if (value.usage != null) {
-              usage.inputTokens = value.usage.prompt_tokens;
-              usage.outputTokens = value.usage.completion_tokens;
-              usage.totalTokens = value.usage.total_tokens;
-              usage.reasoningTokens = (_b = (_a2 = value.usage.completion_tokens_details) == null ? void 0 : _a2.reasoning_tokens) != null ? _b : void 0;
-            }
-            const choice = value.choices[0];
-            if ((choice == null ? void 0 : choice.finish_reason) != null) {
-              finishReason = mapXaiFinishReason(choice.finish_reason);
-            }
-            if ((choice == null ? void 0 : choice.delta) == null) {
+            const candidate = (_f = value.candidates) == null ? void 0 : _f[0];
+            if (candidate == null) {
               return;
             }
-            const delta = choice.delta;
-            const choiceIndex = choice.index;
-            if (delta.content != null && delta.content.length > 0) {
-              const textContent = delta.content;
-              const lastMessage = body.messages[body.messages.length - 1];
-              if ((lastMessage == null ? void 0 : lastMessage.role) === "assistant" && textContent === lastMessage.content) {
-                return;
+            const content = candidate.content;
+            const sources = extractSources({
+              groundingMetadata: candidate.groundingMetadata,
+              generateId: generateId3
+            });
+            if (sources != null) {
+              for (const source of sources) {
+                if (source.sourceType === "url" && !emittedSourceUrls.has(source.url)) {
+                  emittedSourceUrls.add(source.url);
+                  controller.enqueue(source);
+                }
               }
-              const blockId = `text-${value.id || choiceIndex}`;
-              if (contentBlocks[blockId] == null) {
-                contentBlocks[blockId] = { type: "text" };
-                controller.enqueue({
-                  type: "text-start",
-                  id: blockId
-                });
-              }
-              controller.enqueue({
-                type: "text-delta",
-                id: blockId,
-                delta: textContent
-              });
             }
-            if (delta.reasoning_content != null && delta.reasoning_content.length > 0) {
-              const blockId = `reasoning-${value.id || choiceIndex}`;
-              if (lastReasoningDeltas[blockId] === delta.reasoning_content) {
-                return;
+            if (content != null) {
+              const parts = (_g = content.parts) != null ? _g : [];
+              for (const part of parts) {
+                if ("executableCode" in part && ((_h = part.executableCode) == null ? void 0 : _h.code)) {
+                  const toolCallId = generateId3();
+                  lastCodeExecutionToolCallId = toolCallId;
+                  controller.enqueue({
+                    type: "tool-call",
+                    toolCallId,
+                    toolName: "code_execution",
+                    input: JSON.stringify(part.executableCode),
+                    providerExecuted: true
+                  });
+                  hasToolCalls = true;
+                } else if ("codeExecutionResult" in part && part.codeExecutionResult) {
+                  const toolCallId = lastCodeExecutionToolCallId;
+                  if (toolCallId) {
+                    controller.enqueue({
+                      type: "tool-result",
+                      toolCallId,
+                      toolName: "code_execution",
+                      result: {
+                        outcome: part.codeExecutionResult.outcome,
+                        output: part.codeExecutionResult.output
+                      },
+                      providerExecuted: true
+                    });
+                    lastCodeExecutionToolCallId = void 0;
+                  }
+                } else if ("text" in part && part.text != null && part.text.length > 0) {
+                  if (part.thought === true) {
+                    if (currentTextBlockId !== null) {
+                      controller.enqueue({
+                        type: "text-end",
+                        id: currentTextBlockId
+                      });
+                      currentTextBlockId = null;
+                    }
+                    if (currentReasoningBlockId === null) {
+                      currentReasoningBlockId = String(blockCounter++);
+                      controller.enqueue({
+                        type: "reasoning-start",
+                        id: currentReasoningBlockId
+                      });
+                    }
+                    controller.enqueue({
+                      type: "reasoning-delta",
+                      id: currentReasoningBlockId,
+                      delta: part.text
+                    });
+                  } else {
+                    if (currentReasoningBlockId !== null) {
+                      controller.enqueue({
+                        type: "reasoning-end",
+                        id: currentReasoningBlockId
+                      });
+                      currentReasoningBlockId = null;
+                    }
+                    if (currentTextBlockId === null) {
+                      currentTextBlockId = String(blockCounter++);
+                      controller.enqueue({
+                        type: "text-start",
+                        id: currentTextBlockId
+                      });
+                    }
+                    controller.enqueue({
+                      type: "text-delta",
+                      id: currentTextBlockId,
+                      delta: part.text
+                    });
+                  }
+                }
               }
-              lastReasoningDeltas[blockId] = delta.reasoning_content;
-              if (contentBlocks[blockId] == null) {
-                contentBlocks[blockId] = { type: "reasoning" };
-                controller.enqueue({
-                  type: "reasoning-start",
-                  id: blockId
-                });
+              const inlineDataParts = getInlineDataParts(content.parts);
+              if (inlineDataParts != null) {
+                for (const part of inlineDataParts) {
+                  controller.enqueue({
+                    type: "file",
+                    mediaType: part.inlineData.mimeType,
+                    data: part.inlineData.data
+                  });
+                }
               }
-              controller.enqueue({
-                type: "reasoning-delta",
-                id: blockId,
-                delta: delta.reasoning_content
+              const toolCallDeltas = getToolCallsFromParts({
+                parts: content.parts,
+                generateId: generateId3
               });
+              if (toolCallDeltas != null) {
+                for (const toolCall of toolCallDeltas) {
+                  controller.enqueue({
+                    type: "tool-input-start",
+                    id: toolCall.toolCallId,
+                    toolName: toolCall.toolName
+                  });
+                  controller.enqueue({
+                    type: "tool-input-delta",
+                    id: toolCall.toolCallId,
+                    delta: toolCall.args
+                  });
+                  controller.enqueue({
+                    type: "tool-input-end",
+                    id: toolCall.toolCallId
+                  });
+                  controller.enqueue({
+                    type: "tool-call",
+                    toolCallId: toolCall.toolCallId,
+                    toolName: toolCall.toolName,
+                    input: toolCall.args
+                  });
+                  hasToolCalls = true;
+                }
+              }
             }
-            if (delta.tool_calls != null) {
-              for (const toolCall of delta.tool_calls) {
-                const toolCallId = toolCall.id;
-                controller.enqueue({
-                  type: "tool-input-start",
-                  id: toolCallId,
-                  toolName: toolCall.function.name
-                });
-                controller.enqueue({
-                  type: "tool-input-delta",
-                  id: toolCallId,
-                  delta: toolCall.function.arguments
-                });
-                controller.enqueue({
-                  type: "tool-input-end",
-                  id: toolCallId
-                });
-                controller.enqueue({
-                  type: "tool-call",
-                  toolCallId,
-                  toolName: toolCall.function.name,
-                  input: toolCall.function.arguments
-                });
+            if (candidate.finishReason != null) {
+              finishReason = mapGoogleGenerativeAIFinishReason({
+                finishReason: candidate.finishReason,
+                hasToolCalls
+              });
+              providerMetadata = {
+                google: {
+                  groundingMetadata: (_i = candidate.groundingMetadata) != null ? _i : null,
+                  urlContextMetadata: (_j = candidate.urlContextMetadata) != null ? _j : null,
+                  safetyRatings: (_k = candidate.safetyRatings) != null ? _k : null
+                }
+              };
+              if (usageMetadata != null) {
+                providerMetadata.google.usageMetadata = usageMetadata;
               }
             }
           },
           flush(controller) {
-            for (const [blockId, block] of Object.entries(contentBlocks)) {
+            if (currentTextBlockId !== null) {
               controller.enqueue({
-                type: block.type === "text" ? "text-end" : "reasoning-end",
-                id: blockId
+                type: "text-end",
+                id: currentTextBlockId
               });
             }
-            controller.enqueue({ type: "finish", finishReason, usage });
+            if (currentReasoningBlockId !== null) {
+              controller.enqueue({
+                type: "reasoning-end",
+                id: currentReasoningBlockId
+              });
+            }
+            controller.enqueue({
+              type: "finish",
+              finishReason,
+              usage,
+              providerMetadata
+            });
           }
         })
       ),
-      request: { body },
-      response: { headers: responseHeaders }
+      response: { headers: responseHeaders },
+      request: { body }
     };
   }
 };
-var xaiUsageSchema = import_v43.z.object({
-  prompt_tokens: import_v43.z.number(),
-  completion_tokens: import_v43.z.number(),
-  total_tokens: import_v43.z.number(),
-  completion_tokens_details: import_v43.z.object({
-    reasoning_tokens: import_v43.z.number().nullish()
-  }).nullish()
-});
-var xaiChatResponseSchema = import_v43.z.object({
-  id: import_v43.z.string().nullish(),
-  created: import_v43.z.number().nullish(),
-  model: import_v43.z.string().nullish(),
-  choices: import_v43.z.array(
-    import_v43.z.object({
-      message: import_v43.z.object({
-        role: import_v43.z.literal("assistant"),
-        content: import_v43.z.string().nullish(),
-        reasoning_content: import_v43.z.string().nullish(),
-        tool_calls: import_v43.z.array(
-          import_v43.z.object({
-            id: import_v43.z.string(),
-            type: import_v43.z.literal("function"),
-            function: import_v43.z.object({
-              name: import_v43.z.string(),
-              arguments: import_v43.z.string()
-            })
-          })
-        ).nullish()
+function getToolCallsFromParts({
+  parts,
+  generateId: generateId3
+}) {
+  const functionCallParts = parts == null ? void 0 : parts.filter(
+    (part) => "functionCall" in part
+  );
+  return functionCallParts == null || functionCallParts.length === 0 ? void 0 : functionCallParts.map((part) => ({
+    type: "tool-call",
+    toolCallId: generateId3(),
+    toolName: part.functionCall.name,
+    args: JSON.stringify(part.functionCall.args)
+  }));
+}
+function getInlineDataParts(parts) {
+  return parts == null ? void 0 : parts.filter(
+    (part) => "inlineData" in part
+  );
+}
+function extractSources({
+  groundingMetadata,
+  generateId: generateId3
+}) {
+  var _a;
+  return (_a = groundingMetadata == null ? void 0 : groundingMetadata.groundingChunks) == null ? void 0 : _a.filter(
+    (chunk) => chunk.web != null
+  ).map((chunk) => ({
+    type: "source",
+    sourceType: "url",
+    id: generateId3(),
+    url: chunk.web.uri,
+    title: chunk.web.title
+  }));
+}
+var contentSchema = import_v47.z.object({
+  parts: import_v47.z.array(
+    import_v47.z.union([
+      // note: order matters since text can be fully empty
+      import_v47.z.object({
+        functionCall: import_v47.z.object({
+          name: import_v47.z.string(),
+          args: import_v47.z.unknown()
+        })
       }),
-      index: import_v43.z.number(),
-      finish_reason: import_v43.z.string().nullish()
+      import_v47.z.object({
+        inlineData: import_v47.z.object({
+          mimeType: import_v47.z.string(),
+          data: import_v47.z.string()
+        })
+      }),
+      import_v47.z.object({
+        executableCode: import_v47.z.object({
+          language: import_v47.z.string(),
+          code: import_v47.z.string()
+        }).nullish(),
+        codeExecutionResult: import_v47.z.object({
+          outcome: import_v47.z.string(),
+          output: import_v47.z.string()
+        }).nullish(),
+        text: import_v47.z.string().nullish(),
+        thought: import_v47.z.boolean().nullish()
+      })
+    ])
+  ).nullish()
+});
+var safetyRatingSchema = import_v47.z.object({
+  category: import_v47.z.string().nullish(),
+  probability: import_v47.z.string().nullish(),
+  probabilityScore: import_v47.z.number().nullish(),
+  severity: import_v47.z.string().nullish(),
+  severityScore: import_v47.z.number().nullish(),
+  blocked: import_v47.z.boolean().nullish()
+});
+var usageSchema = import_v47.z.object({
+  cachedContentTokenCount: import_v47.z.number().nullish(),
+  thoughtsTokenCount: import_v47.z.number().nullish(),
+  promptTokenCount: import_v47.z.number().nullish(),
+  candidatesTokenCount: import_v47.z.number().nullish(),
+  totalTokenCount: import_v47.z.number().nullish()
+});
+var responseSchema = import_v47.z.object({
+  candidates: import_v47.z.array(
+    import_v47.z.object({
+      content: contentSchema.nullish().or(import_v47.z.object({}).strict()),
+      finishReason: import_v47.z.string().nullish(),
+      safetyRatings: import_v47.z.array(safetyRatingSchema).nullish(),
+      groundingMetadata: groundingMetadataSchema.nullish(),
+      urlContextMetadata: urlContextMetadataSchema.nullish()
     })
   ),
-  object: import_v43.z.literal("chat.completion"),
-  usage: xaiUsageSchema,
-  citations: import_v43.z.array(import_v43.z.string().url()).nullish()
+  usageMetadata: usageSchema.nullish()
 });
-var xaiChatChunkSchema = import_v43.z.object({
-  id: import_v43.z.string().nullish(),
-  created: import_v43.z.number().nullish(),
-  model: import_v43.z.string().nullish(),
-  choices: import_v43.z.array(
-    import_v43.z.object({
-      delta: import_v43.z.object({
-        role: import_v43.z.enum(["assistant"]).optional(),
-        content: import_v43.z.string().nullish(),
-        reasoning_content: import_v43.z.string().nullish(),
-        tool_calls: import_v43.z.array(
-          import_v43.z.object({
-            id: import_v43.z.string(),
-            type: import_v43.z.literal("function"),
-            function: import_v43.z.object({
-              name: import_v43.z.string(),
-              arguments: import_v43.z.string()
-            })
-          })
-        ).nullish()
-      }),
-      finish_reason: import_v43.z.string().nullish(),
-      index: import_v43.z.number()
+var chunkSchema = import_v47.z.object({
+  candidates: import_v47.z.array(
+    import_v47.z.object({
+      content: contentSchema.nullish(),
+      finishReason: import_v47.z.string().nullish(),
+      safetyRatings: import_v47.z.array(safetyRatingSchema).nullish(),
+      groundingMetadata: groundingMetadataSchema.nullish(),
+      urlContextMetadata: urlContextMetadataSchema.nullish()
     })
-  ),
-  usage: xaiUsageSchema.nullish(),
-  citations: import_v43.z.array(import_v43.z.string().url()).nullish()
+  ).nullish(),
+  usageMetadata: usageSchema.nullish()
 });
 
-// src/xai-provider.ts
-var xaiErrorStructure = {
-  errorSchema: xaiErrorDataSchema,
-  errorToMessage: (data) => data.error.message
+// src/tool/code-execution.ts
+var import_provider_utils7 = require("@ai-sdk/provider-utils");
+var import_v48 = require("zod/v4");
+var codeExecution = (0, import_provider_utils7.createProviderDefinedToolFactoryWithOutputSchema)({
+  id: "google.code_execution",
+  name: "code_execution",
+  inputSchema: import_v48.z.object({
+    language: import_v48.z.string().describe("The programming language of the code."),
+    code: import_v48.z.string().describe("The code to be executed.")
+  }),
+  outputSchema: import_v48.z.object({
+    outcome: import_v48.z.string().describe('The outcome of the execution (e.g., "OUTCOME_OK").'),
+    output: import_v48.z.string().describe("The output from the code execution.")
+  })
+});
+
+// src/google-tools.ts
+var googleTools = {
+  /**
+   * Creates a Google search tool that gives Google direct access to real-time web content.
+   * Must have name "google_search".
+   */
+  googleSearch,
+  /**
+   * Creates a URL context tool that gives Google direct access to real-time web content.
+   * Must have name "url_context".
+   */
+  urlContext,
+  /**
+   * A tool that enables the model to generate and run Python code.
+   * Must have name "code_execution".
+   *
+   * @note Ensure the selected model supports Code Execution.
+   * Multi-tool usage with the code execution tool is typically compatible with Gemini >=2 models.
+   *
+   * @see https://ai.google.dev/gemini-api/docs/code-execution (Google AI)
+   * @see https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/code-execution-api (Vertex AI)
+   */
+  codeExecution
 };
-function createXai(options = {}) {
+
+// src/google-generative-ai-image-model.ts
+var import_provider_utils8 = require("@ai-sdk/provider-utils");
+var import_v49 = require("zod/v4");
+var GoogleGenerativeAIImageModel = class {
+  constructor(modelId, settings, config) {
+    this.modelId = modelId;
+    this.settings = settings;
+    this.config = config;
+    this.specificationVersion = "v2";
+  }
+  get maxImagesPerCall() {
+    var _a;
+    return (_a = this.settings.maxImagesPerCall) != null ? _a : 4;
+  }
+  get provider() {
+    return this.config.provider;
+  }
+  async doGenerate(options) {
+    var _a, _b, _c;
+    const {
+      prompt,
+      n = 1,
+      size = "1024x1024",
+      aspectRatio = "1:1",
+      seed,
+      providerOptions,
+      headers,
+      abortSignal
+    } = options;
+    const warnings = [];
+    if (size != null) {
+      warnings.push({
+        type: "unsupported-setting",
+        setting: "size",
+        details: "This model does not support the `size` option. Use `aspectRatio` instead."
+      });
+    }
+    if (seed != null) {
+      warnings.push({
+        type: "unsupported-setting",
+        setting: "seed",
+        details: "This model does not support the `seed` option through this provider."
+      });
+    }
+    const googleOptions = await (0, import_provider_utils8.parseProviderOptions)({
+      provider: "google",
+      providerOptions,
+      schema: googleImageProviderOptionsSchema
+    });
+    const currentDate = (_c = (_b = (_a = this.config._internal) == null ? void 0 : _a.currentDate) == null ? void 0 : _b.call(_a)) != null ? _c : /* @__PURE__ */ new Date();
+    const parameters = {
+      sampleCount: n
+    };
+    if (aspectRatio != null) {
+      parameters.aspectRatio = aspectRatio;
+    }
+    if (googleOptions) {
+      Object.assign(parameters, googleOptions);
+    }
+    const body = {
+      instances: [{ prompt }],
+      parameters
+    };
+    const { responseHeaders, value: response } = await (0, import_provider_utils8.postJsonToApi)({
+      url: `${this.config.baseURL}/models/${this.modelId}:predict`,
+      headers: (0, import_provider_utils8.combineHeaders)(await (0, import_provider_utils8.resolve)(this.config.headers), headers),
+      body,
+      failedResponseHandler: googleFailedResponseHandler,
+      successfulResponseHandler: (0, import_provider_utils8.createJsonResponseHandler)(
+        googleImageResponseSchema
+      ),
+      abortSignal,
+      fetch: this.config.fetch
+    });
+    return {
+      images: response.predictions.map(
+        (p) => p.bytesBase64Encoded
+      ),
+      warnings: warnings != null ? warnings : [],
+      providerMetadata: {
+        google: {
+          images: response.predictions.map((prediction) => ({
+            // Add any prediction-specific metadata here
+          }))
+        }
+      },
+      response: {
+        timestamp: currentDate,
+        modelId: this.modelId,
+        headers: responseHeaders
+      }
+    };
+  }
+};
+var googleImageResponseSchema = import_v49.z.object({
+  predictions: import_v49.z.array(import_v49.z.object({ bytesBase64Encoded: import_v49.z.string() })).default([])
+});
+var googleImageProviderOptionsSchema = import_v49.z.object({
+  personGeneration: import_v49.z.enum(["dont_allow", "allow_adult", "allow_all"]).nullish(),
+  aspectRatio: import_v49.z.enum(["1:1", "3:4", "4:3", "9:16", "16:9"]).nullish()
+});
+
+// src/google-provider.ts
+function createGoogleGenerativeAI(options = {}) {
   var _a;
-  const baseURL = (0, import_provider_utils4.withoutTrailingSlash)(
-    (_a = options.baseURL) != null ? _a : "https://api.x.ai/v1"
-  );
+  const baseURL = (_a = (0, import_provider_utils9.withoutTrailingSlash)(options.baseURL)) != null ? _a : "https://generativelanguage.googleapis.com/v1beta";
   const getHeaders = () => ({
-    Authorization: `Bearer ${(0, import_provider_utils4.loadApiKey)({
+    "x-goog-api-key": (0, import_provider_utils9.loadApiKey)({
       apiKey: options.apiKey,
-      environmentVariableName: "XAI_API_KEY",
-      description: "xAI API key"
-    })}`,
+      environmentVariableName: "GOOGLE_GENERATIVE_AI_API_KEY",
+      description: "Google Generative AI"
+    }),
     ...options.headers
   });
-  const createLanguageModel = (modelId) => {
-    return new XaiChatLanguageModel(modelId, {
-      provider: "xai.chat",
+  const createChatModel = (modelId) => {
+    var _a2;
+    return new GoogleGenerativeAILanguageModel(modelId, {
+      provider: "google.generative-ai",
       baseURL,
       headers: getHeaders,
-      generateId: import_provider_utils4.generateId,
+      generateId: (_a2 = options.generateId) != null ? _a2 : import_provider_utils9.generateId,
+      supportedUrls: () => ({
+        "*": [
+          // Google Generative Language "files" endpoint
+          // e.g. https://generativelanguage.googleapis.com/v1beta/files/...
+          new RegExp(`^${baseURL}/files/.*$`),
+          // YouTube URLs (public or unlisted videos)
+          new RegExp(
+            `^https://(?:www\\.)?youtube\\.com/watch\\?v=[\\w-]+(?:&[\\w=&.-]*)?$`
+          ),
+          new RegExp(`^https://youtu\\.be/[\\w-]+(?:\\?[\\w=&.-]*)?$`)
+        ]
+      }),
       fetch: options.fetch
     });
   };
-  const createImageModel = (modelId) => {
-    return new import_openai_compatible.OpenAICompatibleImageModel(modelId, {
-      provider: "xai.image",
-      url: ({ path }) => `${baseURL}${path}`,
-      headers: getHeaders,
-      fetch: options.fetch,
-      errorStructure: xaiErrorStructure
-    });
+  const createEmbeddingModel = (modelId) => new GoogleGenerativeAIEmbeddingModel(modelId, {
+    provider: "google.generative-ai",
+    baseURL,
+    headers: getHeaders,
+    fetch: options.fetch
+  });
+  const createImageModel = (modelId, settings = {}) => new GoogleGenerativeAIImageModel(modelId, settings, {
+    provider: "google.generative-ai",
+    baseURL,
+    headers: getHeaders,
+    fetch: options.fetch
+  });
+  const provider = function(modelId) {
+    if (new.target) {
+      throw new Error(
+        "The Google Generative AI model function cannot be called with the new keyword."
+      );
+    }
+    return createChatModel(modelId);
   };
-  const provider = (modelId) => createLanguageModel(modelId);
-  provider.languageModel = createLanguageModel;
-  provider.chat = createLanguageModel;
-  provider.textEmbeddingModel = (modelId) => {
-    throw new import_provider3.NoSuchModelError({ modelId, modelType: "textEmbeddingModel" });
-  };
-  provider.imageModel = createImageModel;
+  provider.languageModel = createChatModel;
+  provider.chat = createChatModel;
+  provider.generativeAI = createChatModel;
+  provider.embedding = createEmbeddingModel;
+  provider.textEmbedding = createEmbeddingModel;
+  provider.textEmbeddingModel = createEmbeddingModel;
   provider.image = createImageModel;
+  provider.imageModel = createImageModel;
+  provider.tools = googleTools;
   return provider;
 }
-var xai = createXai();
+var google = createGoogleGenerativeAI();
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
-  createXai,
-  xai
+  createGoogleGenerativeAI,
+  google
 });
 //# sourceMappingURL=index.js.map
