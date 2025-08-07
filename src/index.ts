@@ -69,11 +69,12 @@ async function run(): Promise<void> {
 
     // Check permissions (auto mode requires write permissions)
     if (config.mode === 'auto') {
+      info('🔍 Checking permissions for auto mode...')
       const hasPermissions = await githubService.checkPermissions()
       if (!hasPermissions) {
-        warning('❌ Insufficient permissions for auto mode, falling back to suggestion mode')
-        warning('💡 Make sure the workflow has pull-requests: write permission')
-        config.mode = 'suggest'
+        warning('⚠️  Permission check failed, but will still try auto mode')
+        warning('💡 If auto mode fails, it will automatically fall back to suggestion mode')
+        // Don't change mode here, let it try auto mode first
       } else {
         info('✅ Permissions check passed for auto mode')
       }
