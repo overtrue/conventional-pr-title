@@ -20,32 +20,35 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
-  createMistral: () => createMistral,
-  mistral: () => mistral
+  createGroq: () => createGroq,
+  groq: () => groq
 });
 module.exports = __toCommonJS(src_exports);
 
-// src/mistral-provider.ts
+// src/groq-provider.ts
 var import_provider4 = require("@ai-sdk/provider");
 var import_provider_utils4 = require("@ai-sdk/provider-utils");
 
-// src/mistral-chat-language-model.ts
+// src/groq-chat-language-model.ts
+var import_provider3 = require("@ai-sdk/provider");
 var import_provider_utils2 = require("@ai-sdk/provider-utils");
 var import_v43 = require("zod/v4");
 
-// src/convert-to-mistral-chat-messages.ts
+// src/convert-to-groq-chat-messages.ts
 var import_provider = require("@ai-sdk/provider");
-function convertToMistralChatMessages(prompt) {
+function convertToGroqChatMessages(prompt) {
   const messages = [];
-  for (let i = 0; i < prompt.length; i++) {
-    const { role, content } = prompt[i];
-    const isLastMessage = i === prompt.length - 1;
+  for (const { role, content } of prompt) {
     switch (role) {
       case "system": {
         messages.push({ role: "system", content });
         break;
       }
       case "user": {
+        if (content.length === 1 && content[0].type === "text") {
+          messages.push({ role: "user", content: content[0].text });
+          break;
+        }
         messages.push({
           role: "user",
           content: content.map((part) => {
@@ -54,22 +57,18 @@ function convertToMistralChatMessages(prompt) {
                 return { type: "text", text: part.text };
               }
               case "file": {
-                if (part.mediaType.startsWith("image/")) {
-                  const mediaType = part.mediaType === "image/*" ? "image/jpeg" : part.mediaType;
-                  return {
-                    type: "image_url",
-                    image_url: part.data instanceof URL ? part.data.toString() : `data:${mediaType};base64,${part.data}`
-                  };
-                } else if (part.mediaType === "application/pdf") {
-                  return {
-                    type: "document_url",
-                    document_url: part.data.toString()
-                  };
-                } else {
+                if (!part.mediaType.startsWith("image/")) {
                   throw new import_provider.UnsupportedFunctionalityError({
-                    functionality: "Only images and PDF file parts are supported"
+                    functionality: "Non-image file content parts"
                   });
                 }
+                const mediaType = part.mediaType === "image/*" ? "image/jpeg" : part.mediaType;
+                return {
+                  type: "image_url",
+                  image_url: {
+                    url: part.data instanceof URL ? part.data.toString() : `data:${mediaType};base64,${part.data}`
+                  }
+                };
               }
             }
           })
@@ -101,7 +100,6 @@ function convertToMistralChatMessages(prompt) {
         messages.push({
           role: "assistant",
           content: text,
-          prefix: isLastMessage ? true : void 0,
           tool_calls: toolCalls.length > 0 ? toolCalls : void 0
         });
         break;
@@ -123,7 +121,6 @@ function convertToMistralChatMessages(prompt) {
           }
           messages.push({
             role: "tool",
-            name: toolResponse.toolName,
             tool_call_id: toolResponse.toolCallId,
             content: contentValue
           });
@@ -152,50 +149,43 @@ function getResponseMetadata({
   };
 }
 
-// src/map-mistral-finish-reason.ts
-function mapMistralFinishReason(finishReason) {
-  switch (finishReason) {
-    case "stop":
-      return "stop";
-    case "length":
-    case "model_length":
-      return "length";
-    case "tool_calls":
-      return "tool-calls";
-    default:
-      return "unknown";
-  }
-}
-
-// src/mistral-chat-options.ts
+// src/groq-chat-options.ts
 var import_v4 = require("zod/v4");
-var mistralProviderOptions = import_v4.z.object({
+var groqProviderOptions = import_v4.z.object({
+  reasoningFormat: import_v4.z.enum(["parsed", "raw", "hidden"]).optional(),
+  reasoningEffort: import_v4.z.enum(["none", "default"]).optional(),
   /**
-  Whether to inject a safety prompt before all conversations.
-  
-  Defaults to `false`.
-     */
-  safePrompt: import_v4.z.boolean().optional(),
-  documentImageLimit: import_v4.z.number().optional(),
-  documentPageLimit: import_v4.z.number().optional()
+   * Whether to enable parallel function calling during tool use. Default to true.
+   */
+  parallelToolCalls: import_v4.z.boolean().optional(),
+  /**
+   * A unique identifier representing your end-user, which can help OpenAI to
+   * monitor and detect abuse. Learn more.
+   */
+  user: import_v4.z.string().optional(),
+  /**
+   * Whether to use structured outputs.
+   *
+   * @default true
+   */
+  structuredOutputs: import_v4.z.boolean().optional()
 });
 
-// src/mistral-error.ts
-var import_provider_utils = require("@ai-sdk/provider-utils");
+// src/groq-error.ts
 var import_v42 = require("zod/v4");
-var mistralErrorDataSchema = import_v42.z.object({
-  object: import_v42.z.literal("error"),
-  message: import_v42.z.string(),
-  type: import_v42.z.string(),
-  param: import_v42.z.string().nullable(),
-  code: import_v42.z.string().nullable()
+var import_provider_utils = require("@ai-sdk/provider-utils");
+var groqErrorDataSchema = import_v42.z.object({
+  error: import_v42.z.object({
+    message: import_v42.z.string(),
+    type: import_v42.z.string()
+  })
 });
-var mistralFailedResponseHandler = (0, import_provider_utils.createJsonErrorResponseHandler)({
-  errorSchema: mistralErrorDataSchema,
-  errorToMessage: (data) => data.message
+var groqFailedResponseHandler = (0, import_provider_utils.createJsonErrorResponseHandler)({
+  errorSchema: groqErrorDataSchema,
+  errorToMessage: (data) => data.error.message
 });
 
-// src/mistral-prepare-tools.ts
+// src/groq-prepare-tools.ts
 var import_provider2 = require("@ai-sdk/provider");
 function prepareTools({
   tools,
@@ -206,12 +196,12 @@ function prepareTools({
   if (tools == null) {
     return { tools: void 0, toolChoice: void 0, toolWarnings };
   }
-  const mistralTools = [];
+  const groqTools = [];
   for (const tool of tools) {
     if (tool.type === "provider-defined") {
       toolWarnings.push({ type: "unsupported-tool", tool });
     } else {
-      mistralTools.push({
+      groqTools.push({
         type: "function",
         function: {
           name: tool.name,
@@ -222,21 +212,23 @@ function prepareTools({
     }
   }
   if (toolChoice == null) {
-    return { tools: mistralTools, toolChoice: void 0, toolWarnings };
+    return { tools: groqTools, toolChoice: void 0, toolWarnings };
   }
   const type = toolChoice.type;
   switch (type) {
     case "auto":
     case "none":
-      return { tools: mistralTools, toolChoice: type, toolWarnings };
     case "required":
-      return { tools: mistralTools, toolChoice: "any", toolWarnings };
+      return { tools: groqTools, toolChoice: type, toolWarnings };
     case "tool":
       return {
-        tools: mistralTools.filter(
-          (tool) => tool.function.name === toolChoice.toolName
-        ),
-        toolChoice: "any",
+        tools: groqTools,
+        toolChoice: {
+          type: "function",
+          function: {
+            name: toolChoice.toolName
+          }
+        },
         toolWarnings
       };
     default: {
@@ -248,12 +240,29 @@ function prepareTools({
   }
 }
 
-// src/mistral-chat-language-model.ts
-var MistralChatLanguageModel = class {
+// src/map-groq-finish-reason.ts
+function mapGroqFinishReason(finishReason) {
+  switch (finishReason) {
+    case "stop":
+      return "stop";
+    case "length":
+      return "length";
+    case "content_filter":
+      return "content-filter";
+    case "function_call":
+    case "tool_calls":
+      return "tool-calls";
+    default:
+      return "unknown";
+  }
+}
+
+// src/groq-chat-language-model.ts
+var GroqChatLanguageModel = class {
   constructor(modelId, config) {
     this.specificationVersion = "v2";
     this.supportedUrls = {
-      "application/pdf": [/^https:\/\/.*$/]
+      "image/*": [/^https?:\/\/.*$/]
     };
     this.modelId = modelId;
     this.config = config;
@@ -272,115 +281,116 @@ var MistralChatLanguageModel = class {
     stopSequences,
     responseFormat,
     seed,
-    providerOptions,
+    stream,
     tools,
-    toolChoice
+    toolChoice,
+    providerOptions
   }) {
-    var _a;
+    var _a, _b;
     const warnings = [];
-    const options = (_a = await (0, import_provider_utils2.parseProviderOptions)({
-      provider: "mistral",
+    const groqOptions = await (0, import_provider_utils2.parseProviderOptions)({
+      provider: "groq",
       providerOptions,
-      schema: mistralProviderOptions
-    })) != null ? _a : {};
+      schema: groqProviderOptions
+    });
+    const structuredOutputs = (_a = groqOptions == null ? void 0 : groqOptions.structuredOutputs) != null ? _a : true;
     if (topK != null) {
       warnings.push({
         type: "unsupported-setting",
         setting: "topK"
       });
     }
-    if (frequencyPenalty != null) {
-      warnings.push({
-        type: "unsupported-setting",
-        setting: "frequencyPenalty"
-      });
-    }
-    if (presencePenalty != null) {
-      warnings.push({
-        type: "unsupported-setting",
-        setting: "presencePenalty"
-      });
-    }
-    if (stopSequences != null) {
-      warnings.push({
-        type: "unsupported-setting",
-        setting: "stopSequences"
-      });
-    }
-    if (responseFormat != null && responseFormat.type === "json" && responseFormat.schema != null) {
+    if ((responseFormat == null ? void 0 : responseFormat.type) === "json" && responseFormat.schema != null && !structuredOutputs) {
       warnings.push({
         type: "unsupported-setting",
         setting: "responseFormat",
-        details: "JSON response format schema is not supported"
+        details: "JSON response format schema is only supported with structuredOutputs"
       });
     }
-    const baseArgs = {
-      // model id:
-      model: this.modelId,
-      // model specific settings:
-      safe_prompt: options.safePrompt,
-      // standardized settings:
-      max_tokens: maxOutputTokens,
-      temperature,
-      top_p: topP,
-      random_seed: seed,
-      // response format:
-      response_format: (responseFormat == null ? void 0 : responseFormat.type) === "json" ? { type: "json_object" } : void 0,
-      // mistral-specific provider options:
-      document_image_limit: options.documentImageLimit,
-      document_page_limit: options.documentPageLimit,
-      // messages:
-      messages: convertToMistralChatMessages(prompt)
-    };
     const {
-      tools: mistralTools,
-      toolChoice: mistralToolChoice,
+      tools: groqTools,
+      toolChoice: groqToolChoice,
       toolWarnings
-    } = prepareTools({
-      tools,
-      toolChoice
-    });
+    } = prepareTools({ tools, toolChoice });
     return {
       args: {
-        ...baseArgs,
-        tools: mistralTools,
-        tool_choice: mistralToolChoice
+        // model id:
+        model: this.modelId,
+        // model specific settings:
+        user: groqOptions == null ? void 0 : groqOptions.user,
+        parallel_tool_calls: groqOptions == null ? void 0 : groqOptions.parallelToolCalls,
+        // standardized settings:
+        max_tokens: maxOutputTokens,
+        temperature,
+        top_p: topP,
+        frequency_penalty: frequencyPenalty,
+        presence_penalty: presencePenalty,
+        stop: stopSequences,
+        seed,
+        // response format:
+        response_format: (responseFormat == null ? void 0 : responseFormat.type) === "json" ? structuredOutputs && responseFormat.schema != null ? {
+          type: "json_schema",
+          json_schema: {
+            schema: responseFormat.schema,
+            name: (_b = responseFormat.name) != null ? _b : "response",
+            description: responseFormat.description
+          }
+        } : { type: "json_object" } : void 0,
+        // provider options:
+        reasoning_format: groqOptions == null ? void 0 : groqOptions.reasoningFormat,
+        reasoning_effort: groqOptions == null ? void 0 : groqOptions.reasoningEffort,
+        // messages:
+        messages: convertToGroqChatMessages(prompt),
+        // tools:
+        tools: groqTools,
+        tool_choice: groqToolChoice
       },
       warnings: [...warnings, ...toolWarnings]
     };
   }
   async doGenerate(options) {
-    const { args: body, warnings } = await this.getArgs(options);
+    var _a, _b, _c, _d, _e, _f, _g;
+    const { args, warnings } = await this.getArgs({
+      ...options,
+      stream: false
+    });
+    const body = JSON.stringify(args);
     const {
       responseHeaders,
       value: response,
       rawValue: rawResponse
     } = await (0, import_provider_utils2.postJsonToApi)({
-      url: `${this.config.baseURL}/chat/completions`,
+      url: this.config.url({
+        path: "/chat/completions",
+        modelId: this.modelId
+      }),
       headers: (0, import_provider_utils2.combineHeaders)(this.config.headers(), options.headers),
-      body,
-      failedResponseHandler: mistralFailedResponseHandler,
+      body: args,
+      failedResponseHandler: groqFailedResponseHandler,
       successfulResponseHandler: (0, import_provider_utils2.createJsonResponseHandler)(
-        mistralChatResponseSchema
+        groqChatResponseSchema
       ),
       abortSignal: options.abortSignal,
       fetch: this.config.fetch
     });
     const choice = response.choices[0];
     const content = [];
-    let text = extractTextContent(choice.message.content);
-    const lastMessage = body.messages[body.messages.length - 1];
-    if (lastMessage.role === "assistant" && (text == null ? void 0 : text.startsWith(lastMessage.content))) {
-      text = text.slice(lastMessage.content.length);
-    }
+    const text = choice.message.content;
     if (text != null && text.length > 0) {
       content.push({ type: "text", text });
+    }
+    const reasoning = choice.message.reasoning;
+    if (reasoning != null && reasoning.length > 0) {
+      content.push({
+        type: "reasoning",
+        text: reasoning
+      });
     }
     if (choice.message.tool_calls != null) {
       for (const toolCall of choice.message.tool_calls) {
         content.push({
           type: "tool-call",
-          toolCallId: toolCall.id,
+          toolCallId: (_a = toolCall.id) != null ? _a : (0, import_provider_utils2.generateId)(),
           toolName: toolCall.function.name,
           input: toolCall.function.arguments
         });
@@ -388,35 +398,40 @@ var MistralChatLanguageModel = class {
     }
     return {
       content,
-      finishReason: mapMistralFinishReason(choice.finish_reason),
+      finishReason: mapGroqFinishReason(choice.finish_reason),
       usage: {
-        inputTokens: response.usage.prompt_tokens,
-        outputTokens: response.usage.completion_tokens,
-        totalTokens: response.usage.total_tokens
+        inputTokens: (_c = (_b = response.usage) == null ? void 0 : _b.prompt_tokens) != null ? _c : void 0,
+        outputTokens: (_e = (_d = response.usage) == null ? void 0 : _d.completion_tokens) != null ? _e : void 0,
+        totalTokens: (_g = (_f = response.usage) == null ? void 0 : _f.total_tokens) != null ? _g : void 0
       },
-      request: { body },
       response: {
         ...getResponseMetadata(response),
         headers: responseHeaders,
         body: rawResponse
       },
-      warnings
+      warnings,
+      request: { body }
     };
   }
   async doStream(options) {
-    const { args, warnings } = await this.getArgs(options);
-    const body = { ...args, stream: true };
+    const { args, warnings } = await this.getArgs({ ...options, stream: true });
+    const body = JSON.stringify({ ...args, stream: true });
     const { responseHeaders, value: response } = await (0, import_provider_utils2.postJsonToApi)({
-      url: `${this.config.baseURL}/chat/completions`,
+      url: this.config.url({
+        path: "/chat/completions",
+        modelId: this.modelId
+      }),
       headers: (0, import_provider_utils2.combineHeaders)(this.config.headers(), options.headers),
-      body,
-      failedResponseHandler: mistralFailedResponseHandler,
-      successfulResponseHandler: (0, import_provider_utils2.createEventSourceResponseHandler)(
-        mistralChatChunkSchema
-      ),
+      body: {
+        ...args,
+        stream: true
+      },
+      failedResponseHandler: groqFailedResponseHandler,
+      successfulResponseHandler: (0, import_provider_utils2.createEventSourceResponseHandler)(groqChatChunkSchema),
       abortSignal: options.abortSignal,
       fetch: this.config.fetch
     });
+    const toolCalls = [];
     let finishReason = "unknown";
     const usage = {
       inputTokens: void 0,
@@ -424,7 +439,9 @@ var MistralChatLanguageModel = class {
       totalTokens: void 0
     };
     let isFirstChunk = true;
-    let activeText = false;
+    let isActiveText = false;
+    let isActiveReasoning = false;
+    let providerMetadata;
     return {
       stream: response.pipeThrough(
         new TransformStream({
@@ -432,14 +449,21 @@ var MistralChatLanguageModel = class {
             controller.enqueue({ type: "stream-start", warnings });
           },
           transform(chunk, controller) {
+            var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p;
             if (options.includeRawChunks) {
               controller.enqueue({ type: "raw", rawValue: chunk.rawValue });
             }
             if (!chunk.success) {
+              finishReason = "error";
               controller.enqueue({ type: "error", error: chunk.error });
               return;
             }
             const value = chunk.value;
+            if ("error" in value) {
+              finishReason = "error";
+              controller.enqueue({ type: "error", error: value.error });
+              return;
+            }
             if (isFirstChunk) {
               isFirstChunk = false;
               controller.enqueue({
@@ -447,64 +471,145 @@ var MistralChatLanguageModel = class {
                 ...getResponseMetadata(value)
               });
             }
-            if (value.usage != null) {
-              usage.inputTokens = value.usage.prompt_tokens;
-              usage.outputTokens = value.usage.completion_tokens;
-              usage.totalTokens = value.usage.total_tokens;
+            if (((_a = value.x_groq) == null ? void 0 : _a.usage) != null) {
+              usage.inputTokens = (_b = value.x_groq.usage.prompt_tokens) != null ? _b : void 0;
+              usage.outputTokens = (_c = value.x_groq.usage.completion_tokens) != null ? _c : void 0;
+              usage.totalTokens = (_d = value.x_groq.usage.total_tokens) != null ? _d : void 0;
             }
             const choice = value.choices[0];
+            if ((choice == null ? void 0 : choice.finish_reason) != null) {
+              finishReason = mapGroqFinishReason(choice.finish_reason);
+            }
+            if ((choice == null ? void 0 : choice.delta) == null) {
+              return;
+            }
             const delta = choice.delta;
-            const textContent = extractTextContent(delta.content);
-            if (textContent != null && textContent.length > 0) {
-              if (!activeText) {
-                controller.enqueue({ type: "text-start", id: "0" });
-                activeText = true;
+            if (delta.reasoning != null && delta.reasoning.length > 0) {
+              if (!isActiveReasoning) {
+                controller.enqueue({
+                  type: "reasoning-start",
+                  id: "reasoning-0"
+                });
+                isActiveReasoning = true;
+              }
+              controller.enqueue({
+                type: "reasoning-delta",
+                id: "reasoning-0",
+                delta: delta.reasoning
+              });
+            }
+            if (delta.content != null && delta.content.length > 0) {
+              if (!isActiveText) {
+                controller.enqueue({ type: "text-start", id: "txt-0" });
+                isActiveText = true;
               }
               controller.enqueue({
                 type: "text-delta",
-                id: "0",
-                delta: textContent
+                id: "txt-0",
+                delta: delta.content
               });
             }
-            if ((delta == null ? void 0 : delta.tool_calls) != null) {
-              for (const toolCall of delta.tool_calls) {
-                const toolCallId = toolCall.id;
-                const toolName = toolCall.function.name;
-                const input = toolCall.function.arguments;
-                controller.enqueue({
-                  type: "tool-input-start",
-                  id: toolCallId,
-                  toolName
-                });
+            if (delta.tool_calls != null) {
+              for (const toolCallDelta of delta.tool_calls) {
+                const index = toolCallDelta.index;
+                if (toolCalls[index] == null) {
+                  if (toolCallDelta.type !== "function") {
+                    throw new import_provider3.InvalidResponseDataError({
+                      data: toolCallDelta,
+                      message: `Expected 'function' type.`
+                    });
+                  }
+                  if (toolCallDelta.id == null) {
+                    throw new import_provider3.InvalidResponseDataError({
+                      data: toolCallDelta,
+                      message: `Expected 'id' to be a string.`
+                    });
+                  }
+                  if (((_e = toolCallDelta.function) == null ? void 0 : _e.name) == null) {
+                    throw new import_provider3.InvalidResponseDataError({
+                      data: toolCallDelta,
+                      message: `Expected 'function.name' to be a string.`
+                    });
+                  }
+                  controller.enqueue({
+                    type: "tool-input-start",
+                    id: toolCallDelta.id,
+                    toolName: toolCallDelta.function.name
+                  });
+                  toolCalls[index] = {
+                    id: toolCallDelta.id,
+                    type: "function",
+                    function: {
+                      name: toolCallDelta.function.name,
+                      arguments: (_f = toolCallDelta.function.arguments) != null ? _f : ""
+                    },
+                    hasFinished: false
+                  };
+                  const toolCall2 = toolCalls[index];
+                  if (((_g = toolCall2.function) == null ? void 0 : _g.name) != null && ((_h = toolCall2.function) == null ? void 0 : _h.arguments) != null) {
+                    if (toolCall2.function.arguments.length > 0) {
+                      controller.enqueue({
+                        type: "tool-input-delta",
+                        id: toolCall2.id,
+                        delta: toolCall2.function.arguments
+                      });
+                    }
+                    if ((0, import_provider_utils2.isParsableJson)(toolCall2.function.arguments)) {
+                      controller.enqueue({
+                        type: "tool-input-end",
+                        id: toolCall2.id
+                      });
+                      controller.enqueue({
+                        type: "tool-call",
+                        toolCallId: (_i = toolCall2.id) != null ? _i : (0, import_provider_utils2.generateId)(),
+                        toolName: toolCall2.function.name,
+                        input: toolCall2.function.arguments
+                      });
+                      toolCall2.hasFinished = true;
+                    }
+                  }
+                  continue;
+                }
+                const toolCall = toolCalls[index];
+                if (toolCall.hasFinished) {
+                  continue;
+                }
+                if (((_j = toolCallDelta.function) == null ? void 0 : _j.arguments) != null) {
+                  toolCall.function.arguments += (_l = (_k = toolCallDelta.function) == null ? void 0 : _k.arguments) != null ? _l : "";
+                }
                 controller.enqueue({
                   type: "tool-input-delta",
-                  id: toolCallId,
-                  delta: input
+                  id: toolCall.id,
+                  delta: (_m = toolCallDelta.function.arguments) != null ? _m : ""
                 });
-                controller.enqueue({
-                  type: "tool-input-end",
-                  id: toolCallId
-                });
-                controller.enqueue({
-                  type: "tool-call",
-                  toolCallId,
-                  toolName,
-                  input
-                });
+                if (((_n = toolCall.function) == null ? void 0 : _n.name) != null && ((_o = toolCall.function) == null ? void 0 : _o.arguments) != null && (0, import_provider_utils2.isParsableJson)(toolCall.function.arguments)) {
+                  controller.enqueue({
+                    type: "tool-input-end",
+                    id: toolCall.id
+                  });
+                  controller.enqueue({
+                    type: "tool-call",
+                    toolCallId: (_p = toolCall.id) != null ? _p : (0, import_provider_utils2.generateId)(),
+                    toolName: toolCall.function.name,
+                    input: toolCall.function.arguments
+                  });
+                  toolCall.hasFinished = true;
+                }
               }
-            }
-            if (choice.finish_reason != null) {
-              finishReason = mapMistralFinishReason(choice.finish_reason);
             }
           },
           flush(controller) {
-            if (activeText) {
-              controller.enqueue({ type: "text-end", id: "0" });
+            if (isActiveReasoning) {
+              controller.enqueue({ type: "reasoning-end", id: "reasoning-0" });
+            }
+            if (isActiveText) {
+              controller.enqueue({ type: "text-end", id: "txt-0" });
             }
             controller.enqueue({
               type: "finish",
               finishReason,
-              usage
+              usage,
+              ...providerMetadata != null ? { providerMetadata } : {}
             });
           }
         })
@@ -514,74 +619,23 @@ var MistralChatLanguageModel = class {
     };
   }
 };
-function extractTextContent(content) {
-  if (typeof content === "string") {
-    return content;
-  }
-  if (content == null) {
-    return void 0;
-  }
-  const textContent = [];
-  for (const chunk of content) {
-    const { type } = chunk;
-    switch (type) {
-      case "text":
-        textContent.push(chunk.text);
-        break;
-      case "image_url":
-      case "reference":
-        break;
-      default: {
-        const _exhaustiveCheck = type;
-        throw new Error(`Unsupported type: ${_exhaustiveCheck}`);
-      }
-    }
-  }
-  return textContent.length ? textContent.join("") : void 0;
-}
-var mistralContentSchema = import_v43.z.union([
-  import_v43.z.string(),
-  import_v43.z.array(
-    import_v43.z.discriminatedUnion("type", [
-      import_v43.z.object({
-        type: import_v43.z.literal("text"),
-        text: import_v43.z.string()
-      }),
-      import_v43.z.object({
-        type: import_v43.z.literal("image_url"),
-        image_url: import_v43.z.union([
-          import_v43.z.string(),
-          import_v43.z.object({
-            url: import_v43.z.string(),
-            detail: import_v43.z.string().nullable()
-          })
-        ])
-      }),
-      import_v43.z.object({
-        type: import_v43.z.literal("reference"),
-        reference_ids: import_v43.z.array(import_v43.z.number())
-      })
-    ])
-  )
-]).nullish();
-var mistralUsageSchema = import_v43.z.object({
-  prompt_tokens: import_v43.z.number(),
-  completion_tokens: import_v43.z.number(),
-  total_tokens: import_v43.z.number()
-});
-var mistralChatResponseSchema = import_v43.z.object({
+var groqChatResponseSchema = import_v43.z.object({
   id: import_v43.z.string().nullish(),
   created: import_v43.z.number().nullish(),
   model: import_v43.z.string().nullish(),
   choices: import_v43.z.array(
     import_v43.z.object({
       message: import_v43.z.object({
-        role: import_v43.z.literal("assistant"),
-        content: mistralContentSchema,
+        content: import_v43.z.string().nullish(),
+        reasoning: import_v43.z.string().nullish(),
         tool_calls: import_v43.z.array(
           import_v43.z.object({
-            id: import_v43.z.string(),
-            function: import_v43.z.object({ name: import_v43.z.string(), arguments: import_v43.z.string() })
+            id: import_v43.z.string().nullish(),
+            type: import_v43.z.literal("function"),
+            function: import_v43.z.object({
+              name: import_v43.z.string(),
+              arguments: import_v43.z.string()
+            })
           })
         ).nullish()
       }),
@@ -589,137 +643,221 @@ var mistralChatResponseSchema = import_v43.z.object({
       finish_reason: import_v43.z.string().nullish()
     })
   ),
-  object: import_v43.z.literal("chat.completion"),
-  usage: mistralUsageSchema
+  usage: import_v43.z.object({
+    prompt_tokens: import_v43.z.number().nullish(),
+    completion_tokens: import_v43.z.number().nullish(),
+    total_tokens: import_v43.z.number().nullish()
+  }).nullish()
 });
-var mistralChatChunkSchema = import_v43.z.object({
-  id: import_v43.z.string().nullish(),
-  created: import_v43.z.number().nullish(),
-  model: import_v43.z.string().nullish(),
-  choices: import_v43.z.array(
-    import_v43.z.object({
-      delta: import_v43.z.object({
-        role: import_v43.z.enum(["assistant"]).optional(),
-        content: mistralContentSchema,
-        tool_calls: import_v43.z.array(
-          import_v43.z.object({
-            id: import_v43.z.string(),
-            function: import_v43.z.object({ name: import_v43.z.string(), arguments: import_v43.z.string() })
-          })
-        ).nullish()
-      }),
-      finish_reason: import_v43.z.string().nullish(),
-      index: import_v43.z.number()
-    })
-  ),
-  usage: mistralUsageSchema.nullish()
-});
+var groqChatChunkSchema = import_v43.z.union([
+  import_v43.z.object({
+    id: import_v43.z.string().nullish(),
+    created: import_v43.z.number().nullish(),
+    model: import_v43.z.string().nullish(),
+    choices: import_v43.z.array(
+      import_v43.z.object({
+        delta: import_v43.z.object({
+          content: import_v43.z.string().nullish(),
+          reasoning: import_v43.z.string().nullish(),
+          tool_calls: import_v43.z.array(
+            import_v43.z.object({
+              index: import_v43.z.number(),
+              id: import_v43.z.string().nullish(),
+              type: import_v43.z.literal("function").optional(),
+              function: import_v43.z.object({
+                name: import_v43.z.string().nullish(),
+                arguments: import_v43.z.string().nullish()
+              })
+            })
+          ).nullish()
+        }).nullish(),
+        finish_reason: import_v43.z.string().nullable().optional(),
+        index: import_v43.z.number()
+      })
+    ),
+    x_groq: import_v43.z.object({
+      usage: import_v43.z.object({
+        prompt_tokens: import_v43.z.number().nullish(),
+        completion_tokens: import_v43.z.number().nullish(),
+        total_tokens: import_v43.z.number().nullish()
+      }).nullish()
+    }).nullish()
+  }),
+  groqErrorDataSchema
+]);
 
-// src/mistral-embedding-model.ts
-var import_provider3 = require("@ai-sdk/provider");
+// src/groq-transcription-model.ts
 var import_provider_utils3 = require("@ai-sdk/provider-utils");
 var import_v44 = require("zod/v4");
-var MistralEmbeddingModel = class {
+var groqProviderOptionsSchema = import_v44.z.object({
+  language: import_v44.z.string().nullish(),
+  prompt: import_v44.z.string().nullish(),
+  responseFormat: import_v44.z.string().nullish(),
+  temperature: import_v44.z.number().min(0).max(1).nullish(),
+  timestampGranularities: import_v44.z.array(import_v44.z.string()).nullish()
+});
+var GroqTranscriptionModel = class {
   constructor(modelId, config) {
-    this.specificationVersion = "v2";
-    this.maxEmbeddingsPerCall = 32;
-    this.supportsParallelCalls = false;
     this.modelId = modelId;
     this.config = config;
+    this.specificationVersion = "v2";
   }
   get provider() {
     return this.config.provider;
   }
-  async doEmbed({
-    values,
-    abortSignal,
-    headers
+  async getArgs({
+    audio,
+    mediaType,
+    providerOptions
   }) {
-    if (values.length > this.maxEmbeddingsPerCall) {
-      throw new import_provider3.TooManyEmbeddingValuesForCallError({
-        provider: this.provider,
-        modelId: this.modelId,
-        maxEmbeddingsPerCall: this.maxEmbeddingsPerCall,
-        values
-      });
+    var _a, _b, _c, _d, _e;
+    const warnings = [];
+    const groqOptions = await (0, import_provider_utils3.parseProviderOptions)({
+      provider: "groq",
+      providerOptions,
+      schema: groqProviderOptionsSchema
+    });
+    const formData = new FormData();
+    const blob = audio instanceof Uint8Array ? new Blob([audio]) : new Blob([(0, import_provider_utils3.convertBase64ToUint8Array)(audio)]);
+    formData.append("model", this.modelId);
+    formData.append("file", new File([blob], "audio", { type: mediaType }));
+    if (groqOptions) {
+      const transcriptionModelOptions = {
+        language: (_a = groqOptions.language) != null ? _a : void 0,
+        prompt: (_b = groqOptions.prompt) != null ? _b : void 0,
+        response_format: (_c = groqOptions.responseFormat) != null ? _c : void 0,
+        temperature: (_d = groqOptions.temperature) != null ? _d : void 0,
+        timestamp_granularities: (_e = groqOptions.timestampGranularities) != null ? _e : void 0
+      };
+      for (const key in transcriptionModelOptions) {
+        const value = transcriptionModelOptions[key];
+        if (value !== void 0) {
+          formData.append(key, String(value));
+        }
+      }
     }
+    return {
+      formData,
+      warnings
+    };
+  }
+  async doGenerate(options) {
+    var _a, _b, _c, _d, _e;
+    const currentDate = (_c = (_b = (_a = this.config._internal) == null ? void 0 : _a.currentDate) == null ? void 0 : _b.call(_a)) != null ? _c : /* @__PURE__ */ new Date();
+    const { formData, warnings } = await this.getArgs(options);
     const {
-      responseHeaders,
       value: response,
-      rawValue
-    } = await (0, import_provider_utils3.postJsonToApi)({
-      url: `${this.config.baseURL}/embeddings`,
-      headers: (0, import_provider_utils3.combineHeaders)(this.config.headers(), headers),
-      body: {
-        model: this.modelId,
-        input: values,
-        encoding_format: "float"
-      },
-      failedResponseHandler: mistralFailedResponseHandler,
+      responseHeaders,
+      rawValue: rawResponse
+    } = await (0, import_provider_utils3.postFormDataToApi)({
+      url: this.config.url({
+        path: "/audio/transcriptions",
+        modelId: this.modelId
+      }),
+      headers: (0, import_provider_utils3.combineHeaders)(this.config.headers(), options.headers),
+      formData,
+      failedResponseHandler: groqFailedResponseHandler,
       successfulResponseHandler: (0, import_provider_utils3.createJsonResponseHandler)(
-        MistralTextEmbeddingResponseSchema
+        groqTranscriptionResponseSchema
       ),
-      abortSignal,
+      abortSignal: options.abortSignal,
       fetch: this.config.fetch
     });
     return {
-      embeddings: response.data.map((item) => item.embedding),
-      usage: response.usage ? { tokens: response.usage.prompt_tokens } : void 0,
-      response: { headers: responseHeaders, body: rawValue }
+      text: response.text,
+      segments: (_e = (_d = response.segments) == null ? void 0 : _d.map((segment) => ({
+        text: segment.text,
+        startSecond: segment.start,
+        endSecond: segment.end
+      }))) != null ? _e : [],
+      language: response.language,
+      durationInSeconds: response.duration,
+      warnings,
+      response: {
+        timestamp: currentDate,
+        modelId: this.modelId,
+        headers: responseHeaders,
+        body: rawResponse
+      }
     };
   }
 };
-var MistralTextEmbeddingResponseSchema = import_v44.z.object({
-  data: import_v44.z.array(import_v44.z.object({ embedding: import_v44.z.array(import_v44.z.number()) })),
-  usage: import_v44.z.object({ prompt_tokens: import_v44.z.number() }).nullish()
+var groqTranscriptionResponseSchema = import_v44.z.object({
+  task: import_v44.z.string(),
+  language: import_v44.z.string(),
+  duration: import_v44.z.number(),
+  text: import_v44.z.string(),
+  segments: import_v44.z.array(
+    import_v44.z.object({
+      id: import_v44.z.number(),
+      seek: import_v44.z.number(),
+      start: import_v44.z.number(),
+      end: import_v44.z.number(),
+      text: import_v44.z.string(),
+      tokens: import_v44.z.array(import_v44.z.number()),
+      temperature: import_v44.z.number(),
+      avg_logprob: import_v44.z.number(),
+      compression_ratio: import_v44.z.number(),
+      no_speech_prob: import_v44.z.number()
+    })
+  ),
+  x_groq: import_v44.z.object({
+    id: import_v44.z.string()
+  })
 });
 
-// src/mistral-provider.ts
-function createMistral(options = {}) {
+// src/groq-provider.ts
+function createGroq(options = {}) {
   var _a;
-  const baseURL = (_a = (0, import_provider_utils4.withoutTrailingSlash)(options.baseURL)) != null ? _a : "https://api.mistral.ai/v1";
+  const baseURL = (_a = (0, import_provider_utils4.withoutTrailingSlash)(options.baseURL)) != null ? _a : "https://api.groq.com/openai/v1";
   const getHeaders = () => ({
     Authorization: `Bearer ${(0, import_provider_utils4.loadApiKey)({
       apiKey: options.apiKey,
-      environmentVariableName: "MISTRAL_API_KEY",
-      description: "Mistral"
+      environmentVariableName: "GROQ_API_KEY",
+      description: "Groq"
     })}`,
     ...options.headers
   });
-  const createChatModel = (modelId) => new MistralChatLanguageModel(modelId, {
-    provider: "mistral.chat",
-    baseURL,
+  const createChatModel = (modelId) => new GroqChatLanguageModel(modelId, {
+    provider: "groq.chat",
+    url: ({ path }) => `${baseURL}${path}`,
     headers: getHeaders,
     fetch: options.fetch
   });
-  const createEmbeddingModel = (modelId) => new MistralEmbeddingModel(modelId, {
-    provider: "mistral.embedding",
-    baseURL,
-    headers: getHeaders,
-    fetch: options.fetch
-  });
-  const provider = function(modelId) {
+  const createLanguageModel = (modelId) => {
     if (new.target) {
       throw new Error(
-        "The Mistral model function cannot be called with the new keyword."
+        "The Groq model function cannot be called with the new keyword."
       );
     }
     return createChatModel(modelId);
   };
-  provider.languageModel = createChatModel;
+  const createTranscriptionModel = (modelId) => {
+    return new GroqTranscriptionModel(modelId, {
+      provider: "groq.transcription",
+      url: ({ path }) => `${baseURL}${path}`,
+      headers: getHeaders,
+      fetch: options.fetch
+    });
+  };
+  const provider = function(modelId) {
+    return createLanguageModel(modelId);
+  };
+  provider.languageModel = createLanguageModel;
   provider.chat = createChatModel;
-  provider.embedding = createEmbeddingModel;
-  provider.textEmbedding = createEmbeddingModel;
-  provider.textEmbeddingModel = createEmbeddingModel;
+  provider.textEmbeddingModel = (modelId) => {
+    throw new import_provider4.NoSuchModelError({ modelId, modelType: "textEmbeddingModel" });
+  };
   provider.imageModel = (modelId) => {
     throw new import_provider4.NoSuchModelError({ modelId, modelType: "imageModel" });
   };
+  provider.transcription = createTranscriptionModel;
   return provider;
 }
-var mistral = createMistral();
+var groq = createGroq();
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
-  createMistral,
-  mistral
+  createGroq,
+  groq
 });
 //# sourceMappingURL=index.js.map

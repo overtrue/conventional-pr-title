@@ -20,361 +20,452 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
-  createVertex: () => createVertex2,
-  vertex: () => vertex
+  createPerplexity: () => createPerplexity,
+  perplexity: () => perplexity
 });
 module.exports = __toCommonJS(src_exports);
 
-// src/google-vertex-provider-node.ts
-var import_provider_utils5 = require("@ai-sdk/provider-utils");
+// src/perplexity-provider.ts
+var import_provider2 = require("@ai-sdk/provider");
+var import_provider_utils3 = require("@ai-sdk/provider-utils");
 
-// src/google-vertex-auth-google-auth-library.ts
-var import_google_auth_library = require("google-auth-library");
-var authInstance = null;
-var authOptions = null;
-function getAuth(options) {
-  if (!authInstance || options !== authOptions) {
-    authInstance = new import_google_auth_library.GoogleAuth({
-      scopes: ["https://www.googleapis.com/auth/cloud-platform"],
-      ...options
-    });
-    authOptions = options;
-  }
-  return authInstance;
-}
-async function generateAuthToken(options) {
-  const auth = getAuth(options || {});
-  const client = await auth.getClient();
-  const token = await client.getAccessToken();
-  return (token == null ? void 0 : token.token) || null;
-}
-
-// src/google-vertex-provider.ts
-var import_internal = require("@ai-sdk/google/internal");
-var import_provider_utils4 = require("@ai-sdk/provider-utils");
-
-// src/google-vertex-embedding-model.ts
-var import_provider = require("@ai-sdk/provider");
+// src/perplexity-language-model.ts
 var import_provider_utils2 = require("@ai-sdk/provider-utils");
-var import_v43 = require("zod/v4");
-
-// src/google-vertex-error.ts
-var import_provider_utils = require("@ai-sdk/provider-utils");
 var import_v4 = require("zod/v4");
-var googleVertexErrorDataSchema = import_v4.z.object({
-  error: import_v4.z.object({
-    code: import_v4.z.number().nullable(),
-    message: import_v4.z.string(),
-    status: import_v4.z.string()
-  })
-});
-var googleVertexFailedResponseHandler = (0, import_provider_utils.createJsonErrorResponseHandler)(
-  {
-    errorSchema: googleVertexErrorDataSchema,
-    errorToMessage: (data) => data.error.message
+
+// src/convert-to-perplexity-messages.ts
+var import_provider = require("@ai-sdk/provider");
+var import_provider_utils = require("@ai-sdk/provider-utils");
+function convertToPerplexityMessages(prompt) {
+  const messages = [];
+  for (const { role, content } of prompt) {
+    switch (role) {
+      case "system": {
+        messages.push({ role: "system", content });
+        break;
+      }
+      case "user":
+      case "assistant": {
+        const hasImage = content.some(
+          (part) => part.type === "file" && part.mediaType.startsWith("image/")
+        );
+        const messageContent = content.map((part) => {
+          var _a;
+          switch (part.type) {
+            case "text": {
+              return {
+                type: "text",
+                text: part.text
+              };
+            }
+            case "file": {
+              return part.data instanceof URL ? {
+                type: "image_url",
+                image_url: {
+                  url: part.data.toString()
+                }
+              } : {
+                type: "image_url",
+                image_url: {
+                  url: `data:${(_a = part.mediaType) != null ? _a : "image/jpeg"};base64,${typeof part.data === "string" ? part.data : (0, import_provider_utils.convertUint8ArrayToBase64)(part.data)}`
+                }
+              };
+            }
+          }
+        }).filter(Boolean);
+        messages.push({
+          role,
+          content: hasImage ? messageContent : messageContent.filter((part) => part.type === "text").map((part) => part.text).join("")
+        });
+        break;
+      }
+      case "tool": {
+        throw new import_provider.UnsupportedFunctionalityError({
+          functionality: "Tool messages"
+        });
+      }
+      default: {
+        const _exhaustiveCheck = role;
+        throw new Error(`Unsupported role: ${_exhaustiveCheck}`);
+      }
+    }
   }
-);
+  return messages;
+}
 
-// src/google-vertex-embedding-options.ts
-var import_v42 = require("zod/v4");
-var googleVertexEmbeddingProviderOptions = import_v42.z.object({
-  /**
-   * Optional. Optional reduced dimension for the output embedding.
-   * If set, excessive values in the output embedding are truncated from the end.
-   */
-  outputDimensionality: import_v42.z.number().optional(),
-  /**
-   * Optional. Specifies the task type for generating embeddings.
-   * Supported task types:
-   * - SEMANTIC_SIMILARITY: Optimized for text similarity.
-   * - CLASSIFICATION: Optimized for text classification.
-   * - CLUSTERING: Optimized for clustering texts based on similarity.
-   * - RETRIEVAL_DOCUMENT: Optimized for document retrieval.
-   * - RETRIEVAL_QUERY: Optimized for query-based retrieval.
-   * - QUESTION_ANSWERING: Optimized for answering questions.
-   * - FACT_VERIFICATION: Optimized for verifying factual information.
-   * - CODE_RETRIEVAL_QUERY: Optimized for retrieving code blocks based on natural language queries.
-   */
-  taskType: import_v42.z.enum([
-    "SEMANTIC_SIMILARITY",
-    "CLASSIFICATION",
-    "CLUSTERING",
-    "RETRIEVAL_DOCUMENT",
-    "RETRIEVAL_QUERY",
-    "QUESTION_ANSWERING",
-    "FACT_VERIFICATION",
-    "CODE_RETRIEVAL_QUERY"
-  ]).optional()
-});
+// src/map-perplexity-finish-reason.ts
+function mapPerplexityFinishReason(finishReason) {
+  switch (finishReason) {
+    case "stop":
+    case "length":
+      return finishReason;
+    default:
+      return "unknown";
+  }
+}
 
-// src/google-vertex-embedding-model.ts
-var GoogleVertexEmbeddingModel = class {
+// src/perplexity-language-model.ts
+var PerplexityLanguageModel = class {
   constructor(modelId, config) {
     this.specificationVersion = "v2";
-    this.maxEmbeddingsPerCall = 2048;
-    this.supportsParallelCalls = true;
+    this.provider = "perplexity";
+    this.supportedUrls = {
+      // No URLs are supported.
+    };
     this.modelId = modelId;
     this.config = config;
   }
-  get provider() {
-    return this.config.provider;
-  }
-  async doEmbed({
-    values,
-    headers,
-    abortSignal,
+  getArgs({
+    prompt,
+    maxOutputTokens,
+    temperature,
+    topP,
+    topK,
+    frequencyPenalty,
+    presencePenalty,
+    stopSequences,
+    responseFormat,
+    seed,
     providerOptions
   }) {
     var _a;
-    const googleOptions = (_a = await (0, import_provider_utils2.parseProviderOptions)({
-      provider: "google",
-      providerOptions,
-      schema: googleVertexEmbeddingProviderOptions
-    })) != null ? _a : {};
-    if (values.length > this.maxEmbeddingsPerCall) {
-      throw new import_provider.TooManyEmbeddingValuesForCallError({
-        provider: this.provider,
-        modelId: this.modelId,
-        maxEmbeddingsPerCall: this.maxEmbeddingsPerCall,
-        values
+    const warnings = [];
+    if (topK != null) {
+      warnings.push({
+        type: "unsupported-setting",
+        setting: "topK"
       });
     }
-    const mergedHeaders = (0, import_provider_utils2.combineHeaders)(
-      await (0, import_provider_utils2.resolve)(this.config.headers),
-      headers
-    );
-    const url = `${this.config.baseURL}/models/${this.modelId}:predict`;
+    if (stopSequences != null) {
+      warnings.push({
+        type: "unsupported-setting",
+        setting: "stopSequences"
+      });
+    }
+    if (seed != null) {
+      warnings.push({
+        type: "unsupported-setting",
+        setting: "seed"
+      });
+    }
+    return {
+      args: {
+        // model id:
+        model: this.modelId,
+        // standardized settings:
+        frequency_penalty: frequencyPenalty,
+        max_tokens: maxOutputTokens,
+        presence_penalty: presencePenalty,
+        temperature,
+        top_k: topK,
+        top_p: topP,
+        // response format:
+        response_format: (responseFormat == null ? void 0 : responseFormat.type) === "json" ? {
+          type: "json_schema",
+          json_schema: { schema: responseFormat.schema }
+        } : void 0,
+        // provider extensions
+        ...(_a = providerOptions == null ? void 0 : providerOptions.perplexity) != null ? _a : {},
+        // messages:
+        messages: convertToPerplexityMessages(prompt)
+      },
+      warnings
+    };
+  }
+  async doGenerate(options) {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+    const { args: body, warnings } = this.getArgs(options);
     const {
       responseHeaders,
       value: response,
-      rawValue
+      rawValue: rawResponse
     } = await (0, import_provider_utils2.postJsonToApi)({
-      url,
-      headers: mergedHeaders,
-      body: {
-        instances: values.map((value) => ({ content: value })),
-        parameters: {
-          outputDimensionality: googleOptions.outputDimensionality,
-          taskType: googleOptions.taskType
-        }
-      },
-      failedResponseHandler: googleVertexFailedResponseHandler,
-      successfulResponseHandler: (0, import_provider_utils2.createJsonResponseHandler)(
-        googleVertexTextEmbeddingResponseSchema
-      ),
-      abortSignal,
-      fetch: this.config.fetch
-    });
-    return {
-      embeddings: response.predictions.map(
-        (prediction) => prediction.embeddings.values
-      ),
-      usage: {
-        tokens: response.predictions.reduce(
-          (tokenCount, prediction) => tokenCount + prediction.embeddings.statistics.token_count,
-          0
-        )
-      },
-      response: { headers: responseHeaders, body: rawValue }
-    };
-  }
-};
-var googleVertexTextEmbeddingResponseSchema = import_v43.z.object({
-  predictions: import_v43.z.array(
-    import_v43.z.object({
-      embeddings: import_v43.z.object({
-        values: import_v43.z.array(import_v43.z.number()),
-        statistics: import_v43.z.object({
-          token_count: import_v43.z.number()
-        })
-      })
-    })
-  )
-});
-
-// src/google-vertex-image-model.ts
-var import_provider_utils3 = require("@ai-sdk/provider-utils");
-var import_v44 = require("zod/v4");
-var GoogleVertexImageModel = class {
-  constructor(modelId, config) {
-    this.modelId = modelId;
-    this.config = config;
-    this.specificationVersion = "v2";
-    // https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/imagen-api#parameter_list
-    this.maxImagesPerCall = 4;
-  }
-  get provider() {
-    return this.config.provider;
-  }
-  async doGenerate({
-    prompt,
-    n,
-    size,
-    aspectRatio,
-    seed,
-    providerOptions,
-    headers,
-    abortSignal
-  }) {
-    var _a, _b, _c, _d, _e, _f, _g;
-    const warnings = [];
-    if (size != null) {
-      warnings.push({
-        type: "unsupported-setting",
-        setting: "size",
-        details: "This model does not support the `size` option. Use `aspectRatio` instead."
-      });
-    }
-    const vertexImageOptions = await (0, import_provider_utils3.parseProviderOptions)({
-      provider: "vertex",
-      providerOptions,
-      schema: vertexImageProviderOptionsSchema
-    });
-    const body = {
-      instances: [{ prompt }],
-      parameters: {
-        sampleCount: n,
-        ...aspectRatio != null ? { aspectRatio } : {},
-        ...seed != null ? { seed } : {},
-        ...vertexImageOptions != null ? vertexImageOptions : {}
-      }
-    };
-    const currentDate = (_c = (_b = (_a = this.config._internal) == null ? void 0 : _a.currentDate) == null ? void 0 : _b.call(_a)) != null ? _c : /* @__PURE__ */ new Date();
-    const { value: response, responseHeaders } = await (0, import_provider_utils3.postJsonToApi)({
-      url: `${this.config.baseURL}/models/${this.modelId}:predict`,
-      headers: (0, import_provider_utils3.combineHeaders)(await (0, import_provider_utils3.resolve)(this.config.headers), headers),
+      url: `${this.config.baseURL}/chat/completions`,
+      headers: (0, import_provider_utils2.combineHeaders)(this.config.headers(), options.headers),
       body,
-      failedResponseHandler: googleVertexFailedResponseHandler,
-      successfulResponseHandler: (0, import_provider_utils3.createJsonResponseHandler)(
-        vertexImageResponseSchema
+      failedResponseHandler: (0, import_provider_utils2.createJsonErrorResponseHandler)({
+        errorSchema: perplexityErrorSchema,
+        errorToMessage
+      }),
+      successfulResponseHandler: (0, import_provider_utils2.createJsonResponseHandler)(
+        perplexityResponseSchema
       ),
-      abortSignal,
+      abortSignal: options.abortSignal,
       fetch: this.config.fetch
     });
+    const choice = response.choices[0];
+    const content = [];
+    const text = choice.message.content;
+    if (text.length > 0) {
+      content.push({ type: "text", text });
+    }
+    if (response.citations != null) {
+      for (const url of response.citations) {
+        content.push({
+          type: "source",
+          sourceType: "url",
+          id: this.config.generateId(),
+          url
+        });
+      }
+    }
     return {
-      images: (_e = (_d = response.predictions) == null ? void 0 : _d.map(
-        ({ bytesBase64Encoded }) => bytesBase64Encoded
-      )) != null ? _e : [],
-      warnings,
-      response: {
-        timestamp: currentDate,
-        modelId: this.modelId,
-        headers: responseHeaders
+      content,
+      finishReason: mapPerplexityFinishReason(choice.finish_reason),
+      usage: {
+        inputTokens: (_a = response.usage) == null ? void 0 : _a.prompt_tokens,
+        outputTokens: (_b = response.usage) == null ? void 0 : _b.completion_tokens,
+        totalTokens: (_d = (_c = response.usage) == null ? void 0 : _c.total_tokens) != null ? _d : void 0
       },
+      request: { body },
+      response: {
+        ...getResponseMetadata(response),
+        headers: responseHeaders,
+        body: rawResponse
+      },
+      warnings,
       providerMetadata: {
-        vertex: {
-          images: (_g = (_f = response.predictions) == null ? void 0 : _f.map((prediction) => {
-            const {
-              // normalize revised prompt property
-              prompt: revisedPrompt
-            } = prediction;
-            return { ...revisedPrompt != null && { revisedPrompt } };
-          })) != null ? _g : []
+        perplexity: {
+          images: (_f = (_e = response.images) == null ? void 0 : _e.map((image) => ({
+            imageUrl: image.image_url,
+            originUrl: image.origin_url,
+            height: image.height,
+            width: image.width
+          }))) != null ? _f : null,
+          usage: {
+            citationTokens: (_h = (_g = response.usage) == null ? void 0 : _g.citation_tokens) != null ? _h : null,
+            numSearchQueries: (_j = (_i = response.usage) == null ? void 0 : _i.num_search_queries) != null ? _j : null
+          }
         }
       }
     };
   }
-};
-var vertexImageResponseSchema = import_v44.z.object({
-  predictions: import_v44.z.array(
-    import_v44.z.object({
-      bytesBase64Encoded: import_v44.z.string(),
-      mimeType: import_v44.z.string(),
-      prompt: import_v44.z.string().nullish()
-    })
-  ).nullish()
-});
-var vertexImageProviderOptionsSchema = import_v44.z.object({
-  negativePrompt: import_v44.z.string().nullish(),
-  personGeneration: import_v44.z.enum(["dont_allow", "allow_adult", "allow_all"]).nullish(),
-  safetySetting: import_v44.z.enum([
-    "block_low_and_above",
-    "block_medium_and_above",
-    "block_only_high",
-    "block_none"
-  ]).nullish(),
-  addWatermark: import_v44.z.boolean().nullish(),
-  storageUri: import_v44.z.string().nullish()
-});
-
-// src/google-vertex-provider.ts
-function createVertex(options = {}) {
-  const loadVertexProject = () => (0, import_provider_utils4.loadSetting)({
-    settingValue: options.project,
-    settingName: "project",
-    environmentVariableName: "GOOGLE_VERTEX_PROJECT",
-    description: "Google Vertex project"
-  });
-  const loadVertexLocation = () => (0, import_provider_utils4.loadSetting)({
-    settingValue: options.location,
-    settingName: "location",
-    environmentVariableName: "GOOGLE_VERTEX_LOCATION",
-    description: "Google Vertex location"
-  });
-  const loadBaseURL = () => {
-    var _a;
-    const region = loadVertexLocation();
-    const project = loadVertexProject();
-    const baseHost = `${region === "global" ? "" : region + "-"}aiplatform.googleapis.com`;
-    return (_a = (0, import_provider_utils4.withoutTrailingSlash)(options.baseURL)) != null ? _a : `https://${baseHost}/v1/projects/${project}/locations/${region}/publishers/google`;
-  };
-  const createConfig = (name) => {
-    var _a;
-    return {
-      provider: `google.vertex.${name}`,
-      headers: (_a = options.headers) != null ? _a : {},
-      fetch: options.fetch,
-      baseURL: loadBaseURL()
+  async doStream(options) {
+    const { args, warnings } = this.getArgs(options);
+    const body = { ...args, stream: true };
+    const { responseHeaders, value: response } = await (0, import_provider_utils2.postJsonToApi)({
+      url: `${this.config.baseURL}/chat/completions`,
+      headers: (0, import_provider_utils2.combineHeaders)(this.config.headers(), options.headers),
+      body,
+      failedResponseHandler: (0, import_provider_utils2.createJsonErrorResponseHandler)({
+        errorSchema: perplexityErrorSchema,
+        errorToMessage
+      }),
+      successfulResponseHandler: (0, import_provider_utils2.createEventSourceResponseHandler)(
+        perplexityChunkSchema
+      ),
+      abortSignal: options.abortSignal,
+      fetch: this.config.fetch
+    });
+    let finishReason = "unknown";
+    const usage = {
+      inputTokens: void 0,
+      outputTokens: void 0,
+      totalTokens: void 0
     };
+    const providerMetadata = {
+      perplexity: {
+        usage: {
+          citationTokens: null,
+          numSearchQueries: null
+        },
+        images: null
+      }
+    };
+    let isFirstChunk = true;
+    let isActive = false;
+    const self = this;
+    return {
+      stream: response.pipeThrough(
+        new TransformStream({
+          start(controller) {
+            controller.enqueue({ type: "stream-start", warnings });
+          },
+          transform(chunk, controller) {
+            var _a, _b, _c;
+            if (options.includeRawChunks) {
+              controller.enqueue({ type: "raw", rawValue: chunk.rawValue });
+            }
+            if (!chunk.success) {
+              controller.enqueue({ type: "error", error: chunk.error });
+              return;
+            }
+            const value = chunk.value;
+            if (isFirstChunk) {
+              controller.enqueue({
+                type: "response-metadata",
+                ...getResponseMetadata(value)
+              });
+              (_a = value.citations) == null ? void 0 : _a.forEach((url) => {
+                controller.enqueue({
+                  type: "source",
+                  sourceType: "url",
+                  id: self.config.generateId(),
+                  url
+                });
+              });
+              isFirstChunk = false;
+            }
+            if (value.usage != null) {
+              usage.inputTokens = value.usage.prompt_tokens;
+              usage.outputTokens = value.usage.completion_tokens;
+              providerMetadata.perplexity.usage = {
+                citationTokens: (_b = value.usage.citation_tokens) != null ? _b : null,
+                numSearchQueries: (_c = value.usage.num_search_queries) != null ? _c : null
+              };
+            }
+            if (value.images != null) {
+              providerMetadata.perplexity.images = value.images.map((image) => ({
+                imageUrl: image.image_url,
+                originUrl: image.origin_url,
+                height: image.height,
+                width: image.width
+              }));
+            }
+            const choice = value.choices[0];
+            if ((choice == null ? void 0 : choice.finish_reason) != null) {
+              finishReason = mapPerplexityFinishReason(choice.finish_reason);
+            }
+            if ((choice == null ? void 0 : choice.delta) == null) {
+              return;
+            }
+            const delta = choice.delta;
+            const textContent = delta.content;
+            if (textContent != null) {
+              if (!isActive) {
+                controller.enqueue({ type: "text-start", id: "0" });
+                isActive = true;
+              }
+              controller.enqueue({
+                type: "text-delta",
+                id: "0",
+                delta: textContent
+              });
+            }
+          },
+          flush(controller) {
+            if (isActive) {
+              controller.enqueue({ type: "text-end", id: "0" });
+            }
+            controller.enqueue({
+              type: "finish",
+              finishReason,
+              usage,
+              providerMetadata
+            });
+          }
+        })
+      ),
+      request: { body },
+      response: { headers: responseHeaders }
+    };
+  }
+};
+function getResponseMetadata({
+  id,
+  model,
+  created
+}) {
+  return {
+    id,
+    modelId: model,
+    timestamp: new Date(created * 1e3)
   };
-  const createChatModel = (modelId) => {
+}
+var perplexityUsageSchema = import_v4.z.object({
+  prompt_tokens: import_v4.z.number(),
+  completion_tokens: import_v4.z.number(),
+  total_tokens: import_v4.z.number().nullish(),
+  citation_tokens: import_v4.z.number().nullish(),
+  num_search_queries: import_v4.z.number().nullish()
+});
+var perplexityImageSchema = import_v4.z.object({
+  image_url: import_v4.z.string(),
+  origin_url: import_v4.z.string(),
+  height: import_v4.z.number(),
+  width: import_v4.z.number()
+});
+var perplexityResponseSchema = import_v4.z.object({
+  id: import_v4.z.string(),
+  created: import_v4.z.number(),
+  model: import_v4.z.string(),
+  choices: import_v4.z.array(
+    import_v4.z.object({
+      message: import_v4.z.object({
+        role: import_v4.z.literal("assistant"),
+        content: import_v4.z.string()
+      }),
+      finish_reason: import_v4.z.string().nullish()
+    })
+  ),
+  citations: import_v4.z.array(import_v4.z.string()).nullish(),
+  images: import_v4.z.array(perplexityImageSchema).nullish(),
+  usage: perplexityUsageSchema.nullish()
+});
+var perplexityChunkSchema = import_v4.z.object({
+  id: import_v4.z.string(),
+  created: import_v4.z.number(),
+  model: import_v4.z.string(),
+  choices: import_v4.z.array(
+    import_v4.z.object({
+      delta: import_v4.z.object({
+        role: import_v4.z.literal("assistant"),
+        content: import_v4.z.string()
+      }),
+      finish_reason: import_v4.z.string().nullish()
+    })
+  ),
+  citations: import_v4.z.array(import_v4.z.string()).nullish(),
+  images: import_v4.z.array(perplexityImageSchema).nullish(),
+  usage: perplexityUsageSchema.nullish()
+});
+var perplexityErrorSchema = import_v4.z.object({
+  error: import_v4.z.object({
+    code: import_v4.z.number(),
+    message: import_v4.z.string().nullish(),
+    type: import_v4.z.string().nullish()
+  })
+});
+var errorToMessage = (data) => {
+  var _a, _b;
+  return (_b = (_a = data.error.message) != null ? _a : data.error.type) != null ? _b : "unknown error";
+};
+
+// src/perplexity-provider.ts
+function createPerplexity(options = {}) {
+  const getHeaders = () => ({
+    Authorization: `Bearer ${(0, import_provider_utils3.loadApiKey)({
+      apiKey: options.apiKey,
+      environmentVariableName: "PERPLEXITY_API_KEY",
+      description: "Perplexity"
+    })}`,
+    ...options.headers
+  });
+  const createLanguageModel = (modelId) => {
     var _a;
-    return new import_internal.GoogleGenerativeAILanguageModel(modelId, {
-      ...createConfig("chat"),
-      generateId: (_a = options.generateId) != null ? _a : import_provider_utils4.generateId,
-      supportedUrls: () => ({
-        "*": [
-          // HTTP URLs:
-          /^https?:\/\/.*$/,
-          // Google Cloud Storage URLs:
-          /^gs:\/\/.*$/
-        ]
-      })
+    return new PerplexityLanguageModel(modelId, {
+      baseURL: (0, import_provider_utils3.withoutTrailingSlash)(
+        (_a = options.baseURL) != null ? _a : "https://api.perplexity.ai"
+      ),
+      headers: getHeaders,
+      generateId: import_provider_utils3.generateId,
+      fetch: options.fetch
     });
   };
-  const createEmbeddingModel = (modelId) => new GoogleVertexEmbeddingModel(modelId, createConfig("embedding"));
-  const createImageModel = (modelId) => new GoogleVertexImageModel(modelId, createConfig("image"));
-  const provider = function(modelId) {
-    if (new.target) {
-      throw new Error(
-        "The Google Vertex AI model function cannot be called with the new keyword."
-      );
-    }
-    return createChatModel(modelId);
+  const provider = (modelId) => createLanguageModel(modelId);
+  provider.languageModel = createLanguageModel;
+  provider.textEmbeddingModel = (modelId) => {
+    throw new import_provider2.NoSuchModelError({ modelId, modelType: "textEmbeddingModel" });
   };
-  provider.languageModel = createChatModel;
-  provider.textEmbeddingModel = createEmbeddingModel;
-  provider.image = createImageModel;
-  provider.imageModel = createImageModel;
+  provider.imageModel = (modelId) => {
+    throw new import_provider2.NoSuchModelError({ modelId, modelType: "imageModel" });
+  };
   return provider;
 }
-
-// src/google-vertex-provider-node.ts
-function createVertex2(options = {}) {
-  return createVertex({
-    ...options,
-    headers: async () => ({
-      Authorization: `Bearer ${await generateAuthToken(
-        options.googleAuthOptions
-      )}`,
-      ...await (0, import_provider_utils5.resolve)(options.headers)
-    })
-  });
-}
-var vertex = createVertex2();
+var perplexity = createPerplexity();
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
-  createVertex,
-  vertex
+  createPerplexity,
+  perplexity
 });
 //# sourceMappingURL=index.js.map

@@ -20,105 +20,107 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
-  azure: () => azure,
-  createAzure: () => createAzure
+  createDeepSeek: () => createDeepSeek,
+  deepseek: () => deepseek
 });
 module.exports = __toCommonJS(src_exports);
 
-// src/azure-openai-provider.ts
-var import_internal = require("@ai-sdk/openai/internal");
+// src/deepseek-provider.ts
+var import_openai_compatible = require("@ai-sdk/openai-compatible");
+var import_provider = require("@ai-sdk/provider");
+var import_provider_utils2 = require("@ai-sdk/provider-utils");
+
+// src/deepseek-metadata-extractor.ts
 var import_provider_utils = require("@ai-sdk/provider-utils");
-function createAzure(options = {}) {
+var import_v4 = require("zod/v4");
+var buildDeepseekMetadata = (usage) => {
+  var _a, _b;
+  return usage == null ? void 0 : {
+    deepseek: {
+      promptCacheHitTokens: (_a = usage.prompt_cache_hit_tokens) != null ? _a : NaN,
+      promptCacheMissTokens: (_b = usage.prompt_cache_miss_tokens) != null ? _b : NaN
+    }
+  };
+};
+var deepSeekMetadataExtractor = {
+  extractMetadata: async ({ parsedBody }) => {
+    const parsed = await (0, import_provider_utils.safeValidateTypes)({
+      value: parsedBody,
+      schema: deepSeekResponseSchema
+    });
+    return !parsed.success || parsed.value.usage == null ? void 0 : buildDeepseekMetadata(parsed.value.usage);
+  },
+  createStreamExtractor: () => {
+    let usage;
+    return {
+      processChunk: async (chunk) => {
+        var _a, _b;
+        const parsed = await (0, import_provider_utils.safeValidateTypes)({
+          value: chunk,
+          schema: deepSeekStreamChunkSchema
+        });
+        if (parsed.success && ((_b = (_a = parsed.value.choices) == null ? void 0 : _a[0]) == null ? void 0 : _b.finish_reason) === "stop" && parsed.value.usage) {
+          usage = parsed.value.usage;
+        }
+      },
+      buildMetadata: () => buildDeepseekMetadata(usage)
+    };
+  }
+};
+var deepSeekUsageSchema = import_v4.z.object({
+  prompt_cache_hit_tokens: import_v4.z.number().nullish(),
+  prompt_cache_miss_tokens: import_v4.z.number().nullish()
+});
+var deepSeekResponseSchema = import_v4.z.object({
+  usage: deepSeekUsageSchema.nullish()
+});
+var deepSeekStreamChunkSchema = import_v4.z.object({
+  choices: import_v4.z.array(
+    import_v4.z.object({
+      finish_reason: import_v4.z.string().nullish()
+    })
+  ).nullish(),
+  usage: deepSeekUsageSchema.nullish()
+});
+
+// src/deepseek-provider.ts
+function createDeepSeek(options = {}) {
   var _a;
+  const baseURL = (0, import_provider_utils2.withoutTrailingSlash)(
+    (_a = options.baseURL) != null ? _a : "https://api.deepseek.com/v1"
+  );
   const getHeaders = () => ({
-    "api-key": (0, import_provider_utils.loadApiKey)({
+    Authorization: `Bearer ${(0, import_provider_utils2.loadApiKey)({
       apiKey: options.apiKey,
-      environmentVariableName: "AZURE_API_KEY",
-      description: "Azure OpenAI"
-    }),
+      environmentVariableName: "DEEPSEEK_API_KEY",
+      description: "DeepSeek API key"
+    })}`,
     ...options.headers
   });
-  const getResourceName = () => (0, import_provider_utils.loadSetting)({
-    settingValue: options.resourceName,
-    settingName: "resourceName",
-    environmentVariableName: "AZURE_RESOURCE_NAME",
-    description: "Azure OpenAI resource name"
-  });
-  const apiVersion = (_a = options.apiVersion) != null ? _a : "preview";
-  const url = ({ path, modelId }) => {
-    var _a2;
-    const baseUrlPrefix = (_a2 = options.baseURL) != null ? _a2 : `https://${getResourceName()}.openai.azure.com/openai`;
-    const fullUrl = new URL(`${baseUrlPrefix}/v1${path}`);
-    fullUrl.searchParams.set("api-version", apiVersion);
-    return fullUrl.toString();
+  const createLanguageModel = (modelId) => {
+    return new import_openai_compatible.OpenAICompatibleChatLanguageModel(modelId, {
+      provider: `deepseek.chat`,
+      url: ({ path }) => `${baseURL}${path}`,
+      headers: getHeaders,
+      fetch: options.fetch,
+      metadataExtractor: deepSeekMetadataExtractor
+    });
   };
-  const createChatModel = (deploymentName) => new import_internal.OpenAIChatLanguageModel(deploymentName, {
-    provider: "azure.chat",
-    url,
-    headers: getHeaders,
-    fetch: options.fetch
-  });
-  const createCompletionModel = (modelId) => new import_internal.OpenAICompletionLanguageModel(modelId, {
-    provider: "azure.completion",
-    url,
-    headers: getHeaders,
-    fetch: options.fetch
-  });
-  const createEmbeddingModel = (modelId) => new import_internal.OpenAIEmbeddingModel(modelId, {
-    provider: "azure.embeddings",
-    headers: getHeaders,
-    url,
-    fetch: options.fetch
-  });
-  const createResponsesModel = (modelId) => new import_internal.OpenAIResponsesLanguageModel(modelId, {
-    provider: "azure.responses",
-    url,
-    headers: getHeaders,
-    fetch: options.fetch
-  });
-  const createImageModel = (modelId) => new import_internal.OpenAIImageModel(modelId, {
-    provider: "azure.image",
-    url,
-    headers: getHeaders,
-    fetch: options.fetch
-  });
-  const createTranscriptionModel = (modelId) => new import_internal.OpenAITranscriptionModel(modelId, {
-    provider: "azure.transcription",
-    url,
-    headers: getHeaders,
-    fetch: options.fetch
-  });
-  const createSpeechModel = (modelId) => new import_internal.OpenAISpeechModel(modelId, {
-    provider: "azure.speech",
-    url,
-    headers: getHeaders,
-    fetch: options.fetch
-  });
-  const provider = function(deploymentId) {
-    if (new.target) {
-      throw new Error(
-        "The Azure OpenAI model function cannot be called with the new keyword."
-      );
-    }
-    return createChatModel(deploymentId);
+  const provider = (modelId) => createLanguageModel(modelId);
+  provider.languageModel = createLanguageModel;
+  provider.chat = createLanguageModel;
+  provider.textEmbeddingModel = (modelId) => {
+    throw new import_provider.NoSuchModelError({ modelId, modelType: "textEmbeddingModel" });
   };
-  provider.languageModel = createChatModel;
-  provider.chat = createChatModel;
-  provider.completion = createCompletionModel;
-  provider.embedding = createEmbeddingModel;
-  provider.image = createImageModel;
-  provider.imageModel = createImageModel;
-  provider.textEmbedding = createEmbeddingModel;
-  provider.textEmbeddingModel = createEmbeddingModel;
-  provider.responses = createResponsesModel;
-  provider.transcription = createTranscriptionModel;
-  provider.speech = createSpeechModel;
+  provider.imageModel = (modelId) => {
+    throw new import_provider.NoSuchModelError({ modelId, modelType: "imageModel" });
+  };
   return provider;
 }
-var azure = createAzure();
+var deepseek = createDeepSeek();
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
-  azure,
-  createAzure
+  createDeepSeek,
+  deepseek
 });
 //# sourceMappingURL=index.js.map
