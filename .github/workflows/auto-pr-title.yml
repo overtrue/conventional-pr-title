@@ -29,7 +29,9 @@ jobs:
           node-version: "20"
 
       - name: Install dependencies
-        run: npm i -g @anthropic-ai/claude-code
+        run: |
+          npm i -g @anthropic-ai/claude-code
+          which claude
 
       - name: Auto-generate conventional PR title
         uses: ./
