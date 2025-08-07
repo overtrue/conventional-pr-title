@@ -2,7 +2,7 @@
   "name": "conventional-pr-title",
   "version": "1.0.0",
   "description": "A GitHub Action that automatically suggests or updates PR titles to follow Conventional Commits standard using AI",
-  "main": "dist/index.js",
+  "main": "dist/index.cjs",
   "scripts": {
     "build": "ncc build src/index.ts -o dist --source-map --license licenses.txt --target es2020 --no-cache && rm -f dist/index.cjs",
     "package": "npm run build",
