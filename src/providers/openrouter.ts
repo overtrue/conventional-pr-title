@@ -7,7 +7,7 @@ import { AIProvider } from './base-provider.js'
  */
 export class OpenRouterProvider implements AIProvider {
   readonly name = 'openrouter'
-  readonly defaultModel = 'meta-llama/llama-3.1-8b-instruct:free'
+  readonly defaultModel = 'openai/gpt-4o'
   readonly description = 'OpenRouter models'
 
   async createModel(modelId: string, options: Record<string, any> = {}): Promise<LanguageModel> {

@@ -67,7 +67,7 @@
     "@ai-sdk/togetherai": "^1.0.1",
     "@ai-sdk/xai": "^2.0.1",
     "@anthropic-ai/sdk": "^0.57.0",
-    "@openrouter/ai-sdk-provider": "^1.0.0-beta.7",
+    "@openrouter/ai-sdk-provider": "^1.1.0",
     "ai": "^5.0.0",
     "ai-sdk-provider-claude-code": "^1.0.0-beta.1"
   },
