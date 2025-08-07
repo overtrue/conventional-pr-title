@@ -95,11 +95,18 @@ export class GitHubService {
    */
   async checkPermissions(): Promise<boolean> {
     try {
+      // For updating PR titles, we need pull-requests: write permission
+      // This is typically available when the workflow has the correct permissions
       const { data } = await this.octokit.rest.repos.get({
         owner: this.owner,
         repo: this.repo
       })
-      return data.permissions?.push === true || data.permissions?.admin === true
+
+      // Check for admin, push, or maintain permissions
+      // The pull-requests: write permission is typically granted when these permissions are available
+      return data.permissions?.admin === true ||
+        data.permissions?.push === true ||
+        data.permissions?.maintain === true
     } catch {
       return false
     }

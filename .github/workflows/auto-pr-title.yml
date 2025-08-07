@@ -47,7 +47,7 @@ jobs:
 
           # Validation Rules
           include-scope: "true"
-          skip-if-conventional: "true"
+          skip-if-conventional: "false"
           allowed-types: "feat,fix,docs,style,refactor,test,chore,perf,ci,build,revert"
           max-length: "72"
 

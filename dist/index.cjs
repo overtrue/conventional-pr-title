@@ -31606,11 +31606,17 @@ class GitHubService {
      */
     async checkPermissions() {
         try {
+            // For updating PR titles, we need pull-requests: write permission
+            // This is typically available when the workflow has the correct permissions
             const { data } = await this.octokit.rest.repos.get({
                 owner: this.owner,
                 repo: this.repo
             });
-            return data.permissions?.push === true || data.permissions?.admin === true;
+            // Check for admin, push, or maintain permissions
+            // The pull-requests: write permission is typically granted when these permissions are available
+            return data.permissions?.admin === true ||
+                data.permissions?.push === true ||
+                data.permissions?.maintain === true;
         }
         catch {
             return false;
@@ -176884,6 +176890,17 @@ Analyze a PR title and content, then suggest 1-3 improved titles that follow the
 7. **Language**: {{languageInstruction}}
 8. **Format consistency**: The conventional commit format (type(scope): description) should always be in English, but your reasoning/explanation should match the detected language.
 
+## Language Matching Rules
+When match-language is enabled:
+- **Detect the language** used in the PR title and description
+- **Generate the description part** in the same language as the original content
+- **Keep type and scope in English** (e.g., feat, fix, ui, auth, etc.)
+- **Examples**:
+  - Chinese: feat(ui): 添加新的用户界面组件
+  - Japanese: feat(ui): 新しいユーザーインターフェースコンポーネントを追加
+  - Korean: feat(ui): 새로운 사용자 인터페이스 컴포넌트 추가
+  - English: feat(ui): add new user interface component
+
 ## Response Format
 You MUST return ONLY a valid JSON object with this exact structure:
 \`\`\`json
@@ -176977,7 +176994,9 @@ Generate improved Conventional Commits titles for this PR.`;
         };
     }
     shouldSkipProcessing(isConventional) {
-        return this.config.skipIfConventional && isConventional;
+        const shouldSkip = this.config.skipIfConventional && isConventional;
+        coreExports.debug(`Skip processing check: skipIfConventional=${this.config.skipIfConventional}, isConventional=${isConventional}, shouldSkip=${shouldSkip}`);
+        return shouldSkip;
     }
     /**
      * Generate AI suggestions
@@ -177063,7 +177082,7 @@ Generate improved Conventional Commits titles for this PR.`;
             scopeRule: this.config.includeScope ? 'MUST include' : 'MAY include',
             maxLength: this.config.validationOptions.maxLength,
             languageInstruction: this.config.matchLanguage
-                ? 'Detect the language used in the PR title and description, then respond in the same language. If the content is in Chinese, respond in Chinese; if in English, respond in English, etc.'
+                ? 'Match the language of the original PR title and description. Generate the description part in the same language while keeping type and scope in English.'
                 : 'Always respond in English.'
         };
         const systemPrompt = this.config.customPrompt || this.systemTemplate;
@@ -177189,17 +177208,22 @@ Generate improved Conventional Commits titles for this PR.`;
      */
     async handleAutoMode(prNumber, currentTitle, aiResponse) {
         const bestSuggestion = aiResponse.suggestions[0];
+        coreExports.info(`🔄 Auto mode: Attempting to update PR #${prNumber} title`);
+        coreExports.info(`   Current title: "${currentTitle}"`);
+        coreExports.info(`   New title: "${bestSuggestion}"`);
         try {
             await this.githubService.updatePRTitle(prNumber, bestSuggestion);
-            coreExports.info(`✅ Updated PR title to: "${bestSuggestion}"`);
+            coreExports.info(`✅ Successfully updated PR title to: "${bestSuggestion}"`);
             if (this.config.autoComment) {
+                coreExports.info(`💬 Adding success notification comment...`);
                 await this.addSuccessComment(prNumber, currentTitle, bestSuggestion, aiResponse.reasoning);
             }
             return { actionTaken: 'updated' };
         }
         catch (error) {
             const errorMessage = `Failed to update PR title: ${error instanceof Error ? error.message : 'Unknown error'}`;
-            coreExports.warning(errorMessage);
+            coreExports.warning(`❌ ${errorMessage}`);
+            coreExports.debug(`Full error details: ${error instanceof Error ? error.stack : 'No stack trace'}`);
             return { actionTaken: 'error', errorMessage };
         }
     }
@@ -177256,12 +177280,6 @@ Generate improved Conventional Commits titles for this PR.`;
             `### 🧠 AI Reasoning`,
             reasoning,
             '',
-            `### ✨ Benefits`,
-            '📋 Follows team coding standards',
-            '📊 Improves version control and change tracking',
-            '🔍 Enhances code review efficiency',
-            '📈 Better project maintenance experience',
-            '',
             `---`,
             `*This suggestion was generated by AI to help maintain consistent commit message standards.*`
         ];
@@ -177283,7 +177301,7 @@ Generate improved Conventional Commits titles for this PR.`;
         if (reasoning) {
             lines.push(`### 🧠 AI Reasoning`, reasoning, '');
         }
-        lines.push(`### ✨ Benefits`, '📋 Follows team coding standards', '📊 Improves version control and change tracking', '🔍 Enhances code review efficiency', '', `---`, `*This update was performed automatically by AI to maintain consistent commit message standards.*`);
+        lines.push(`---`, `*This update was performed automatically by AI to maintain consistent commit message standards.*`);
         return lines.join('\n');
     }
     delay(ms) {
@@ -177348,8 +177366,12 @@ async function run() {
         if (config.mode === 'auto') {
             const hasPermissions = await githubService.checkPermissions();
             if (!hasPermissions) {
-                coreExports.warning('Insufficient permissions for auto mode, falling back to suggestion mode');
+                coreExports.warning('❌ Insufficient permissions for auto mode, falling back to suggestion mode');
+                coreExports.warning('💡 Make sure the workflow has pull-requests: write permission');
                 config.mode = 'suggest';
+            }
+            else {
+                coreExports.info('✅ Permissions check passed for auto mode');
             }
         }
         // Extract PR context

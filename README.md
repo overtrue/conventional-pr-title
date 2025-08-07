@@ -182,7 +182,7 @@ GOOGLE_VERTEX_BASE_URL=https://us-central1-aiplatform.googleapis.com
 |-------|-------------|---------|
 | `custom-prompt` | Custom prompt template for AI title generation | `''` |
 | `comment-template` | Custom template for suggestion comments | `''` |
-| `match-language` | Respond in the same language as the original PR title | `true` |
+| `match-language` | Match the language of the original PR title and description. When enabled, AI will generate the description part in the same language while keeping type and scope in English. Supports Chinese, Japanese, Korean, and other languages. | `true` |
 | `auto-comment` | Add a comment when auto-updating PR title | `true` |
 
 ## Supported AI Models
@@ -234,6 +234,26 @@ The action supports all providers and models available in AI SDK v5, including:
     model: 'openai/gpt-4o-mini'
     custom-prompt: 'Generate a conventional commit title that emphasizes the business impact of this change.'
 ```
+
+### Language Matching
+
+When `match-language` is enabled, the AI will detect the language of the original PR title and generate the description part in the same language:
+
+```yaml
+- uses: overtrue/conventional-pr-title@v1
+  with:
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+    model: 'openai/gpt-4o-mini'
+    match-language: 'true'
+```
+
+**Examples:**
+- **Chinese PR title**: "添加新的用户界面组件" → `feat(ui): 添加新的用户界面组件`
+- **Japanese PR title**: "新しいユーザーインターフェースコンポーネントを追加" → `feat(ui): 新しいユーザーインターフェースコンポーネントを追加`
+- **Korean PR title**: "새로운 사용자 인터페이스 컴포넌트 추가" → `feat(ui): 새로운 사용자 인터페이스 컴포넌트 추가`
+- **English PR title**: "Add new user interface component" → `feat(ui): add new user interface component`
+
+> **Note**: Type and scope always remain in English (e.g., `feat`, `fix`, `ui`, `auth`), only the description part matches the original language.
 
 ## Outputs
 

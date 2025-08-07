@@ -38,6 +38,17 @@ Analyze a PR title and content, then suggest 1-3 improved titles that follow the
 7. **Language**: {{languageInstruction}}
 8. **Format consistency**: The conventional commit format (type(scope): description) should always be in English, but your reasoning/explanation should match the detected language.
 
+## Language Matching Rules
+When match-language is enabled:
+- **Detect the language** used in the PR title and description
+- **Generate the description part** in the same language as the original content
+- **Keep type and scope in English** (e.g., feat, fix, ui, auth, etc.)
+- **Examples**:
+  - Chinese: feat(ui): 添加新的用户界面组件
+  - Japanese: feat(ui): 新しいユーザーインターフェースコンポーネントを追加
+  - Korean: feat(ui): 새로운 사용자 인터페이스 컴포넌트 추가
+  - English: feat(ui): add new user interface component
+
 ## Response Format
 You MUST return ONLY a valid JSON object with this exact structure:
 \`\`\`json
@@ -142,7 +153,9 @@ Generate improved Conventional Commits titles for this PR.`
   }
 
   private shouldSkipProcessing(isConventional: boolean): boolean {
-    return this.config.skipIfConventional && isConventional
+    const shouldSkip = this.config.skipIfConventional && isConventional
+    debug(`Skip processing check: skipIfConventional=${this.config.skipIfConventional}, isConventional=${isConventional}, shouldSkip=${shouldSkip}`)
+    return shouldSkip
   }
 
   /**
@@ -167,17 +180,17 @@ Generate improved Conventional Commits titles for this PR.`
         debug(`Creating model for: ${this.config.model}`)
         const model = await createModel(this.config.model)
         debug(`Model created successfully: ${model.constructor.name}`)
-        
+
         // Check environment variables for debugging
         if (this.config.model.startsWith('openai')) {
           debug(`OpenAI API Key present: ${process.env.OPENAI_API_KEY ? 'Yes' : 'No'}`)
           debug(`OpenAI Base URL: ${process.env.OPENAI_BASE_URL || 'Not set'}`)
         }
-        
+
         debug(`Calling generateText with model: ${model.constructor.name}`)
         debug(`System prompt length: ${systemPrompt.length} characters`)
         debug(`User prompt length: ${userPrompt.length} characters`)
-        
+
         try {
           result = await generateText({
             model,
@@ -193,11 +206,11 @@ Generate improved Conventional Commits titles for this PR.`
 
         debug(`Raw AI response: ${result.text}`)
         debug(`Response object keys: ${Object.keys(result)}`)
-        
+
         if (!result || !result.text) {
           throw new Error(`AI service returned empty response. Result: ${JSON.stringify(result)}`)
         }
-        
+
         const parsedResponse = this.parseResponse(result.text)
         debug(`Parsed response: ${JSON.stringify(parsedResponse)}`)
         return parsedResponse
@@ -210,14 +223,14 @@ Generate improved Conventional Commits titles for this PR.`
         warning(`Detailed error information:`)
         warning(`Error type: ${error instanceof Error ? error.constructor.name : typeof error}`)
         warning(`Error message: ${errorMessage}`)
-        
+
         if (result) {
           warning(`Result object: ${JSON.stringify(result)}`)
           warning(`Result text: "${result.text || 'No text property'}"`)
         } else {
           warning(`No result object available`)
         }
-        
+
         // Log the full error stack for debugging
         if (error instanceof Error && error.stack) {
           debug(`Error stack: ${error.stack}`)
@@ -244,7 +257,7 @@ Generate improved Conventional Commits titles for this PR.`
       scopeRule: this.config.includeScope ? 'MUST include' : 'MAY include',
       maxLength: this.config.validationOptions.maxLength,
       languageInstruction: this.config.matchLanguage
-        ? 'Detect the language used in the PR title and description, then respond in the same language. If the content is in Chinese, respond in Chinese; if in English, respond in English, etc.'
+        ? 'Match the language of the original PR title and description. Generate the description part in the same language while keeping type and scope in English.'
         : 'Always respond in English.'
     }
 
@@ -400,18 +413,24 @@ Generate improved Conventional Commits titles for this PR.`
   ): Promise<{ actionTaken: 'updated' | 'error'; errorMessage?: string }> {
     const bestSuggestion = aiResponse.suggestions[0]
 
+    info(`🔄 Auto mode: Attempting to update PR #${prNumber} title`)
+    info(`   Current title: "${currentTitle}"`)
+    info(`   New title: "${bestSuggestion}"`)
+
     try {
       await this.githubService.updatePRTitle(prNumber, bestSuggestion)
-      info(`✅ Updated PR title to: "${bestSuggestion}"`)
+      info(`✅ Successfully updated PR title to: "${bestSuggestion}"`)
 
       if (this.config.autoComment) {
+        info(`💬 Adding success notification comment...`)
         await this.addSuccessComment(prNumber, currentTitle, bestSuggestion, aiResponse.reasoning)
       }
 
       return { actionTaken: 'updated' }
     } catch (error) {
       const errorMessage = `Failed to update PR title: ${error instanceof Error ? error.message : 'Unknown error'}`
-      warning(errorMessage)
+      warning(`❌ ${errorMessage}`)
+      debug(`Full error details: ${error instanceof Error ? error.stack : 'No stack trace'}`)
       return { actionTaken: 'error', errorMessage }
     }
   }
@@ -486,12 +505,6 @@ Generate improved Conventional Commits titles for this PR.`
       `### 🧠 AI Reasoning`,
       reasoning,
       '',
-      `### ✨ Benefits`,
-      '📋 Follows team coding standards',
-      '📊 Improves version control and change tracking',
-      '🔍 Enhances code review efficiency',
-      '📈 Better project maintenance experience',
-      '',
       `---`,
       `*This suggestion was generated by AI to help maintain consistent commit message standards.*`
     ]
@@ -518,11 +531,6 @@ Generate improved Conventional Commits titles for this PR.`
     }
 
     lines.push(
-      `### ✨ Benefits`,
-      '📋 Follows team coding standards',
-      '📊 Improves version control and change tracking',
-      '🔍 Enhances code review efficiency',
-      '',
       `---`,
       `*This update was performed automatically by AI to maintain consistent commit message standards.*`
     )

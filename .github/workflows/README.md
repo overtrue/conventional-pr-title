@@ -153,7 +153,8 @@ debug: 'true'
 This will show detailed logs including:
 - Provider detection
 - Model creation
-- API calls
-- Error details
+- Environment variable status
+- API calls and responses
+- Error details with full stack traces
 - JSON parsing attempts
 - Fallback suggestions extraction
