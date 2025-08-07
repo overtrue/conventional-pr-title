@@ -8,10 +8,10 @@ import typescript from '@rollup/plugin-typescript'
 const config = {
   input: 'src/index.ts',
   output: {
-    esModule: true,
-    file: 'dist/index.js',
-    format: 'es',
-    sourcemap: true
+    file: 'dist/index.cjs',
+    format: 'cjs',
+    sourcemap: true,
+    exports: 'auto'
   },
   plugins: [
     typescript(), 
