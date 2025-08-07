@@ -155,6 +155,7 @@ Generate improved Conventional Commits titles for this PR.`
     let lastError: Error | undefined
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      let result: any = null
       try {
         const systemPrompt = this.buildSystemPrompt()
         const userPrompt = this.buildUserPrompt(prContext)
@@ -164,7 +165,7 @@ Generate improved Conventional Commits titles for this PR.`
         debug(`User prompt: ${userPrompt}`)
 
         const model = await createModel(this.config.model)
-        const result = await generateText({
+        result = await generateText({
           model,
           system: systemPrompt,
           prompt: userPrompt,
@@ -178,6 +179,13 @@ Generate improved Conventional Commits titles for this PR.`
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error))
         warning(`Attempt ${attempt + 1} failed: ${lastError.message}`)
+        
+        // Print the raw AI response for debugging
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        if (errorMessage.includes('Invalid JSON response') || errorMessage.includes('JSON')) {
+          warning(`Raw AI response that caused the error:`)
+          warning(`"${result?.text || 'No response text available'}"`)
+        }
 
         if (attempt < maxRetries) {
           debug(`Retrying after error, attempt ${attempt + 2}...`)
@@ -276,6 +284,12 @@ Generate improved Conventional Commits titles for this PR.`
       warning(`parseResponse: failed to parse text: ${text}`)
 
       const suggestions = this.extractSuggestionsFromText(text)
+      
+      // If we couldn't extract any suggestions, throw an error with the original text
+      if (suggestions.length === 0 || (suggestions.length === 1 && suggestions[0] === 'feat: improve PR title')) {
+        throw new Error(`Invalid JSON response: Could not parse AI response and no valid suggestions found. Original response: "${text}"`)
+      }
+      
       return {
         suggestions,
         reasoning: 'AI response could not be parsed as JSON, extracted suggestions from text',
