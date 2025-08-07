@@ -28,28 +28,10 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Install dependencies
-        run: |
-          npm i -g @anthropic-ai/claude-code
-          which claude
-
-      - name: Get Claude executable path
-        id: claude-path
-        run: |
-          CLAUDE_PATH=$(which claude)
-          if [ -z "$CLAUDE_PATH" ]; then
-            echo "❌ Claude executable not found in PATH"
-            exit 1
-          fi
-          echo "Found claude at: $CLAUDE_PATH"
-          echo "claude-path=$CLAUDE_PATH" >> $GITHUB_OUTPUT
-
       - name: Auto-generate conventional PR title
         uses: ./
         env:
-          # Claude Code configuration
-          CLAUDE_CODE_API_KEY: ${{ secrets.CLAUDE_CODE_API_KEY }}
-          CLAUDE_CODE_EXECUTABLE_PATH: ${{ steps.claude-path.outputs.claude-path }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         with:
           # Required: GitHub token for API access
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -57,7 +39,7 @@ jobs:
           # AI Model Configuration (simplified)
           # Use provider name only (e.g., 'claude-code') or full model path (e.g., 'claude-code/sonnet')
           # API keys are automatically read from environment variables (e.g., CLAUDE_CODE_API_KEY)
-          model: "claude-code"
+          model: "openrouter"
 
           # Operation Mode
           mode: "auto" # 'auto' to update title, 'suggest' to add comment
