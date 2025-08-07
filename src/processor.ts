@@ -164,7 +164,16 @@ Generate improved Conventional Commits titles for this PR.`
         debug(`System prompt: ${systemPrompt}`)
         debug(`User prompt: ${userPrompt}`)
 
+        debug(`Creating model for: ${this.config.model}`)
         const model = await createModel(this.config.model)
+        debug(`Model created successfully: ${model.constructor.name}`)
+        
+        // Check environment variables for debugging
+        if (this.config.model.startsWith('openai')) {
+          debug(`OpenAI API Key present: ${process.env.OPENAI_API_KEY ? 'Yes' : 'No'}`)
+          debug(`OpenAI Base URL: ${process.env.OPENAI_BASE_URL || 'Not set'}`)
+        }
+        
         result = await generateText({
           model,
           system: systemPrompt,
@@ -173,18 +182,35 @@ Generate improved Conventional Commits titles for this PR.`
         })
 
         debug(`Raw AI response: ${result.text}`)
+        debug(`Response object keys: ${Object.keys(result)}`)
+        
+        if (!result || !result.text) {
+          throw new Error(`AI service returned empty response. Result: ${JSON.stringify(result)}`)
+        }
+        
         const parsedResponse = this.parseResponse(result.text)
         debug(`Parsed response: ${JSON.stringify(parsedResponse)}`)
         return parsedResponse
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error))
         warning(`Attempt ${attempt + 1} failed: ${lastError.message}`)
-        
-        // Print the raw AI response for debugging
+
+        // Print detailed error information for debugging
         const errorMessage = error instanceof Error ? error.message : String(error)
-        if (errorMessage.includes('Invalid JSON response') || errorMessage.includes('JSON')) {
-          warning(`Raw AI response that caused the error:`)
-          warning(`"${result?.text || 'No response text available'}"`)
+        warning(`Detailed error information:`)
+        warning(`Error type: ${error instanceof Error ? error.constructor.name : typeof error}`)
+        warning(`Error message: ${errorMessage}`)
+        
+        if (result) {
+          warning(`Result object: ${JSON.stringify(result)}`)
+          warning(`Result text: "${result.text || 'No text property'}"`)
+        } else {
+          warning(`No result object available`)
+        }
+        
+        // Log the full error stack for debugging
+        if (error instanceof Error && error.stack) {
+          debug(`Error stack: ${error.stack}`)
         }
 
         if (attempt < maxRetries) {
@@ -284,12 +310,12 @@ Generate improved Conventional Commits titles for this PR.`
       warning(`parseResponse: failed to parse text: ${text}`)
 
       const suggestions = this.extractSuggestionsFromText(text)
-      
+
       // If we couldn't extract any suggestions, throw an error with the original text
       if (suggestions.length === 0 || (suggestions.length === 1 && suggestions[0] === 'feat: improve PR title')) {
         throw new Error(`Invalid JSON response: Could not parse AI response and no valid suggestions found. Original response: "${text}"`)
       }
-      
+
       return {
         suggestions,
         reasoning: 'AI response could not be parsed as JSON, extracted suggestions from text',

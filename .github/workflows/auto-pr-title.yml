@@ -40,7 +40,7 @@ jobs:
           # AI Model Configuration (simplified)
           # Use provider name only (e.g., 'claude-code') or full model path (e.g., 'claude-code/sonnet')
           # API keys are automatically read from environment variables (e.g., CLAUDE_CODE_API_KEY)
-          model: "openai"
+          model: "openai/gpt-4o"
 
           # Operation Mode
           mode: "auto" # 'auto' to update title, 'suggest' to add comment

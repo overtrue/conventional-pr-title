@@ -138,8 +138,9 @@ The action supports 18 AI providers:
 5. **"Invalid JSON response"**
    - The action now has robust JSON parsing with fallback to text extraction
    - Enable debug mode to see detailed parsing attempts
-   - The action will still provide suggestions even if JSON parsing fails
+   - The action will print the raw AI response when JSON parsing fails
    - Check the AI provider's response format and ensure it follows the expected structure
+   - The action will still provide suggestions even if JSON parsing fails
 
 ### Debug Mode
 

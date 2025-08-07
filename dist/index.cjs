@@ -176906,7 +176906,14 @@ Generate improved Conventional Commits titles for this PR.`;
                 coreExports.debug(`Attempt ${attempt + 1}/${maxRetries + 1}`);
                 coreExports.debug(`System prompt: ${systemPrompt}`);
                 coreExports.debug(`User prompt: ${userPrompt}`);
+                coreExports.debug(`Creating model for: ${this.config.model}`);
                 const model = await createModel(this.config.model);
+                coreExports.debug(`Model created successfully: ${model.constructor.name}`);
+                // Check environment variables for debugging
+                if (this.config.model.startsWith('openai')) {
+                    coreExports.debug(`OpenAI API Key present: ${process.env.OPENAI_API_KEY ? 'Yes' : 'No'}`);
+                    coreExports.debug(`OpenAI Base URL: ${process.env.OPENAI_BASE_URL || 'Not set'}`);
+                }
                 result = await generateText({
                     model,
                     system: systemPrompt,
@@ -176914,6 +176921,10 @@ Generate improved Conventional Commits titles for this PR.`;
                     temperature: 0.3
                 });
                 coreExports.debug(`Raw AI response: ${result.text}`);
+                coreExports.debug(`Response object keys: ${Object.keys(result)}`);
+                if (!result || !result.text) {
+                    throw new Error(`AI service returned empty response. Result: ${JSON.stringify(result)}`);
+                }
                 const parsedResponse = this.parseResponse(result.text);
                 coreExports.debug(`Parsed response: ${JSON.stringify(parsedResponse)}`);
                 return parsedResponse;
@@ -176921,11 +176932,21 @@ Generate improved Conventional Commits titles for this PR.`;
             catch (error) {
                 lastError = error instanceof Error ? error : new Error(String(error));
                 coreExports.warning(`Attempt ${attempt + 1} failed: ${lastError.message}`);
-                // Print the raw AI response for debugging
+                // Print detailed error information for debugging
                 const errorMessage = error instanceof Error ? error.message : String(error);
-                if (errorMessage.includes('Invalid JSON response') || errorMessage.includes('JSON')) {
-                    coreExports.warning(`Raw AI response that caused the error:`);
-                    coreExports.warning(`"${result?.text || 'No response text available'}"`);
+                coreExports.warning(`Detailed error information:`);
+                coreExports.warning(`Error type: ${error instanceof Error ? error.constructor.name : typeof error}`);
+                coreExports.warning(`Error message: ${errorMessage}`);
+                if (result) {
+                    coreExports.warning(`Result object: ${JSON.stringify(result)}`);
+                    coreExports.warning(`Result text: "${result.text || 'No text property'}"`);
+                }
+                else {
+                    coreExports.warning(`No result object available`);
+                }
+                // Log the full error stack for debugging
+                if (error instanceof Error && error.stack) {
+                    coreExports.debug(`Error stack: ${error.stack}`);
                 }
                 if (attempt < maxRetries) {
                     coreExports.debug(`Retrying after error, attempt ${attempt + 2}...`);
