@@ -1,6 +1,6 @@
 import { debug, warning } from '@actions/core'
 import { context, getOctokit } from '@actions/github'
-import { GitHubServiceConfig, PRContext } from './types'
+import { GitHubServiceConfig, PRContext } from './types.js'
 
 // Processing limits
 const LIMITS = {

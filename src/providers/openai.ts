@@ -1,5 +1,6 @@
+import { createOpenAI } from '@ai-sdk/openai'
 import { LanguageModel } from 'ai'
-import { AIProvider } from './base-provider'
+import { AIProvider } from './base-provider.js'
 
 /**
  * OpenAI Provider implementation
@@ -11,8 +12,6 @@ export class OpenAIProvider implements AIProvider {
 
   async createModel(modelId: string, options: Record<string, any> = {}): Promise<LanguageModel> {
     try {
-      const { createOpenAI } = await import('@ai-sdk/openai')
-
       const config: any = {}
       if (options.apiKey || process.env.OPENAI_API_KEY) {
         config.apiKey = options.apiKey || process.env.OPENAI_API_KEY
@@ -35,15 +34,6 @@ export class OpenAIProvider implements AIProvider {
     return {
       apiKey: 'OPENAI_API_KEY',
       baseURL: 'OPENAI_BASE_URL'
-    }
-  }
-
-  isAvailable(): boolean {
-    try {
-      require.resolve('@ai-sdk/openai')
-      return true
-    } catch {
-      return false
     }
   }
 }

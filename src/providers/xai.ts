@@ -1,5 +1,6 @@
+import { createXai } from '@ai-sdk/xai'
 import { LanguageModel } from 'ai'
-import { AIProvider } from './base-provider'
+import { AIProvider } from './base-provider.js'
 
 /**
  * xAI Grok Provider implementation
@@ -11,8 +12,6 @@ export class XAIProvider implements AIProvider {
 
   async createModel(modelId: string, options: Record<string, any> = {}): Promise<LanguageModel> {
     try {
-      const { createXai } = await import('@ai-sdk/xai')
-
       const config: any = {}
       if (options.apiKey || process.env.XAI_API_KEY) {
         config.apiKey = options.apiKey || process.env.XAI_API_KEY
@@ -38,12 +37,4 @@ export class XAIProvider implements AIProvider {
     }
   }
 
-  isAvailable(): boolean {
-    try {
-      require.resolve('@ai-sdk/xai')
-      return true
-    } catch {
-      return false
-    }
-  }
 }

@@ -1,5 +1,6 @@
+import { createAnthropic } from '@ai-sdk/anthropic'
 import { LanguageModel } from 'ai'
-import { AIProvider } from './base-provider'
+import { AIProvider } from './base-provider.js'
 
 /**
  * Anthropic Provider implementation
@@ -11,8 +12,6 @@ export class AnthropicProvider implements AIProvider {
 
   async createModel(modelId: string, options: Record<string, any> = {}): Promise<LanguageModel> {
     try {
-      const { createAnthropic } = await import('@ai-sdk/anthropic')
-
       const config: any = {}
       if (options.apiKey || process.env.ANTHROPIC_API_KEY) {
         config.apiKey = options.apiKey || process.env.ANTHROPIC_API_KEY
@@ -38,12 +37,4 @@ export class AnthropicProvider implements AIProvider {
     }
   }
 
-  isAvailable(): boolean {
-    try {
-      require.resolve('@ai-sdk/anthropic')
-      return true
-    } catch {
-      return false
-    }
-  }
 }

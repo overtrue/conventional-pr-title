@@ -22,7 +22,8 @@
       "Bash(npx:*)",
       "Bash(cp:*)",
       "WebFetch(domain:docs.github.com)",
-      "Bash(npm:*)"
+      "Bash(npm:*)",
+      "Bash(chmod:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

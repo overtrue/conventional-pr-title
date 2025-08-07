@@ -30,9 +30,4 @@ export interface AIProvider {
    * Get environment variable names for this provider
    */
   getEnvVars(): { apiKey: string; baseURL: string }
-
-  /**
-   * Check if this provider is available (package installed)
-   */
-  isAvailable(): boolean
 }

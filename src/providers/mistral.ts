@@ -1,5 +1,6 @@
+import { createMistral } from '@ai-sdk/mistral'
 import { LanguageModel } from 'ai'
-import { AIProvider } from './base-provider'
+import { AIProvider } from './base-provider.js'
 
 /**
  * Mistral Provider implementation
@@ -11,8 +12,6 @@ export class MistralProvider implements AIProvider {
 
   async createModel(modelId: string, options: Record<string, any> = {}): Promise<LanguageModel> {
     try {
-      const { createMistral } = await import('@ai-sdk/mistral')
-
       const config: any = {}
       if (options.apiKey || process.env.MISTRAL_API_KEY) {
         config.apiKey = options.apiKey || process.env.MISTRAL_API_KEY
@@ -38,12 +37,4 @@ export class MistralProvider implements AIProvider {
     }
   }
 
-  isAvailable(): boolean {
-    try {
-      require.resolve('@ai-sdk/mistral')
-      return true
-    } catch {
-      return false
-    }
-  }
 }

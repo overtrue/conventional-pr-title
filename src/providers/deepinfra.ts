@@ -1,5 +1,6 @@
+import { createDeepInfra } from '@ai-sdk/deepinfra'
 import { LanguageModel } from 'ai'
-import { AIProvider } from './base-provider'
+import { AIProvider } from './base-provider.js'
 
 /**
  * DeepInfra Provider implementation
@@ -11,8 +12,6 @@ export class DeepInfraProvider implements AIProvider {
 
   async createModel(modelId: string, options: Record<string, any> = {}): Promise<LanguageModel> {
     try {
-      const { createDeepInfra } = await import('@ai-sdk/deepinfra')
-
       const config: any = {}
       if (options.apiKey || process.env.DEEPINFRA_API_KEY) {
         config.apiKey = options.apiKey || process.env.DEEPINFRA_API_KEY
@@ -38,12 +37,4 @@ export class DeepInfraProvider implements AIProvider {
     }
   }
 
-  isAvailable(): boolean {
-    try {
-      require.resolve('@ai-sdk/deepinfra')
-      return true
-    } catch {
-      return false
-    }
-  }
 }

@@ -1,6 +1,6 @@
 import { getBooleanInput, getInput, setFailed, setOutput } from '@actions/core'
-import { ActionConfig, ConfigError, ValidationOptions } from './types'
-import { DEFAULT_OPTIONS } from './utils'
+import { ActionConfig, ConfigError, ValidationOptions } from './types.js'
+import { DEFAULT_OPTIONS } from './utils.js'
 
 export class ConfigurationError extends Error {
   public readonly errors: ConfigError[]

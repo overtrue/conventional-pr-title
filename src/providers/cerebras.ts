@@ -1,5 +1,6 @@
+import { createCerebras } from '@ai-sdk/cerebras'
 import { LanguageModel } from 'ai'
-import { AIProvider } from './base-provider'
+import { AIProvider } from './base-provider.js'
 
 /**
  * Cerebras Provider implementation
@@ -11,7 +12,6 @@ export class CerebrasProvider implements AIProvider {
 
   async createModel(modelId: string, options: Record<string, any> = {}): Promise<LanguageModel> {
     try {
-      const { createCerebras } = await import('@ai-sdk/cerebras')
 
       const config: any = {}
       if (options.apiKey || process.env.CEREBRAS_API_KEY) {
@@ -38,12 +38,4 @@ export class CerebrasProvider implements AIProvider {
     }
   }
 
-  isAvailable(): boolean {
-    try {
-      require.resolve('@ai-sdk/cerebras')
-      return true
-    } catch {
-      return false
-    }
-  }
 }

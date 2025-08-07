@@ -1,23 +1,23 @@
 import { LanguageModel } from 'ai'
-import { AmazonBedrockProvider } from './amazon-bedrock'
-import { AnthropicProvider } from './anthropic'
-import { AzureProvider } from './azure'
-import { AIProvider } from './base-provider'
-import { CerebrasProvider } from './cerebras'
-import { ClaudeCodeProvider } from './claude-code'
-import { CohereProvider } from './cohere'
-import { DeepInfraProvider } from './deepinfra'
-import { DeepSeekProvider } from './deepseek'
-import { FireworksProvider } from './fireworks'
-import { GoogleProvider } from './google'
-import { GoogleVertexProvider } from './google-vertex'
-import { GroqProvider } from './groq'
-import { MistralProvider } from './mistral'
-import { OpenAIProvider } from './openai'
-import { OpenRouterProvider } from './openrouter'
-import { PerplexityProvider } from './perplexity'
-import { TogetherAIProvider } from './togetherai'
-import { XAIProvider } from './xai'
+import { AmazonBedrockProvider } from './amazon-bedrock.js'
+import { AnthropicProvider } from './anthropic.js'
+import { AzureProvider } from './azure.js'
+import { AIProvider } from './base-provider.js'
+import { CerebrasProvider } from './cerebras.js'
+import { ClaudeCodeProvider } from './claude-code.js'
+import { CohereProvider } from './cohere.js'
+import { DeepInfraProvider } from './deepinfra.js'
+import { DeepSeekProvider } from './deepseek.js'
+import { FireworksProvider } from './fireworks.js'
+import { GoogleVertexProvider } from './google-vertex.js'
+import { GoogleProvider } from './google.js'
+import { GroqProvider } from './groq.js'
+import { MistralProvider } from './mistral.js'
+import { OpenAIProvider } from './openai.js'
+import { OpenRouterProvider } from './openrouter.js'
+import { PerplexityProvider } from './perplexity.js'
+import { TogetherAIProvider } from './togetherai.js'
+import { XAIProvider } from './xai.js'
 
 /**
  * Registry of all available AI providers
@@ -89,10 +89,6 @@ export async function createModel(
     throw new Error(`Unknown provider: ${provider}`)
   }
 
-  if (!providerInstance.isAvailable()) {
-    throw new Error(`Provider '${provider}' is not available. Install the required package.`)
-  }
-
   return providerInstance.createModel(modelId, options)
 }
 
@@ -100,7 +96,7 @@ export async function createModel(
  * Get all available providers
  */
 export function getAvailableProviders(): AIProvider[] {
-  return Array.from(providers.values()).filter(p => p.isAvailable())
+  return Array.from(providers.values())
 }
 
 /**
@@ -114,8 +110,7 @@ export function getAllProviders(): AIProvider[] {
  * Check if a provider is available
  */
 export function isProviderAvailable(providerName: string): boolean {
-  const provider = providers.get(providerName)
-  return provider ? provider.isAvailable() : false
+  return providers.has(providerName)
 }
 
 /**

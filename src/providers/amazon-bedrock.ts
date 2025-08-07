@@ -1,5 +1,6 @@
+import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock'
 import { LanguageModel } from 'ai'
-import { AIProvider } from './base-provider'
+import { AIProvider } from './base-provider.js'
 
 /**
  * Amazon Bedrock Provider implementation
@@ -11,8 +12,6 @@ export class AmazonBedrockProvider implements AIProvider {
 
   async createModel(modelId: string, options: Record<string, any> = {}): Promise<LanguageModel> {
     try {
-      const { createAmazonBedrock } = await import('@ai-sdk/amazon-bedrock')
-
       const config: any = {}
       if (options.apiKey || process.env.AMAZON_BEDROCK_API_KEY) {
         config.apiKey = options.apiKey || process.env.AMAZON_BEDROCK_API_KEY
@@ -47,12 +46,4 @@ export class AmazonBedrockProvider implements AIProvider {
     }
   }
 
-  isAvailable(): boolean {
-    try {
-      require.resolve('@ai-sdk/amazon-bedrock')
-      return true
-    } catch {
-      return false
-    }
-  }
 }

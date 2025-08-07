@@ -1,5 +1,6 @@
+import { createCohere } from '@ai-sdk/cohere'
 import { LanguageModel } from 'ai'
-import { AIProvider } from './base-provider'
+import { AIProvider } from './base-provider.js'
 
 /**
  * Cohere Provider implementation
@@ -7,12 +8,10 @@ import { AIProvider } from './base-provider'
 export class CohereProvider implements AIProvider {
   readonly name = 'cohere'
   readonly defaultModel = 'command-r-plus'
-  readonly description = 'Cohere Command models'
+  readonly description = 'Cohere models'
 
   async createModel(modelId: string, options: Record<string, any> = {}): Promise<LanguageModel> {
     try {
-      const { createCohere } = await import('@ai-sdk/cohere')
-
       const config: any = {}
       if (options.apiKey || process.env.COHERE_API_KEY) {
         config.apiKey = options.apiKey || process.env.COHERE_API_KEY
@@ -35,15 +34,6 @@ export class CohereProvider implements AIProvider {
     return {
       apiKey: 'COHERE_API_KEY',
       baseURL: 'COHERE_BASE_URL'
-    }
-  }
-
-  isAvailable(): boolean {
-    try {
-      require.resolve('@ai-sdk/cohere')
-      return true
-    } catch {
-      return false
     }
   }
 }

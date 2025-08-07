@@ -1,5 +1,6 @@
+import { createDeepSeek } from '@ai-sdk/deepseek'
 import { LanguageModel } from 'ai'
-import { AIProvider } from './base-provider'
+import { AIProvider } from './base-provider.js'
 
 /**
  * DeepSeek Provider implementation
@@ -11,7 +12,6 @@ export class DeepSeekProvider implements AIProvider {
 
   async createModel(modelId: string, options: Record<string, any> = {}): Promise<LanguageModel> {
     try {
-      const { createDeepSeek } = await import('@ai-sdk/deepseek')
 
       const config: any = {}
       if (options.apiKey || process.env.DEEPSEEK_API_KEY) {
@@ -38,12 +38,4 @@ export class DeepSeekProvider implements AIProvider {
     }
   }
 
-  isAvailable(): boolean {
-    try {
-      require.resolve('@ai-sdk/deepseek')
-      return true
-    } catch {
-      return false
-    }
-  }
 }

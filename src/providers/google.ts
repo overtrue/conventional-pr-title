@@ -1,27 +1,20 @@
+import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { LanguageModel } from 'ai'
-import { AIProvider } from './base-provider'
+import { AIProvider } from './base-provider.js'
 
 /**
- * Google Generative AI Provider implementation
+ * Google Provider implementation
  */
 export class GoogleProvider implements AIProvider {
   readonly name = 'google'
   readonly defaultModel = 'gemini-1.5-flash'
-  readonly description = 'Google Generative AI models'
+  readonly description = 'Google Gemini models'
 
   async createModel(modelId: string, options: Record<string, any> = {}): Promise<LanguageModel> {
     try {
-      const { createGoogleGenerativeAI } = await import('@ai-sdk/google')
-
       const config: any = {}
       if (options.apiKey || process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
         config.apiKey = options.apiKey || process.env.GOOGLE_GENERATIVE_AI_API_KEY
-      }
-      if (options.baseURL || process.env.GOOGLE_BASE_URL) {
-        config.baseURL = options.baseURL || process.env.GOOGLE_BASE_URL
-      }
-      if (options.headers) {
-        config.headers = options.headers
       }
 
       const google = createGoogleGenerativeAI(config)
@@ -34,16 +27,8 @@ export class GoogleProvider implements AIProvider {
   getEnvVars(): { apiKey: string; baseURL: string } {
     return {
       apiKey: 'GOOGLE_GENERATIVE_AI_API_KEY',
-      baseURL: 'GOOGLE_BASE_URL'
+      baseURL: 'GOOGLE_GENERATIVE_AI_BASE_URL'
     }
   }
 
-  isAvailable(): boolean {
-    try {
-      require.resolve('@ai-sdk/google')
-      return true
-    } catch {
-      return false
-    }
-  }
 }

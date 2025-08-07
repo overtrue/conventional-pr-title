@@ -1,17 +1,17 @@
+import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import { LanguageModel } from 'ai'
-import { AIProvider } from './base-provider'
+import { AIProvider } from './base-provider.js'
 
 /**
  * OpenRouter Provider implementation
  */
 export class OpenRouterProvider implements AIProvider {
   readonly name = 'openrouter'
-  readonly defaultModel = 'openai/gpt-4o'
-  readonly description = 'OpenRouter - Access to 300+ models'
+  readonly defaultModel = 'meta-llama/llama-3.1-8b-instruct:free'
+  readonly description = 'OpenRouter models'
 
   async createModel(modelId: string, options: Record<string, any> = {}): Promise<LanguageModel> {
     try {
-      const { createOpenRouter } = await import('@openrouter/ai-sdk-provider')
 
       const config: any = {}
       if (options.apiKey || process.env.OPENROUTER_API_KEY) {
@@ -54,12 +54,4 @@ export class OpenRouterProvider implements AIProvider {
     }
   }
 
-  isAvailable(): boolean {
-    try {
-      require.resolve('@openrouter/ai-sdk-provider')
-      return true
-    } catch {
-      return false
-    }
-  }
 }

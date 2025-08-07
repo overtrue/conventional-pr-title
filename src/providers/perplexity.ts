@@ -1,5 +1,6 @@
+import { createPerplexity } from '@ai-sdk/perplexity'
 import { LanguageModel } from 'ai'
-import { AIProvider } from './base-provider'
+import { AIProvider } from './base-provider.js'
 
 /**
  * Perplexity Provider implementation
@@ -11,7 +12,6 @@ export class PerplexityProvider implements AIProvider {
 
   async createModel(modelId: string, options: Record<string, any> = {}): Promise<LanguageModel> {
     try {
-      const { createPerplexity } = await import('@ai-sdk/perplexity')
 
       const config: any = {}
       if (options.apiKey || process.env.PERPLEXITY_API_KEY) {
@@ -38,12 +38,4 @@ export class PerplexityProvider implements AIProvider {
     }
   }
 
-  isAvailable(): boolean {
-    try {
-      require.resolve('@ai-sdk/perplexity')
-      return true
-    } catch {
-      return false
-    }
-  }
 }

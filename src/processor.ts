@@ -2,10 +2,10 @@ import { debug, info, warning } from '@actions/core'
 import { generateText } from 'ai'
 import { readFileSync } from 'fs'
 import { join } from 'path'
-import { GitHubService } from './github'
-import { createModel } from './providers'
-import { ActionConfig, PRContext, ProcessingResult, TitleGenerationResponse } from './types'
-import { processTemplate, validateTitle } from './utils'
+import { GitHubService } from './github.js'
+import { createModel } from './providers/index.js'
+import { ActionConfig, PRContext, ProcessingResult, TitleGenerationResponse } from './types.js'
+import { processTemplate, validateTitle } from './utils.js'
 
 // Processing limits
 const LIMITS = {
@@ -176,7 +176,7 @@ export class PRProcessor {
       // Clean response text
       let cleanText = text
         .replace(/```json\s*|\s*```/gi, '')
-        .replace(/^[^{]*({.*})[^}]*$/s, '$1')
+        .replace(/^[^{]*(({[\s\S]*})[^}]*)$/, '$2')
         .trim()
 
       if (!cleanText.startsWith('{')) {

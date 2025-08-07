@@ -1,12 +1,8 @@
 import { debug, info, setFailed, warning } from '@actions/core'
 import { context } from '@actions/github'
-import { ConfigManager, ConfigurationError } from './config'
-import { createGitHubService } from './github'
-import { PRProcessor } from './processor'
-
-// Ensure ncc includes these dependencies
-import '@ai-sdk/provider'
-import '@ai-sdk/provider-utils'
+import { ConfigManager, ConfigurationError } from './config.js'
+import { createGitHubService } from './github.js'
+import { PRProcessor } from './processor.js'
 
 /**
  * Validate GitHub context

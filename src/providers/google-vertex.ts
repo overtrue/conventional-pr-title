@@ -1,5 +1,6 @@
+import { createVertex } from '@ai-sdk/google-vertex'
 import { LanguageModel } from 'ai'
-import { AIProvider } from './base-provider'
+import { AIProvider } from './base-provider.js'
 
 /**
  * Google Vertex AI Provider implementation
@@ -11,7 +12,6 @@ export class GoogleVertexProvider implements AIProvider {
 
   async createModel(modelId: string, options: Record<string, any> = {}): Promise<LanguageModel> {
     try {
-      const { createVertex } = await import('@ai-sdk/google-vertex')
 
       const config: any = {}
       if (options.apiKey || process.env.GOOGLE_VERTEX_API_KEY) {
@@ -44,12 +44,4 @@ export class GoogleVertexProvider implements AIProvider {
     }
   }
 
-  isAvailable(): boolean {
-    try {
-      require.resolve('@ai-sdk/google-vertex')
-      return true
-    } catch {
-      return false
-    }
-  }
 }

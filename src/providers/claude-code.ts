@@ -1,5 +1,6 @@
 import { LanguageModel } from 'ai'
-import { AIProvider } from './base-provider'
+import { createClaudeCode } from 'ai-sdk-provider-claude-code'
+import { AIProvider } from './base-provider.js'
 
 /**
  * Claude Code Provider implementation
@@ -11,8 +12,6 @@ export class ClaudeCodeProvider implements AIProvider {
 
   async createModel(modelId: string, options: Record<string, any> = {}): Promise<LanguageModel> {
     try {
-      const { createClaudeCode } = await import('ai-sdk-provider-claude-code')
-
       const config: any = {}
       if (options.apiKey || process.env.CLAUDE_CODE_API_KEY) {
         config.apiKey = options.apiKey || process.env.CLAUDE_CODE_API_KEY
@@ -38,12 +37,4 @@ export class ClaudeCodeProvider implements AIProvider {
     }
   }
 
-  isAvailable(): boolean {
-    try {
-      require.resolve('ai-sdk-provider-claude-code')
-      return true
-    } catch {
-      return false
-    }
-  }
 }

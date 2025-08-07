@@ -1,5 +1,6 @@
+import { createAzure } from '@ai-sdk/azure'
 import { LanguageModel } from 'ai'
-import { AIProvider } from './base-provider'
+import { AIProvider } from './base-provider.js'
 
 /**
  * Azure OpenAI Provider implementation
@@ -7,24 +8,16 @@ import { AIProvider } from './base-provider'
 export class AzureProvider implements AIProvider {
   readonly name = 'azure'
   readonly defaultModel = 'gpt-4o-mini'
-  readonly description = 'Azure OpenAI Service'
+  readonly description = 'Azure OpenAI models'
 
   async createModel(modelId: string, options: Record<string, any> = {}): Promise<LanguageModel> {
     try {
-      const { createAzure } = await import('@ai-sdk/azure')
-
       const config: any = {}
-      if (options.apiKey || process.env.AZURE_API_KEY) {
-        config.apiKey = options.apiKey || process.env.AZURE_API_KEY
+      if (options.apiKey || process.env.AZURE_OPENAI_API_KEY) {
+        config.apiKey = options.apiKey || process.env.AZURE_OPENAI_API_KEY
       }
-      if (options.baseURL || process.env.AZURE_BASE_URL) {
-        config.baseURL = options.baseURL || process.env.AZURE_BASE_URL
-      }
-      if (options.resourceName || process.env.AZURE_RESOURCE_NAME) {
-        config.resourceName = options.resourceName || process.env.AZURE_RESOURCE_NAME
-      }
-      if (options.deploymentName || process.env.AZURE_DEPLOYMENT_NAME) {
-        config.deploymentName = options.deploymentName || process.env.AZURE_DEPLOYMENT_NAME
+      if (options.baseURL || process.env.AZURE_OPENAI_ENDPOINT) {
+        config.baseURL = options.baseURL || process.env.AZURE_OPENAI_ENDPOINT
       }
       if (options.headers) {
         config.headers = options.headers
@@ -39,17 +32,8 @@ export class AzureProvider implements AIProvider {
 
   getEnvVars(): { apiKey: string; baseURL: string } {
     return {
-      apiKey: 'AZURE_API_KEY',
-      baseURL: 'AZURE_BASE_URL'
-    }
-  }
-
-  isAvailable(): boolean {
-    try {
-      require.resolve('@ai-sdk/azure')
-      return true
-    } catch {
-      return false
+      apiKey: 'AZURE_OPENAI_API_KEY',
+      baseURL: 'AZURE_OPENAI_ENDPOINT'
     }
   }
 }

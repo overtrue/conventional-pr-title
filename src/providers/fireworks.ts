@@ -1,18 +1,17 @@
+import { createFireworks } from '@ai-sdk/fireworks'
 import { LanguageModel } from 'ai'
-import { AIProvider } from './base-provider'
+import { AIProvider } from './base-provider.js'
 
 /**
  * Fireworks Provider implementation
  */
 export class FireworksProvider implements AIProvider {
   readonly name = 'fireworks'
-  readonly defaultModel = 'accounts/fireworks/models/llama-v2-7b-chat'
-  readonly description = 'Fireworks AI models'
+  readonly defaultModel = 'accounts/fireworks/models/llama-v3p1-8b-instruct'
+  readonly description = 'Fireworks models'
 
   async createModel(modelId: string, options: Record<string, any> = {}): Promise<LanguageModel> {
     try {
-      const { createFireworks } = await import('@ai-sdk/fireworks')
-
       const config: any = {}
       if (options.apiKey || process.env.FIREWORKS_API_KEY) {
         config.apiKey = options.apiKey || process.env.FIREWORKS_API_KEY
@@ -35,15 +34,6 @@ export class FireworksProvider implements AIProvider {
     return {
       apiKey: 'FIREWORKS_API_KEY',
       baseURL: 'FIREWORKS_BASE_URL'
-    }
-  }
-
-  isAvailable(): boolean {
-    try {
-      require.resolve('@ai-sdk/fireworks')
-      return true
-    } catch {
-      return false
     }
   }
 }
