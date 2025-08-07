@@ -1,7 +1,5 @@
 import { debug, info, warning } from '@actions/core'
 import { generateText } from 'ai'
-import { readFileSync } from 'fs'
-import { join } from 'path'
 import { GitHubService } from './github.js'
 import { createModel } from './providers/index.js'
 import { ActionConfig, PRContext, ProcessingResult, TitleGenerationResponse } from './types.js'
@@ -22,13 +20,67 @@ export class PRProcessor {
     private readonly config: ActionConfig,
     private readonly githubService: GitHubService
   ) {
-    // Load template files
-    try {
-      this.systemTemplate = readFileSync(join(__dirname, '../templates/system.md'), 'utf-8')
-      this.userTemplate = readFileSync(join(__dirname, '../templates/user.md'), 'utf-8')
-    } catch (error) {
-      throw new Error(`Failed to load prompt templates: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    }
+    // Define templates inline
+    this.systemTemplate = `# Conventional Commits PR Title Generator
+
+You are an expert at creating Conventional Commits titles for Pull Requests.
+
+## Task
+Analyze a PR title and content, then suggest 1-3 improved titles that follow the Conventional Commits standard.
+
+## Rules
+1. **Format**: \`type(scope): description\`
+2. **Allowed types**: {{allowedTypes}}
+3. **Scope**: {{scopeRule}} a scope in parentheses
+4. **Description**: lowercase, no period, max {{maxLength}} chars total
+5. **Be specific and descriptive**
+6. **Focus on WHAT changed, not HOW**
+7. **Language**: {{languageInstruction}}
+8. **Format consistency**: The conventional commit format (type(scope): description) should always be in English, but your reasoning/explanation should match the detected language.
+
+## Response Format
+Return a JSON object with:
+\`\`\`json
+{
+  "suggestions": ["title1", "title2", "title3"],
+  "reasoning": "explanation of why these titles are better (in the detected language)",
+  "confidence": 0.9
+}
+\`\`\`
+
+**Important**: Only return valid JSON, no additional text.`
+
+    this.userTemplate = `# PR Analysis
+
+## Original PR Title
+"{{originalTitle}}"
+
+{{#prDescription}}
+## PR Description
+{{prDescription}}
+
+{{/prDescription}}
+{{#prBody}}
+## PR Body
+{{prBody}}
+
+{{/prBody}}
+{{#diffContent}}
+## Code Changes (diff)
+{{diffContent}}
+
+{{/diffContent}}
+{{#changedFiles}}
+## Changed Files
+{{#each changedFiles}}
+- {{this}}
+{{/each}}
+
+{{/changedFiles}}
+
+---
+
+Generate improved Conventional Commits titles for this PR.`
   }
 
   /**
