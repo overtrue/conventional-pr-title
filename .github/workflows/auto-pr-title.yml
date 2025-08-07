@@ -33,12 +33,23 @@ jobs:
           npm i -g @anthropic-ai/claude-code
           which claude
 
+      - name: Get Claude executable path
+        id: claude-path
+        run: |
+          CLAUDE_PATH=$(which claude)
+          if [ -z "$CLAUDE_PATH" ]; then
+            echo "❌ Claude executable not found in PATH"
+            exit 1
+          fi
+          echo "Found claude at: $CLAUDE_PATH"
+          echo "claude-path=$CLAUDE_PATH" >> $GITHUB_OUTPUT
+
       - name: Auto-generate conventional PR title
         uses: ./
         env:
           # Claude Code configuration
           CLAUDE_CODE_API_KEY: ${{ secrets.CLAUDE_CODE_API_KEY }}
-          CLAUDE_CODE_EXECUTABLE_PATH: /usr/local/bin/claude
+          CLAUDE_CODE_EXECUTABLE_PATH: ${{ steps.claude-path.outputs.claude-path }}
         with:
           # Required: GitHub token for API access
           github-token: ${{ secrets.GITHUB_TOKEN }}

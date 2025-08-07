@@ -131,8 +131,8 @@ The action supports 18 AI providers:
 
 4. **"Claude Code executable not found"**
    - Ensure `@anthropic-ai/claude-code` is installed globally: `npm i -g @anthropic-ai/claude-code`
-   - Set `CLAUDE_CODE_EXECUTABLE_PATH` environment variable to the correct path
-   - Common paths: `/usr/local/bin/claude`, `/usr/bin/claude`, `/opt/homebrew/bin/claude`
+   - The action automatically detects the claude executable using `which claude`
+   - If needed, set `CLAUDE_CODE_EXECUTABLE_PATH` environment variable to the correct path
    - Verify the executable exists and has proper permissions
 
 ### Debug Mode

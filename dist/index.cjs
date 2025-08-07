@@ -66107,30 +66107,6 @@ class ClaudeCodeProvider {
             if (options.pathToClaudeCodeExecutable || process.env.CLAUDE_CODE_EXECUTABLE_PATH) {
                 defaultSettings.pathToClaudeCodeExecutable = options.pathToClaudeCodeExecutable || process.env.CLAUDE_CODE_EXECUTABLE_PATH;
             }
-            else {
-                // Try to find claude executable in common locations
-                const possiblePaths = [
-                    '/usr/local/bin/claude',
-                    '/usr/bin/claude',
-                    '/opt/homebrew/bin/claude',
-                    process.env.HOME ? `${process.env.HOME}/.local/bin/claude` : null,
-                    process.env.HOME ? `${process.env.HOME}/bin/claude` : null
-                ].filter(Boolean);
-                for (const path of possiblePaths) {
-                    if (!path)
-                        continue;
-                    try {
-                        const fs = await import('fs');
-                        if (fs.existsSync(path)) {
-                            defaultSettings.pathToClaudeCodeExecutable = path;
-                            break;
-                        }
-                    }
-                    catch {
-                        // Ignore fs import errors
-                    }
-                }
-            }
             if (Object.keys(defaultSettings).length > 0) {
                 config.defaultSettings = defaultSettings;
             }
