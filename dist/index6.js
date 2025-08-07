@@ -20,46 +20,90 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
-  cerebras: () => cerebras,
-  createCerebras: () => createCerebras
+  createDeepSeek: () => createDeepSeek,
+  deepseek: () => deepseek
 });
 module.exports = __toCommonJS(src_exports);
 
-// src/cerebras-provider.ts
+// src/deepseek-provider.ts
 var import_openai_compatible = require("@ai-sdk/openai-compatible");
 var import_provider = require("@ai-sdk/provider");
+var import_provider_utils2 = require("@ai-sdk/provider-utils");
+
+// src/deepseek-metadata-extractor.ts
 var import_provider_utils = require("@ai-sdk/provider-utils");
 var import_v4 = require("zod/v4");
-var cerebrasErrorSchema = import_v4.z.object({
-  message: import_v4.z.string(),
-  type: import_v4.z.string(),
-  param: import_v4.z.string(),
-  code: import_v4.z.string()
-});
-var cerebrasErrorStructure = {
-  errorSchema: cerebrasErrorSchema,
-  errorToMessage: (data) => data.message
+var buildDeepseekMetadata = (usage) => {
+  var _a, _b;
+  return usage == null ? void 0 : {
+    deepseek: {
+      promptCacheHitTokens: (_a = usage.prompt_cache_hit_tokens) != null ? _a : NaN,
+      promptCacheMissTokens: (_b = usage.prompt_cache_miss_tokens) != null ? _b : NaN
+    }
+  };
 };
-function createCerebras(options = {}) {
+var deepSeekMetadataExtractor = {
+  extractMetadata: async ({ parsedBody }) => {
+    const parsed = await (0, import_provider_utils.safeValidateTypes)({
+      value: parsedBody,
+      schema: deepSeekResponseSchema
+    });
+    return !parsed.success || parsed.value.usage == null ? void 0 : buildDeepseekMetadata(parsed.value.usage);
+  },
+  createStreamExtractor: () => {
+    let usage;
+    return {
+      processChunk: async (chunk) => {
+        var _a, _b;
+        const parsed = await (0, import_provider_utils.safeValidateTypes)({
+          value: chunk,
+          schema: deepSeekStreamChunkSchema
+        });
+        if (parsed.success && ((_b = (_a = parsed.value.choices) == null ? void 0 : _a[0]) == null ? void 0 : _b.finish_reason) === "stop" && parsed.value.usage) {
+          usage = parsed.value.usage;
+        }
+      },
+      buildMetadata: () => buildDeepseekMetadata(usage)
+    };
+  }
+};
+var deepSeekUsageSchema = import_v4.z.object({
+  prompt_cache_hit_tokens: import_v4.z.number().nullish(),
+  prompt_cache_miss_tokens: import_v4.z.number().nullish()
+});
+var deepSeekResponseSchema = import_v4.z.object({
+  usage: deepSeekUsageSchema.nullish()
+});
+var deepSeekStreamChunkSchema = import_v4.z.object({
+  choices: import_v4.z.array(
+    import_v4.z.object({
+      finish_reason: import_v4.z.string().nullish()
+    })
+  ).nullish(),
+  usage: deepSeekUsageSchema.nullish()
+});
+
+// src/deepseek-provider.ts
+function createDeepSeek(options = {}) {
   var _a;
-  const baseURL = (0, import_provider_utils.withoutTrailingSlash)(
-    (_a = options.baseURL) != null ? _a : "https://api.cerebras.ai/v1"
+  const baseURL = (0, import_provider_utils2.withoutTrailingSlash)(
+    (_a = options.baseURL) != null ? _a : "https://api.deepseek.com/v1"
   );
   const getHeaders = () => ({
-    Authorization: `Bearer ${(0, import_provider_utils.loadApiKey)({
+    Authorization: `Bearer ${(0, import_provider_utils2.loadApiKey)({
       apiKey: options.apiKey,
-      environmentVariableName: "CEREBRAS_API_KEY",
-      description: "Cerebras API key"
+      environmentVariableName: "DEEPSEEK_API_KEY",
+      description: "DeepSeek API key"
     })}`,
     ...options.headers
   });
   const createLanguageModel = (modelId) => {
     return new import_openai_compatible.OpenAICompatibleChatLanguageModel(modelId, {
-      provider: `cerebras.chat`,
+      provider: `deepseek.chat`,
       url: ({ path }) => `${baseURL}${path}`,
       headers: getHeaders,
       fetch: options.fetch,
-      errorStructure: cerebrasErrorStructure
+      metadataExtractor: deepSeekMetadataExtractor
     });
   };
   const provider = (modelId) => createLanguageModel(modelId);
@@ -73,10 +117,10 @@ function createCerebras(options = {}) {
   };
   return provider;
 }
-var cerebras = createCerebras();
+var deepseek = createDeepSeek();
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
-  cerebras,
-  createCerebras
+  createDeepSeek,
+  deepseek
 });
 //# sourceMappingURL=index.js.map
