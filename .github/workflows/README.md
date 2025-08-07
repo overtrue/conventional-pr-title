@@ -11,6 +11,7 @@ The action automatically reads API keys and base URLs from environment variables
 # Repository Secrets
 CLAUDE_CODE_API_KEY: your-claude-code-api-key
 CLAUDE_CODE_BASE_URL: https://api.anthropic.com/v1  # Optional
+CLAUDE_CODE_EXECUTABLE_PATH: /usr/local/bin/claude  # Optional, path to claude executable
 ```
 
 ### OpenRouter Provider
@@ -127,6 +128,12 @@ The action supports 18 AI providers:
 3. **"Invalid model format"**
    - Use `provider/model` format or just `provider` for default model
    - Ensure the model ID is valid for the chosen provider
+
+4. **"Claude Code executable not found"**
+   - Ensure `@anthropic-ai/claude-code` is installed globally: `npm i -g @anthropic-ai/claude-code`
+   - Set `CLAUDE_CODE_EXECUTABLE_PATH` environment variable to the correct path
+   - Common paths: `/usr/local/bin/claude`, `/usr/bin/claude`, `/opt/homebrew/bin/claude`
+   - Verify the executable exists and has proper permissions
 
 ### Debug Mode
 

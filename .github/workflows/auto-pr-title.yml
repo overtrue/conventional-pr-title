@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       pr_number:
-        description: 'PR number to process'
+        description: "PR number to process"
         required: true
         type: number
 
@@ -26,13 +26,17 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: Install dependencies
         run: npm i -g @anthropic-ai/claude-code
 
       - name: Auto-generate conventional PR title
         uses: ./
+        env:
+          # Claude Code configuration
+          CLAUDE_CODE_API_KEY: ${{ secrets.CLAUDE_CODE_API_KEY }}
+          CLAUDE_CODE_EXECUTABLE_PATH: /usr/local/bin/claude
         with:
           # Required: GitHub token for API access
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -40,18 +44,18 @@ jobs:
           # AI Model Configuration (simplified)
           # Use provider name only (e.g., 'claude-code') or full model path (e.g., 'claude-code/sonnet')
           # API keys are automatically read from environment variables (e.g., CLAUDE_CODE_API_KEY)
-          model: 'claude-code'
+          model: "claude-code"
 
           # Operation Mode
-          mode: 'auto' # 'auto' to update title, 'suggest' to add comment
+          mode: "auto" # 'auto' to update title, 'suggest' to add comment
 
           # Validation Rules
-          include-scope: 'true'
-          skip-if-conventional: 'true'
-          allowed-types: 'feat,fix,docs,style,refactor,test,chore,perf,ci,build,revert'
-          max-length: '72'
+          include-scope: "true"
+          skip-if-conventional: "true"
+          allowed-types: "feat,fix,docs,style,refactor,test,chore,perf,ci,build,revert"
+          max-length: "72"
 
           # Behavior Control
-          debug: 'true'
-          match-language: 'true'
-          auto-comment: 'true'
+          debug: "true"
+          match-language: "true"
+          auto-comment: "true"
