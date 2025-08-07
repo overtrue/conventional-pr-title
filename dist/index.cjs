@@ -176797,7 +176797,7 @@ Analyze a PR title and content, then suggest 1-3 improved titles that follow the
 8. **Format consistency**: The conventional commit format (type(scope): description) should always be in English, but your reasoning/explanation should match the detected language.
 
 ## Response Format
-Return a JSON object with:
+You MUST return ONLY a valid JSON object with this exact structure:
 \`\`\`json
 {
   "suggestions": ["title1", "title2", "title3"],
@@ -176806,7 +176806,12 @@ Return a JSON object with:
 }
 \`\`\`
 
-**Important**: Only return valid JSON, no additional text.`;
+**CRITICAL**: 
+- Return ONLY the JSON object, no markdown formatting, no additional text
+- Do not include \`\`\`json\` or \`\`\` markers
+- Ensure the JSON is valid and properly formatted
+- The suggestions array must contain 1-3 conventional commit titles
+- The reasoning should explain your choices in the detected language`;
         this.userTemplate = `# PR Analysis
 
 ## Original PR Title
@@ -176908,7 +176913,9 @@ Generate improved Conventional Commits titles for this PR.`;
                     temperature: 0.3
                 });
                 coreExports.debug(`Raw AI response: ${result.text}`);
-                return this.parseResponse(result.text);
+                const parsedResponse = this.parseResponse(result.text);
+                coreExports.debug(`Parsed response: ${JSON.stringify(parsedResponse)}`);
+                return parsedResponse;
             }
             catch (error) {
                 lastError = error instanceof Error ? error : new Error(String(error));
@@ -176957,26 +176964,38 @@ Generate improved Conventional Commits titles for this PR.`;
     parseResponse(text) {
         coreExports.debug(`parseResponse: raw text: ${text}`);
         try {
-            // Clean response text
+            // Clean response text - remove markdown code blocks
             let cleanText = text
                 .replace(/```json\s*|\s*```/gi, '')
-                .replace(/^[^{]*(({[\s\S]*})[^}]*)$/, '$2')
                 .trim();
+            // Try to find JSON object in the text
             if (!cleanText.startsWith('{')) {
                 const jsonMatch = text.match(/{[\s\S]*}/);
                 if (jsonMatch) {
                     cleanText = jsonMatch[0];
                 }
             }
+            // If still no JSON found, try to extract from the entire text
+            if (!cleanText.startsWith('{')) {
+                const braceStart = text.indexOf('{');
+                const braceEnd = text.lastIndexOf('}');
+                if (braceStart !== -1 && braceEnd !== -1 && braceEnd > braceStart) {
+                    cleanText = text.substring(braceStart, braceEnd + 1);
+                }
+            }
             coreExports.debug(`parseResponse: cleaned JSON string: ${cleanText}`);
             const parsed = JSON.parse(cleanText);
             coreExports.debug(`parseResponse: parsed JSON: ${JSON.stringify(parsed)}`);
+            // Validate parsed response
+            if (!parsed || typeof parsed !== 'object') {
+                throw new Error('Parsed response is not an object');
+            }
             return {
                 suggestions: Array.isArray(parsed.suggestions)
-                    ? parsed.suggestions
+                    ? parsed.suggestions.filter((s) => typeof s === 'string' && s.length > 0)
                     : [parsed.suggestions || 'feat: improve PR title'],
                 reasoning: parsed.reasoning || 'AI generated suggestions based on PR content',
-                confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.8
+                confidence: typeof parsed.confidence === 'number' ? Math.max(0, Math.min(1, parsed.confidence)) : 0.8
             };
         }
         catch (error) {
@@ -176998,12 +177017,31 @@ Generate improved Conventional Commits titles for this PR.`;
         const lines = text.split('\n');
         for (const line of lines) {
             const trimmed = line.trim();
+            // Look for conventional commit format
             if (trimmed.match(/^[a-z0-9]+(\([^)]+\))?(!)?: .+$/i) &&
                 trimmed.length <= 100) {
                 suggestions.push(trimmed);
             }
+            // Also look for quoted strings that might be suggestions
+            else if (trimmed.match(/^["'](.+)["']$/)) {
+                const match = trimmed.match(/^["'](.+)["']$/);
+                if (match && match[1].length <= 100) {
+                    suggestions.push(match[1]);
+                }
+            }
+            // Look for numbered or bulleted suggestions
+            else if (trimmed.match(/^[\d\-*]+\.?\s*(.+)$/)) {
+                const match = trimmed.match(/^[\d\-*]+\.?\s*(.+)$/);
+                if (match && match[1].length <= 100) {
+                    suggestions.push(match[1]);
+                }
+            }
         }
-        return suggestions.length > 0 ? suggestions : ['feat: improve PR title'];
+        // If no suggestions found, generate a basic one based on the original title
+        if (suggestions.length === 0) {
+            return ['feat: improve PR title'];
+        }
+        return suggestions.slice(0, 3); // Limit to 3 suggestions
     }
     /**
      * Execute action (auto update or comment)

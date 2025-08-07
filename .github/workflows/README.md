@@ -135,6 +135,12 @@ The action supports 18 AI providers:
    - If needed, set `CLAUDE_CODE_EXECUTABLE_PATH` environment variable to the correct path
    - Verify the executable exists and has proper permissions
 
+5. **"Invalid JSON response"**
+   - The action now has robust JSON parsing with fallback to text extraction
+   - Enable debug mode to see detailed parsing attempts
+   - The action will still provide suggestions even if JSON parsing fails
+   - Check the AI provider's response format and ensure it follows the expected structure
+
 ### Debug Mode
 
 Enable debug logging to troubleshoot issues:
@@ -148,3 +154,5 @@ This will show detailed logs including:
 - Model creation
 - API calls
 - Error details
+- JSON parsing attempts
+- Fallback suggestions extraction
