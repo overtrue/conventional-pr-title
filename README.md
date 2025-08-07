@@ -26,9 +26,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: overtrue/conventional-pr-title@v1
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          model: 'openai/gpt-4o-mini'  # 或者简写为 'openai'
+          model: 'openai/gpt-4o-mini'  # or just 'openai'
 ```
 
 ### 🔧 Advanced Usage
@@ -44,10 +46,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: overtrue/conventional-pr-title@v1
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           model: 'anthropic/claude-3-5-sonnet-20241022'
-          mode: 'auto'  # 自动更新标题
+          mode: 'auto'  # automatically update title
           include-scope: 'true'
           debug: 'true'
 ```
@@ -58,16 +62,16 @@ The action supports multiple AI providers with flexible model specification:
 
 ```yaml
 # OpenAI models
-model: 'openai/gpt-4o-mini'      # 完整格式
-model: 'openai'                  # 简写格式，使用默认模型
+model: 'openai/gpt-4o-mini'      # full format
+model: 'openai'                  # short format, uses default model
 
 # Anthropic models
 model: 'anthropic/claude-3-5-sonnet-20241022'
-model: 'anthropic'               # 使用默认 Claude 模型
+model: 'anthropic'               # uses default Claude model
 
 # Google models
 model: 'google/gemini-1.5-flash'
-model: 'google'                  # 使用默认 Gemini 模型
+model: 'google'                  # uses default Gemini model
 
 # Other providers
 model: 'mistral/mistral-large-latest'
@@ -85,68 +89,76 @@ model: 'vertex/gemini-1.5-flash'
 Set your API keys as GitHub secrets:
 
 ```bash
-# OpenAI
+# Common providers
 OPENAI_API_KEY=sk-...
-
-# Anthropic
 ANTHROPIC_API_KEY=sk-ant-...
-
-# Google
 GOOGLE_API_KEY=...
-
-# Mistral
 MISTRAL_API_KEY=...
-
-# xAI
 XAI_API_KEY=...
-
-# Cohere
 COHERE_API_KEY=...
-
-# Azure
 AZURE_API_KEY=...
-
-# Vertex AI
 GOOGLE_VERTEX_API_KEY=...
 ```
 
 #### Custom Base URLs (Optional)
-For using custom endpoints or proxy servers:
+For custom endpoints or proxy servers:
 
 ```bash
-# OpenAI
 OPENAI_BASE_URL=https://api.openai.com/v1
-
-# Anthropic
 ANTHROPIC_BASE_URL=https://api.anthropic.com/v1
-
-# Google
 GOOGLE_BASE_URL=https://generativelanguage.googleapis.com
-
-# Mistral
 MISTRAL_BASE_URL=https://api.mistral.ai
-
-# xAI
 XAI_BASE_URL=https://api.x.ai
-
-# Cohere
 COHERE_BASE_URL=https://api.cohere.ai
-
-# Azure
 AZURE_BASE_URL=https://your-resource.openai.azure.com
-
-# Vertex AI
 GOOGLE_VERTEX_BASE_URL=https://us-central1-aiplatform.googleapis.com
 ```
 
-#### Example with Custom Endpoint
+#### Complete Examples for Different Providers
+
+**OpenAI Example:**
 ```yaml
-- uses: ./
+- uses: overtrue/conventional-pr-title@v1
+  env:
+    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
   with:
+    github-token: ${{ secrets.GITHUB_TOKEN }}
     model: 'openai/gpt-4o-mini'
+    mode: 'auto'
+```
+
+**Anthropic Example:**
+```yaml
+- uses: overtrue/conventional-pr-title@v1
+  env:
+    ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  with:
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+    model: 'anthropic/claude-3-5-sonnet-20241022'
+    mode: 'auto'
+```
+
+**OpenRouter Example:**
+```yaml
+- uses: overtrue/conventional-pr-title@v1
+  env:
+    OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+  with:
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+    model: 'openrouter'
+    mode: 'auto'
+```
+
+**Custom Endpoint Example:**
+```yaml
+- uses: overtrue/conventional-pr-title@v1
   env:
     OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     OPENAI_BASE_URL: ${{ secrets.CUSTOM_OPENAI_ENDPOINT }}
+  with:
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+    model: 'openai/gpt-4o-mini'
+    mode: 'auto'
 ```
 
 ## Configuration
@@ -215,6 +227,8 @@ The action supports all providers and models available in AI SDK v5, including:
 
 ```yaml
 - uses: overtrue/conventional-pr-title@v1
+  env:
+    ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}
     model: 'anthropic/claude-3-5-sonnet-20241022'
@@ -241,6 +255,8 @@ When `match-language` is enabled, the AI will detect the language of the origina
 
 ```yaml
 - uses: overtrue/conventional-pr-title@v1
+  env:
+    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}
     model: 'openai/gpt-4o-mini'
