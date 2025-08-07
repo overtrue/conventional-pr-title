@@ -31,8 +31,8 @@ jobs:
       - name: Auto-generate conventional PR title
         uses: ./
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_BASE_URL: ${{ secrets.OPENROUTER_BASE_URL }}
         with:
           # Required: GitHub token for API access
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -40,7 +40,7 @@ jobs:
           # AI Model Configuration (simplified)
           # Use provider name only (e.g., 'claude-code') or full model path (e.g., 'claude-code/sonnet')
           # API keys are automatically read from environment variables (e.g., CLAUDE_CODE_API_KEY)
-          model: "openai/gpt-4o"
+          model: "openrouter"
 
           # Operation Mode
           mode: "auto" # 'auto' to update title, 'suggest' to add comment

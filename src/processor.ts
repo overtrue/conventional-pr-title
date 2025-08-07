@@ -174,12 +174,22 @@ Generate improved Conventional Commits titles for this PR.`
           debug(`OpenAI Base URL: ${process.env.OPENAI_BASE_URL || 'Not set'}`)
         }
         
-        result = await generateText({
-          model,
-          system: systemPrompt,
-          prompt: userPrompt,
-          temperature: 0.3
-        })
+        debug(`Calling generateText with model: ${model.constructor.name}`)
+        debug(`System prompt length: ${systemPrompt.length} characters`)
+        debug(`User prompt length: ${userPrompt.length} characters`)
+        
+        try {
+          result = await generateText({
+            model,
+            system: systemPrompt,
+            prompt: userPrompt,
+            temperature: 0.3
+          })
+          debug(`generateText call completed successfully`)
+        } catch (generateError) {
+          debug(`generateText call failed: ${generateError instanceof Error ? generateError.message : String(generateError)}`)
+          throw generateError
+        }
 
         debug(`Raw AI response: ${result.text}`)
         debug(`Response object keys: ${Object.keys(result)}`)

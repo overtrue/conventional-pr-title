@@ -59717,7 +59717,7 @@ function convertToOpenAIChatMessages$1({
                   }
                   return {
                     type: "file",
-                    file: {
+                    file: typeof part.data === "string" && part.data.startsWith("file-") ? { file_id: part.data } : {
                       filename: (_c = part.filename) != null ? _c : `part-${index}.pdf`,
                       file_data: `data:application/pdf;base64,${convertToBase64(part.data)}`
                     }
@@ -61617,8 +61617,9 @@ async function convertToOpenAIResponsesMessages$1({
                   const mediaType = part.mediaType === "image/*" ? "image/jpeg" : part.mediaType;
                   return {
                     type: "input_image",
-                    image_url: part.data instanceof URL ? part.data.toString() : `data:${mediaType};base64,${part.data}`,
-                    // OpenAI specific extension: image detail
+                    ...part.data instanceof URL ? { image_url: part.data.toString() } : typeof part.data === "string" && part.data.startsWith("file-") ? { file_id: part.data } : {
+                      image_url: `data:${mediaType};base64,${part.data}`
+                    },
                     detail: (_b2 = (_a2 = part.providerOptions) == null ? void 0 : _a2.openai) == null ? void 0 : _b2.imageDetail
                   };
                 } else if (part.mediaType === "application/pdf") {
@@ -61629,8 +61630,10 @@ async function convertToOpenAIResponsesMessages$1({
                   }
                   return {
                     type: "input_file",
-                    filename: (_c2 = part.filename) != null ? _c2 : `part-${index}.pdf`,
-                    file_data: `data:application/pdf;base64,${part.data}`
+                    ...typeof part.data === "string" && part.data.startsWith("file-") ? { file_id: part.data } : {
+                      filename: (_c2 = part.filename) != null ? _c2 : `part-${index}.pdf`,
+                      file_data: `data:application/pdf;base64,${convertToBase64(part.data)}`
+                    }
                   };
                 } else {
                   throw new UnsupportedFunctionalityError$1({
@@ -169921,7 +169924,7 @@ function convertToOpenAIChatMessages({
                   }
                   return {
                     type: "file",
-                    file: {
+                    file: typeof part.data === "string" && part.data.startsWith("file-") ? { file_id: part.data } : {
                       filename: (_c = part.filename) != null ? _c : `part-${index}.pdf`,
                       file_data: `data:application/pdf;base64,${convertToBase64(part.data)}`
                     }
@@ -171724,8 +171727,9 @@ async function convertToOpenAIResponsesMessages({
                   const mediaType = part.mediaType === "image/*" ? "image/jpeg" : part.mediaType;
                   return {
                     type: "input_image",
-                    image_url: part.data instanceof URL ? part.data.toString() : `data:${mediaType};base64,${part.data}`,
-                    // OpenAI specific extension: image detail
+                    ...part.data instanceof URL ? { image_url: part.data.toString() } : typeof part.data === "string" && part.data.startsWith("file-") ? { file_id: part.data } : {
+                      image_url: `data:${mediaType};base64,${part.data}`
+                    },
                     detail: (_b2 = (_a2 = part.providerOptions) == null ? void 0 : _a2.openai) == null ? void 0 : _b2.imageDetail
                   };
                 } else if (part.mediaType === "application/pdf") {
@@ -171736,8 +171740,10 @@ async function convertToOpenAIResponsesMessages({
                   }
                   return {
                     type: "input_file",
-                    filename: (_c2 = part.filename) != null ? _c2 : `part-${index}.pdf`,
-                    file_data: `data:application/pdf;base64,${part.data}`
+                    ...typeof part.data === "string" && part.data.startsWith("file-") ? { file_id: part.data } : {
+                      filename: (_c2 = part.filename) != null ? _c2 : `part-${index}.pdf`,
+                      file_data: `data:application/pdf;base64,${convertToBase64(part.data)}`
+                    }
                   };
                 } else {
                   throw new UnsupportedFunctionalityError$1({
@@ -173121,7 +173127,7 @@ var __spreadValues = (a, b) => {
 };
 var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
 
-// node_modules/.pnpm/@ai-sdk+provider@2.0.0-beta.1/node_modules/@ai-sdk/provider/dist/index.mjs
+// node_modules/.pnpm/@ai-sdk+provider@2.0.0/node_modules/@ai-sdk/provider/dist/index.mjs
 var marker = "vercel.ai.error";
 var symbol = Symbol.for(marker);
 var _a;
@@ -173495,10 +173501,10 @@ var EventSourceParserStream = class extends TransformStream {
   }
 };
 
-// node_modules/.pnpm/zod-to-json-schema@3.24.5_zod@3.25.76/node_modules/zod-to-json-schema/dist/esm/parsers/string.js
+// node_modules/.pnpm/zod-to-json-schema@3.24.6_zod@3.25.76/node_modules/zod-to-json-schema/dist/esm/parsers/string.js
 new Set("ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvxyz0123456789");
 
-// node_modules/.pnpm/@ai-sdk+provider-utils@3.0.0-beta.5_zod@3.25.76/node_modules/@ai-sdk/provider-utils/dist/index.mjs
+// node_modules/.pnpm/@ai-sdk+provider-utils@3.0.1_zod@3.25.76/node_modules/@ai-sdk/provider-utils/dist/index.mjs
 function combineHeaders(...headers) {
   return headers.reduce(
     (combinedHeaders, currentHeaders) => __spreadValues(__spreadValues({}, combinedHeaders), currentHeaders != null ? currentHeaders : {}),
@@ -173535,7 +173541,7 @@ var createIdGenerator = ({
 };
 var generateId = createIdGenerator();
 function isAbortError(error) {
-  return error instanceof Error && (error.name === "AbortError" || error.name === "ResponseAborted" || // Next.js
+  return (error instanceof Error || error instanceof DOMException) && (error.name === "AbortError" || error.name === "ResponseAborted" || // Next.js
   error.name === "TimeoutError");
 }
 var FETCH_FAILED_ERROR_MESSAGES = ["fetch failed", "failed to fetch"];
@@ -174234,6 +174240,7 @@ function getChatCompletionToolChoice(toolChoice) {
 var OpenRouterChatCompletionBaseResponseSchema = object$1({
   id: string$1().optional(),
   model: string$1().optional(),
+  provider: string$1().optional(),
   usage: object$1({
     prompt_tokens: number$1(),
     prompt_tokens_details: object$1({
@@ -174267,7 +174274,19 @@ var OpenRouterNonStreamChatCompletionResponseSchema = OpenRouterChatCompletionBa
               arguments: string$1()
             })
           })
-        ).optional()
+        ).optional(),
+        annotations: array(
+          object$1({
+            type: _enum(["url_citation"]),
+            url_citation: object$1({
+              end_index: number$1(),
+              start_index: number$1(),
+              title: string$1(),
+              url: string$1(),
+              content: string$1().optional()
+            })
+          })
+        ).nullish()
       }),
       index: number$1().nullish(),
       logprobs: object$1({
@@ -174305,6 +174324,18 @@ var OpenRouterStreamChatCompletionChunkSchema = union([
               function: object$1({
                 name: string$1().nullish(),
                 arguments: string$1().nullish()
+              })
+            })
+          ).nullish(),
+          annotations: array(
+            object$1({
+              type: _enum(["url_citation"]),
+              url_citation: object$1({
+                end_index: number$1(),
+                start_index: number$1(),
+                title: string$1(),
+                url: string$1(),
+                content: string$1().optional()
               })
             })
           ).nullish()
@@ -174389,7 +174420,12 @@ var OpenRouterChatLanguageModel = class {
       // OpenRouter specific settings:
       include_reasoning: this.settings.includeReasoning,
       reasoning: this.settings.reasoning,
-      usage: this.settings.usage
+      usage: this.settings.usage,
+      // Web search settings:
+      plugins: this.settings.plugins,
+      web_search_options: this.settings.web_search_options,
+      // Provider routing settings:
+      provider: this.settings.provider
     }, this.config.extraBody), this.settings.extraBody);
     if ((responseFormat == null ? void 0 : responseFormat.type) === "json" && responseFormat.schema != null) {
       return __spreadProps(__spreadValues({}, baseArgs), {
@@ -174422,7 +174458,7 @@ var OpenRouterChatLanguageModel = class {
     return baseArgs;
   }
   async doGenerate(options) {
-    var _a15, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w;
+    var _a15, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x;
     const providerOptions = options.providerOptions || {};
     const openrouterOptions = providerOptions.openrouter || {};
     const args = __spreadValues(__spreadValues({}, this.getArgs(options)), openrouterOptions);
@@ -174513,6 +174549,24 @@ var OpenRouterChatLanguageModel = class {
         });
       }
     }
+    if (choice.message.annotations) {
+      for (const annotation of choice.message.annotations) {
+        if (annotation.type === "url_citation") {
+          content.push({
+            type: "source",
+            sourceType: "url",
+            id: annotation.url_citation.url,
+            url: annotation.url_citation.url,
+            title: annotation.url_citation.title,
+            providerMetadata: {
+              openrouter: {
+                content: annotation.url_citation.content || ""
+              }
+            }
+          });
+        }
+      }
+    }
     return {
       content,
       finishReason: mapOpenRouterFinishReason(choice.finish_reason),
@@ -174520,19 +174574,20 @@ var OpenRouterChatLanguageModel = class {
       warnings: [],
       providerMetadata: {
         openrouter: {
+          provider: (_k = response.provider) != null ? _k : "",
           usage: {
-            promptTokens: (_k = usageInfo.inputTokens) != null ? _k : 0,
-            completionTokens: (_l = usageInfo.outputTokens) != null ? _l : 0,
-            totalTokens: (_m = usageInfo.totalTokens) != null ? _m : 0,
-            cost: (_n = response.usage) == null ? void 0 : _n.cost,
+            promptTokens: (_l = usageInfo.inputTokens) != null ? _l : 0,
+            completionTokens: (_m = usageInfo.outputTokens) != null ? _m : 0,
+            totalTokens: (_n = usageInfo.totalTokens) != null ? _n : 0,
+            cost: (_o = response.usage) == null ? void 0 : _o.cost,
             promptTokensDetails: {
-              cachedTokens: (_q = (_p = (_o = response.usage) == null ? void 0 : _o.prompt_tokens_details) == null ? void 0 : _p.cached_tokens) != null ? _q : 0
+              cachedTokens: (_r = (_q = (_p = response.usage) == null ? void 0 : _p.prompt_tokens_details) == null ? void 0 : _q.cached_tokens) != null ? _r : 0
             },
             completionTokensDetails: {
-              reasoningTokens: (_t = (_s = (_r = response.usage) == null ? void 0 : _r.completion_tokens_details) == null ? void 0 : _s.reasoning_tokens) != null ? _t : 0
+              reasoningTokens: (_u = (_t = (_s = response.usage) == null ? void 0 : _s.completion_tokens_details) == null ? void 0 : _t.reasoning_tokens) != null ? _u : 0
             },
             costDetails: {
-              upstreamInferenceCost: (_w = (_v = (_u = response.usage) == null ? void 0 : _u.cost_details) == null ? void 0 : _v.upstream_inference_cost) != null ? _w : 0
+              upstreamInferenceCost: (_x = (_w = (_v = response.usage) == null ? void 0 : _v.cost_details) == null ? void 0 : _w.upstream_inference_cost) != null ? _x : 0
             }
           }
         }
@@ -174585,6 +174640,7 @@ var OpenRouterChatLanguageModel = class {
     let textId;
     let reasoningId;
     let openrouterResponseId;
+    let provider;
     return {
       stream: response.pipeThrough(
         new TransformStream({
@@ -174600,6 +174656,9 @@ var OpenRouterChatLanguageModel = class {
               finishReason = "error";
               controller.enqueue({ type: "error", error: value.error });
               return;
+            }
+            if (value.provider) {
+              provider = value.provider;
             }
             if (value.id) {
               openrouterResponseId = value.id;
@@ -174683,10 +174742,17 @@ var OpenRouterChatLanguageModel = class {
                   }
                 }
               }
-            } else if (delta.reasoning != null) {
+            } else if (delta.reasoning) {
               emitReasoningChunk(delta.reasoning);
             }
-            if (delta.content != null) {
+            if (delta.content) {
+              if (reasoningStarted && !textStarted) {
+                controller.enqueue({
+                  type: "reasoning-end",
+                  id: reasoningId || generateId()
+                });
+                reasoningStarted = false;
+              }
               if (!textStarted) {
                 textId = openrouterResponseId || generateId();
                 controller.enqueue({
@@ -174700,6 +174766,24 @@ var OpenRouterChatLanguageModel = class {
                 delta: delta.content,
                 id: textId || generateId()
               });
+            }
+            if (delta.annotations) {
+              for (const annotation of delta.annotations) {
+                if (annotation.type === "url_citation") {
+                  controller.enqueue({
+                    type: "source",
+                    sourceType: "url",
+                    id: annotation.url_citation.url,
+                    url: annotation.url_citation.url,
+                    title: annotation.url_citation.title,
+                    providerMetadata: {
+                      openrouter: {
+                        content: annotation.url_citation.content || ""
+                      }
+                    }
+                  });
+                }
+              }
             }
             if (delta.tool_calls != null) {
               for (const toolCallDelta of delta.tool_calls) {
@@ -174811,26 +174895,30 @@ var OpenRouterChatLanguageModel = class {
                 }
               }
             }
-            if (textStarted) {
-              controller.enqueue({
-                type: "text-end",
-                id: textId || generateId()
-              });
-            }
             if (reasoningStarted) {
               controller.enqueue({
                 type: "reasoning-end",
                 id: reasoningId || generateId()
               });
             }
+            if (textStarted) {
+              controller.enqueue({
+                type: "text-end",
+                id: textId || generateId()
+              });
+            }
+            const openrouterMetadata = {
+              usage: openrouterUsage
+            };
+            if (provider !== void 0) {
+              openrouterMetadata.provider = provider;
+            }
             controller.enqueue({
               type: "finish",
               finishReason,
               usage,
               providerMetadata: {
-                openrouter: {
-                  usage: openrouterUsage
-                }
+                openrouter: openrouterMetadata
               }
             });
           }
@@ -175256,7 +175344,7 @@ createOpenRouter({
  */
 class OpenRouterProvider {
     name = 'openrouter';
-    defaultModel = 'meta-llama/llama-3.1-8b-instruct:free';
+    defaultModel = 'openai/gpt-4o';
     description = 'OpenRouter models';
     async createModel(modelId, options = {}) {
         try {
@@ -176914,12 +177002,22 @@ Generate improved Conventional Commits titles for this PR.`;
                     coreExports.debug(`OpenAI API Key present: ${process.env.OPENAI_API_KEY ? 'Yes' : 'No'}`);
                     coreExports.debug(`OpenAI Base URL: ${process.env.OPENAI_BASE_URL || 'Not set'}`);
                 }
-                result = await generateText({
-                    model,
-                    system: systemPrompt,
-                    prompt: userPrompt,
-                    temperature: 0.3
-                });
+                coreExports.debug(`Calling generateText with model: ${model.constructor.name}`);
+                coreExports.debug(`System prompt length: ${systemPrompt.length} characters`);
+                coreExports.debug(`User prompt length: ${userPrompt.length} characters`);
+                try {
+                    result = await generateText({
+                        model,
+                        system: systemPrompt,
+                        prompt: userPrompt,
+                        temperature: 0.3
+                    });
+                    coreExports.debug(`generateText call completed successfully`);
+                }
+                catch (generateError) {
+                    coreExports.debug(`generateText call failed: ${generateError instanceof Error ? generateError.message : String(generateError)}`);
+                    throw generateError;
+                }
                 coreExports.debug(`Raw AI response: ${result.text}`);
                 coreExports.debug(`Response object keys: ${Object.keys(result)}`);
                 if (!result || !result.text) {
