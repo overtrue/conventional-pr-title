@@ -249,6 +249,29 @@ The action supports all providers and models available in AI SDK v5, including:
     custom-prompt: 'Generate a conventional commit title that emphasizes the business impact of this change.'
 ```
 
+### Custom Comment Template
+
+```yaml
+- uses: overtrue/conventional-pr-title@v1
+  with:
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+    model: 'openai/gpt-4o-mini'
+    comment-template: |
+      ## 🤖 AI-Powered PR Title Suggestions
+
+      ### Current Title
+      `${currentTitle}`
+
+      ### Suggested Titles
+      ${suggestions}
+
+      ### AI Reasoning
+      ${reasoning}
+
+      ---
+      *Powered by [conventional-pr-title](https://github.com/overtrue/conventional-pr-title) action*
+```
+
 ### Language Matching
 
 When `match-language` is enabled, the AI will detect the language of the original PR title and generate the description part in the same language:

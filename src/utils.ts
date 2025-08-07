@@ -1,4 +1,4 @@
-import { ConventionalCommit, ValidationOptions, ValidationResult } from './types'
+import { ConventionalCommit, ValidationOptions, ValidationResult } from './types.js'
 
 // =============================================================================
 // AI-related utility functions
